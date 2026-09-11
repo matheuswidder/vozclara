@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>VozClara · chaves</title>
+    <link rel="stylesheet" href="chrome.css" />
+  </head>
+  <body class="options">
+    <main>
+      <header>
+        <div class="mark" aria-hidden="true"></div>
+        <div>
+          <h1>VozClara</h1>
+          <p>Whisper neste Chrome com um clique, ou nuvem com a sua chave. O áudio local nunca sai da máquina.</p>
+        </div>
+      </header>
+
+      <label>
+        Provedor
+        <select id="provider">
+          <option value="local">Whisper neste Chrome — offline</option>
+          <option value="openai">OpenAI — gpt-4o-mini-transcribe / Whisper</option>
+          <option value="gemini">Google Gemini — 2.5 Flash</option>
+          <option value="groq">Groq — whisper-large-v3 na nuvem</option>
+          <option value="xai">xAI — Speech to text</option>
+        </select>
+      </label>
+
+      <div id="cloud-fields">
+        <label>
+          Chave de API
+          <input id="apiKey" type="password" spellcheck="false" autocomplete="off" />
+        </label>
+      </div>
+
+      <div id="local-fields" hidden>
+        <label>
+          Modelo
+          <select id="model">
+            <option value="turbo">v3 turbo — Whisper, neste Chrome (~560 MB)</option>
+            <option value="v3">v3 — Whisper, neste Chrome (~1,5 GB)</option>
+            <option value="light">small — Whisper leve (~120 MB)</option>
+            <option value="tiny">tiny — Whisper OpenAI (~40 MB)</option>
+            <option value="nemotron">Nemotron 3.5 ASR 0.6B — NVIDIA (instalador Windows)</option>
+            <option value="custom">Outro Whisper (colar link do Hugging Face)</option>
+          </select>
+        </label>
+        <div id="custom-fields" hidden>
+          <label>
+            Link do modelo
+            <input id="hf-repo" type="text" spellcheck="false" autocomplete="off" placeholder="https://huggingface.co/openai/whisper-tiny" />
+          </label>
+          <p class="hint">Só Whisper ONNX neste Chrome. Nemotron instala um programa no Windows — a extensão baixa o VozClara-Motor-Setup.exe.</p>
+        </div>
+        <div class="meter" id="meter" hidden><span id="bar"></span></div>
+        <p id="local-status" class="status"></p>
+        <p id="local-path" class="hint" hidden></p>
+        <div class="actions">
+          <button id="download" type="button">Baixar</button>
+          <button id="reveal" type="button" class="ghost">Pasta</button>
+          <button id="apply" type="button" class="ghost">Aplicar</button>
+        </div>
+      </div>
+
+      <label>
+        Idioma do áudio
+        <select id="language">
+          <option value="pt">Português</option>
+          <option value="en">English</option>
+          <option value="es">Español</option>
+          <option value="auto">Detectar automaticamente</option>
+        </select>
+      </label>
+
+      <p id="status" class="status"></p>
+      <p class="hint" id="reload-hint" hidden>Recarregue o WhatsApp (F5) para aplicar.</p>
+
+      <section>
+        <h2>Como usar</h2>
+        <ol>
+          <li>Escolha o modelo e clique em Baixar.</li>
+          <li>Abra o WhatsApp Web neste navegador.</li>
+          <li>Em cada áudio aparece o cartão Transcrever.</li>
+        </ol>
+      </section>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>

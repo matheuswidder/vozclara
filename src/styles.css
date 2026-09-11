@@ -1,0 +1,145 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #0c1210;
+  --color-surface: #141c18;
+  --color-surface-2: #1c2621;
+  --color-fg: #e8eee9;
+  --color-fg-muted: #8f9d95;
+  --color-fg-subtle: #6b7a72;
+  --color-accent: #5dcaa0;
+  --color-accent-fg: #062016;
+  --color-border: #2a3832;
+  --color-border-strong: #3d5248;
+  --color-danger: #c45c5c;
+  --color-ring: #5dcaa0;
+
+  --color-wa-bg: #0b141a;
+  --color-wa-panel: #111b21;
+  --color-wa-header: #202c33;
+  --color-wa-in: #1f2c34;
+  --color-wa-out: #005c4b;
+  --color-wa-text: #e9edef;
+  --color-wa-meta: #8696a0;
+  --color-wa-green: #00a884;
+  --color-wa-input: #2a3942;
+  --color-wa-tick: #53bdeb;
+  --color-ctx: #2a2e2c;
+  --color-ctx-hover: #3a423e;
+
+  --font-sans: "Figtree", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Newsreader", ui-serif, Georgia, serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-2xl: 32px;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.5rem;
+  --text-2xl: 2rem;
+  --text-3xl: clamp(2.25rem, 1.4rem + 3vw, 3.5rem);
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background: var(--color-bg);
+    color: var(--color-fg);
+  }
+
+  body {
+    min-height: 100dvh;
+    font-family: var(--font-sans);
+    background: var(--color-bg);
+    color: var(--color-fg);
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+}
+
+@keyframes vozclara-bars {
+  0%,
+  100% {
+    transform: scaleY(0.45);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+@keyframes vozclara-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: 0 0;
+  }
+}
+
+@keyframes vozclara-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.vozclara-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--color-fg-subtle) 0%,
+    var(--color-fg) 40%,
+    var(--color-fg-subtle) 80%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: vozclara-shimmer 1.4s linear infinite;
+}
+
+.wa-doodle {
+  background-color: var(--color-wa-bg);
+  background-image: radial-gradient(
+      circle at 18% 22%,
+      color-mix(in oklab, var(--color-wa-green) 7%, transparent) 0 1px,
+      transparent 1.5px
+    ),
+    radial-gradient(
+      circle at 72% 64%,
+      color-mix(in oklab, var(--color-wa-text) 5%, transparent) 0 1px,
+      transparent 1.5px
+    );
+  background-size: 28px 28px, 36px 36px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vozclara-shimmer,
+  .vozclara-bar {
+    animation: none !important;
+  }
+}
