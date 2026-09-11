@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>VozClara Motor</title>
+    <style>
+      :root {
+        --bg: #0b141a;
+        --card: #111b21;
+        --line: #233138;
+        --fg: #e9edef;
+        --muted: #8696a0;
+        --accent: #00a884;
+        --accent-ink: #062016;
+        --warn: #f5c2c2;
+      }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; margin: 0; }
+      body {
+        font-family: "Segoe UI", system-ui, sans-serif;
+        background:
+          radial-gradient(1200px 500px at 50% -10%, #12352c 0%, transparent 55%),
+          var(--bg);
+        color: var(--fg);
+        display: grid;
+        place-items: center;
+        padding: 24px;
+      }
+      .card {
+        width: min(440px, 100%);
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 28px 28px 24px;
+        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+      }
+      .mark {
+        width: 36px;
+        height: 36px;
+        border-radius: 10px;
+        background: var(--accent);
+        display: grid;
+        place-items: center;
+      }
+      .mark i {
+        width: 14px;
+        height: 14px;
+        border: 2.5px solid var(--accent-ink);
+        border-radius: 50%;
+        border-right-color: transparent;
+      }
+      h1 {
+        margin: 16px 0 6px;
+        font-size: 22px;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+      }
+      .lead {
+        margin: 0 0 22px;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.5;
+      }
+      button {
+        appearance: none;
+        width: 100%;
+        border: 0;
+        border-radius: 10px;
+        padding: 12px 16px;
+        background: var(--accent);
+        color: var(--accent-ink);
+        font: 600 15px/1 "Segoe UI", sans-serif;
+        cursor: pointer;
+      }
+      button:hover { filter: brightness(1.06); }
+      button:disabled { opacity: 0.55; cursor: default; filter: none; }
+      .steps { list-style: none; margin: 0 0 18px; padding: 0; }
+      .steps li {
+        display: grid;
+        grid-template-columns: 22px 1fr;
+        gap: 10px;
+        align-items: start;
+        padding: 8px 0;
+        color: var(--muted);
+        font-size: 13.5px;
+      }
+      .steps li.on { color: var(--fg); }
+      .steps li.ok { color: var(--accent); }
+      .dot {
+        width: 10px;
+        height: 10px;
+        margin-top: 4px;
+        border-radius: 50%;
+        border: 2px solid var(--line);
+      }
+      .on .dot { border-color: var(--accent); background: var(--accent); }
+      .ok .dot { border-color: var(--accent); background: var(--accent); }
+      .log {
+        margin: 0 0 16px;
+        max-height: 140px;
+        overflow: auto;
+        padding: 10px 12px;
+        border-radius: 8px;
+        background: #0b141a;
+        color: var(--muted);
+        font: 12px/1.45 ui-monospace, Consolas, monospace;
+        white-space: pre-wrap;
+        display: none;
+      }
+      .err { color: var(--warn); font-size: 13.5px; line-height: 1.45; margin: 0 0 14px; }
+      .fine { color: var(--accent); font-size: 13.5px; margin: 0 0 14px; }
+      .note { margin: 14px 0 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <div class="mark" aria-hidden="true"><i></i></div>
+      <h1>VozClara Motor</h1>
+      <p class="lead" id="lead">
+        Instala o Nemotron neste computador e deixa o motor ao lado do
+        relógio, em segundo plano. O Chrome só conversa com ele.
+      </p>
+      <ol class="steps" id="steps">
+        <li data-k="copy"><span class="dot"></span> Copiar os arquivos</li>
+        <li data-k="python"><span class="dot"></span> Encontrar o Python</li>
+        <li data-k="libs"><span class="dot"></span> Instalar as bibliotecas</li>
+        <li data-k="shortcut"><span class="dot"></span> Criar o atalho</li>
+        <li data-k="start"><span class="dot"></span> Ligar na bandeja do Windows</li>
+      </ol>
+      <pre class="log" id="log"></pre>
+      <p class="err" id="err" hidden></p>
+      <p class="fine" id="fine" hidden></p>
+      <button type="button" id="go">Instalar</button>
+      <p class="note">
+        Se o Windows mostrar um aviso azul, clique em Mais informações e
+        Executar assim mesmo. Só nesta primeira vez.
+      </p>
+    </main>
+    <script>
+      const $ = (id) => document.getElementById(id);
+      const go = $("go");
+      const logEl = $("log");
+      const err = $("err");
+      const fine = $("fine");
+      const lead = $("lead");
+      function setStep(k, cls) {
+        document.querySelectorAll(".steps li").forEach((li) => {
+          if (li.dataset.k === k) li.className = cls;
+        });
+      }
+      function line(t) {
+        logEl.style.display = "block";
+        logEl.textContent += t + "\n";
+        logEl.scrollTop = logEl.scrollHeight;
+      }
+      go.addEventListener("click", async () => {
+        go.disabled = true;
+        go.textContent = "Instalando…";
+        err.hidden = true;
+        fine.hidden = true;
+        try {
+          const res = await fetch("/api/install", { method: "POST" });
+          if (!res.ok || !res.body) throw new Error("O instalador não respondeu.");
+          const reader = res.body.getReader();
+          const dec = new TextDecoder();
+          let buf = "";
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            buf += dec.decode(value, { stream: true });
+            const parts = buf.split("\n\n");
+            buf = parts.pop() || "";
+            for (const block of parts) {
+              const ev = (block.match(/^event: (.*)$/m) || [])[1];
+              const data = (block.match(/^data: (.*)$/m) || [])[1] || "";
+              if (ev === "step") setStep(data, "on");
+              if (ev === "ok") setStep(data, "ok");
+              if (ev === "log") line(data);
+              if (ev === "done") {
+                document.querySelectorAll(".steps li").forEach((li) => (li.className = "ok"));
+                lead.textContent = "Motor instalado. Deixe a janela do VozClara Motor aberta e volte no WhatsApp.";
+                fine.hidden = false;
+                fine.textContent = "Pronto. Pode fechar esta página.";
+                go.textContent = "Concluído";
+              }
+              if (ev === "error") throw new Error(data);
+            }
+          }
+        } catch (e) {
+          err.hidden = false;
+          err.textContent = e.message || String(e);
+          go.disabled = false;
+          go.textContent = "Tentar de novo";
+        }
+      });
+    </script>
+  </body>
+</html>

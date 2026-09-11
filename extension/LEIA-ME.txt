@@ -1,0 +1,45 @@
+VozClara — como instalar
+========================
+
+O Chrome NÃO deixa gravar o Whisper na pasta da extensão.
+O modelo mora no armazenamento privado deste Brave/Chrome.
+O botão Abrir no Explorer copia para Downloads/VozClara e
+abre a pasta. Toda vez que a extensão abre (e antes de
+transcrever), ela confere se os arquivos ainda estão lá.
+
+1. Extraia este zip. Não aponte o Chrome para o arquivo .zip.
+
+2. Confira: nesta pasta tem que aparecer o arquivo manifest.json
+   (junto com background.js e a pasta icons).
+
+3. No Chrome / Brave / Edge:
+   - abra a página de Extensões
+   - ative o modo do desenvolvedor
+   - Carregar sem compactação
+   - escolha ESTA pasta (a que contém o manifest.json)
+
+4. Abra o ícone da VozClara → Baixar Whisper.
+   Abre uma aba com a barra de progresso — o ícone pode
+   fechar, o download continua. Deixe a aba aberta até Pronto.
+   Na primeira vez baixa o large-v3-turbo (~560 MB).
+
+   No Brave: se o download parar em 0%, libere huggingface.co
+   nos Escudos para esta extensão.
+
+   Se o PC for apertado: Versão leve (~120 MB).
+
+5. Pronto · large-v3-turbo = modelo neste Brave.
+   Abrir no Explorer = cópia em Downloads/VozClara.
+
+6. Abra web.whatsapp.com e clique em Transcrever no áudio.
+   Antes de processar, a extensão confere o modelo. Se sumiu,
+   baixa de novo sozinha.
+
+Erro "manifesto faltando"
+-------------------------
+Você escolheu a pasta de cima. Entre até ver o manifest.json.
+
+Pasta vozclara-local
+--------------------
+Opcional. Só para quem quer o motor nativo (Python) no lugar
+do Whisper deste Chrome. A maioria das pessoas ignora.

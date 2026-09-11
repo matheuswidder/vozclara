@@ -1,0 +1,38 @@
+{
+  "url": "http://127.0.0.1:8081/",
+  "viewports": {
+    "desktop": {
+      "width": 1280,
+      "height": 800,
+      "status": 200,
+      "title": "VozClara",
+      "hasCanvas": false,
+      "bodyTextLen": 2987,
+      "bodyTextHash": "38c6866ef78973cee902feacd2e6375d4be0a8fbba77eeff0655ec3c0fd7e4be",
+      "bodyTextPrefix": "VozClara Demo Instalar Whisper Nuvem CHROME, BRAVE E EDGE Áudio ",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-built.png"
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "status": 200,
+      "title": "VozClara",
+      "hasCanvas": false,
+      "bodyTextLen": 2895,
+      "bodyTextHash": "7824d631a2b357ec41c8e9bc9e375fa8958e369618ccfbb87f8a0454dc002460",
+      "bodyTextPrefix": "VozClara Demo Instalar Whisper Nuvem CHROME, BRAVE E EDGE Áudio ",
+      "horizontalOverflow": true,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-built-mobile.png"
+    }
+  },
+  "brandWarnings": [],
+  "authWarnings": [],
+  "verdictFile": "/workspace/screenshots/app-builder-built.json",
+  "divergesFromBaseline": false,
+  "baselineReasons": []
+}

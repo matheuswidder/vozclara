@@ -1,0 +1,12 @@
+VozClara Motor (Nemotron) — Windows
+
+O motor fica em segundo plano, no ícone ao lado do relógio (bandeja).
+Não precisa deixar uma janela preta aberta.
+
+1. Dê dois cliques em VozClara-Motor-Setup.exe e clique Instalar
+2. Se o Windows avisar: Mais informações → Executar assim mesmo
+3. O ícone da VozClara aparece na bandeja
+4. Se o WhatsApp pedir para ligar o motor, clique em Ligar motor
+
+O atalho na área de trabalho e o início do Windows também ligam a bandeja.
+O áudio não sai deste computador.
