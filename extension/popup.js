@@ -7,6 +7,7 @@ const parseHfRepo = (r) => globalThis.VCShared.parseHfRepo(r);
 const $ = (id) => document.getElementById(id);
 
 let lastPreferred = "turbo";
+let motorPoll = null;
 
 function metaOf(kind) {
   return globalThis.VCShared.modelMeta(kind);
@@ -17,6 +18,18 @@ function flashEl(el) {
   el.classList.remove("flash");
   void el.offsetWidth;
   el.classList.add("flash");
+}
+
+function watchMotor(state) {
+  const selected = normalizeKind($("model")?.value);
+  const busy =
+    selected === "nemotron" && Boolean(state?.motorAlive) && !state?.motorUp;
+  if (busy && !motorPoll) {
+    motorPoll = setInterval(() => void queryLocal(), 1500);
+  } else if (!busy && motorPoll) {
+    clearInterval(motorPoll);
+    motorPoll = null;
+  }
 }
 
 function isLocal() {
@@ -85,8 +98,42 @@ function renderLocal(state) {
   const label = globalThis.VCShared.stateLabel(state);
   const selected = normalizeKind($("model")?.value);
   const action = globalThis.VCShared.primaryAction(state, selected);
+  const motorPanel = $("motor-panel");
+  const isNemo = selected === "nemotron";
+  if (motorPanel) motorPanel.hidden = !isNemo;
 
-  if (localStatus) {
+  if (isNemo) {
+    const view = globalThis.VCShared.motorView(state);
+    const motorText = $("motor-text");
+    const modelText = $("model-text");
+    const motorDot = $("motor-dot");
+    const modelDot = $("model-dot");
+    const motorMeter = $("motor-meter");
+    const motorBar = $("motor-bar");
+    if (motorText) motorText.textContent = view.motor.text;
+    if (modelText) modelText.textContent = view.model.text;
+    if (motorDot) motorDot.className = `dot ${view.motor.kind || "off"}`;
+    if (modelDot) modelDot.className = `dot ${view.model.kind || "off"}`;
+    if (motorMeter && motorBar) {
+      const show =
+        Boolean(state?.motorAlive) &&
+        !state?.motorUp &&
+        (view.model.percent > 0 || view.model.indeterminate);
+      motorMeter.hidden = !show;
+      motorMeter.classList.toggle("indeterminate", Boolean(view.model.indeterminate));
+      motorBar.style.width = `${Math.max(0, Math.min(100, view.model.percent || 8))}%`;
+    }
+    if (localStatus) {
+      localStatus.textContent = error || view.model.text;
+      localStatus.dataset.kind = error
+        ? "warn"
+        : state?.motorUp
+          ? "ok"
+          : "warn";
+    }
+    if (meter) meter.hidden = true;
+    if (pathEl) pathEl.hidden = true;
+  } else if (localStatus) {
     localStatus.textContent = error || label;
     localStatus.dataset.kind = error
       ? "warn"
@@ -98,7 +145,7 @@ function renderLocal(state) {
     flashEl(localStatus);
   }
 
-  if (pathEl) {
+  if (!isNemo && pathEl) {
     if (ready && action.id === "ready" && !error) {
       pathEl.hidden = false;
       pathEl.textContent = state.folder
@@ -110,7 +157,8 @@ function renderLocal(state) {
   }
 
   if (meter && bar) {
-    const showBar = downloading || (percent > 0 && percent < 100 && !ready);
+    const showBar =
+      !isNemo && (downloading || (percent > 0 && percent < 100 && !ready));
     meter.hidden = !showBar;
     bar.style.width = `${Math.max(0, Math.min(100, percent))}%`;
   }
@@ -120,13 +168,14 @@ function renderLocal(state) {
   download.textContent = action.label;
 
   if (reveal) {
-    reveal.hidden = action.id !== "ready";
+    reveal.hidden = isNemo || action.id !== "ready";
     reveal.disabled = downloading || action.id !== "ready";
   }
 
-  if (action.id === "ready") {
+  if (action.id === "ready" && !isNemo) {
     chrome.storage.local.set({ preferredKind: selected }).catch(() => {});
   }
+  watchMotor(state);
 }
 
 async function queryLocal() {

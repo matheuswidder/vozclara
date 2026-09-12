@@ -29,6 +29,9 @@ STATE = {
     "error": "",
     "engine": "faster-whisper",
     "whisper": None,
+    "phase": "idle",
+    "percent": 0,
+    "detail": "",
 }
 
 
@@ -118,6 +121,51 @@ MISSING_LIB = re.compile(
 PACKAGED = os.environ.get("VOZCLARA_PACKAGED") == "1"
 
 
+def set_phase(phase: str, percent: int | None = None, detail: str = "") -> None:
+    STATE["phase"] = phase
+    if percent is not None:
+        STATE["percent"] = max(0, min(100, int(percent)))
+    if detail:
+        STATE["detail"] = detail
+
+
+def patch_hf_progress() -> None:
+    """Espelha o tqdm da Hugging Face em STATE.percent / STATE.detail."""
+    try:
+        from tqdm.auto import tqdm as BaseTqdm
+    except Exception:
+        return
+
+    class HubTqdm(BaseTqdm):
+        def update(self, n=1):
+            out = super().update(n)
+            try:
+                total = int(self.total or 0)
+                now = int(self.n or 0)
+                desc = str(getattr(self, "desc", None) or "arquivo").strip()
+                if total > 0:
+                    pct = max(1, min(99, int(now * 100 / total)))
+                    set_phase("download", pct, f"Baixando {desc} · {pct}%")
+                else:
+                    set_phase("download", STATE.get("percent") or 8, f"Baixando {desc}…")
+            except Exception:
+                pass
+            return out
+
+    try:
+        import huggingface_hub.utils.tqdm as hub_tqdm
+
+        hub_tqdm.tqdm = HubTqdm
+    except Exception:
+        pass
+    try:
+        import tqdm as tqdm_mod
+
+        tqdm_mod.tqdm = HubTqdm
+    except Exception:
+        pass
+
+
 def pip_install(*packages: str) -> None:
     pkgs = [p for p in packages if p]
     if not pkgs:
@@ -127,6 +175,7 @@ def pip_install(*packages: str) -> None:
             "Faltam bibliotecas Python. Rode Instalar-Motor.bat (Windows) "
             "ou Instalar-Motor.command (macOS/Linux) para instalá-las."
         )
+    set_phase("deps", 6, "Instalando " + ", ".join(pkgs) + "…")
     log("Instalando " + ", ".join(pkgs) + "…")
     subprocess.check_call(
         [sys.executable, "-m", "pip", "install", "--user", *pkgs]
@@ -161,13 +210,17 @@ def ensure_transformers() -> None:
 
 
 def load_nemotron() -> None:
+    set_phase("deps", 4, "Preparando bibliotecas do Nemotron…")
     try:
         ensure_nemotron_deps()
     except Exception as exc:
         STATE["error"] = str(exc)
         STATE["ready"] = False
+        set_phase("error", 0, str(exc))
         log(f"Falha ao preparar o Nemotron: {exc}")
         return
+    patch_hf_progress()
+    set_phase("download", 8, "Baixando o Nemotron da Hugging Face…")
     last = ""
     for attempt in range(4):
         try:
@@ -177,6 +230,7 @@ def load_nemotron() -> None:
             device = 0 if torch.cuda.is_available() else -1
             log("Carregando nvidia/nemotron-3.5-asr-streaming-0.6b…")
             log("Na primeira vez o modelo é baixado da Hugging Face. É grande.")
+            set_phase("download", max(STATE.get("percent") or 8, 10), "Baixando o Nemotron da Hugging Face…")
             STATE["pipe"] = pipeline(
                 "automatic-speech-recognition",
                 model="nvidia/nemotron-3.5-asr-streaming-0.6b",
@@ -187,6 +241,7 @@ def load_nemotron() -> None:
             STATE["error"] = ""
             STATE["engine"] = "nemotron"
             STATE["model_id"] = "nemotron-3.5-asr-streaming-0.6b"
+            set_phase("ready", 100, "Modelo pronto")
             log(f"Pronto. Motor Nemotron em http://{HOST}:{PORT}")
             return
         except Exception as exc:
@@ -212,6 +267,7 @@ def load_nemotron() -> None:
             break
     STATE["error"] = last
     STATE["ready"] = False
+    set_phase("error", 0, last)
     log(f"Falha ao carregar o Nemotron: {last}")
 
 
@@ -229,18 +285,22 @@ def load_model(model_id: str) -> None:
     from faster_whisper import WhisperModel
 
     device, compute = pick_device()
+    patch_hf_progress()
     log(f"Carregando {model_id} em {device} ({compute})…")
     log("Na primeira vez o modelo é baixado da Hugging Face. Pode levar alguns minutos.")
+    set_phase("download", 10, f"Baixando {model_id}…")
     try:
         STATE["whisper"] = WhisperModel(
             model_id, device=device, compute_type=compute
         )
         STATE["ready"] = True
         STATE["error"] = ""
+        set_phase("ready", 100, "Modelo pronto")
         log(f"Pronto. Motor em http://{HOST}:{PORT}")
     except Exception as exc:
         STATE["error"] = str(exc)
         STATE["ready"] = False
+        set_phase("error", 0, str(exc))
         log(f"Falha ao carregar o modelo: {exc}")
 
 
@@ -355,6 +415,10 @@ class Handler(BaseHTTPRequestHandler):
                     "engine": STATE["engine"],
                     "paired": True,
                     "error": STATE["error"] or None,
+                    "phase": STATE.get("phase") or ("ready" if STATE["ready"] else "load"),
+                    "percent": int(STATE.get("percent") or (100 if STATE["ready"] else 0)),
+                    "detail": STATE.get("detail") or "",
+                    "alive": True,
                 },
             )
             return

@@ -759,7 +759,18 @@ async function verifyModel(opts = {}) {
     }
     const loadingLabel = probe?.error
       ? `Motor ligado, mas o modelo falhou: ${probe.error}`
-      : "Motor na bandeja. Ainda carregando o Nemotron…";
+      : probe?.detail ||
+        (probe?.phase === "download"
+          ? `Baixando o modelo… ${probe.percent || 0}%`
+          : probe?.phase === "deps"
+            ? "Instalando bibliotecas no PC…"
+            : "Carregando o modelo na memória…");
+    const percent =
+      up
+        ? 100
+        : Number(probe?.percent) > 0
+          ? Number(probe.percent)
+          : 0;
     return {
       ok: true,
       checked: true,
@@ -767,8 +778,10 @@ async function verifyModel(opts = {}) {
       motorUp: up,
       motorAlive: alive,
       motorInstalled: Boolean(extra.motorInstalled) || alive || up,
-      downloading: alive && !up,
-      percent: up ? 100 : alive ? 45 : 0,
+      downloading: false,
+      phase: probe?.phase || (up ? "ready" : alive ? "load" : ""),
+      percent,
+      detail: probe?.detail || "",
       model: probe?.model || stored.model || "nemotron-3.5-asr",
       kind: "nemotron",
       label: up
@@ -776,9 +789,9 @@ async function verifyModel(opts = {}) {
         : alive
           ? loadingLabel
           : extra.motorInstalled
-            ? "Não alcanço o motor. Clique em Ligar motor — o ícone da bandeja sozinho não basta."
+            ? "Não alcanço o motor. Clique em Ligar o motor."
             : "Instale o motor Windows. Ele fica em segundo plano, na bandeja.",
-      error: up ? "" : alive ? "" : extra.motorInstalled ? "Não alcanço o motor em 127.0.0.1:8173." : "",
+      error: up ? "" : alive ? probe?.error || "" : extra.motorInstalled ? "Não alcanço o motor neste PC." : "",
     };
   }
   const disk = await scanModelCache(kind, stored.customRepo || stored.customModelRepo);
@@ -1247,6 +1260,9 @@ async function probeLocal(url) {
           model: json?.model,
           engine: json?.engine,
           error: json?.error || "",
+          phase: json?.phase || (json?.ready ? "ready" : "load"),
+          percent: Number(json?.percent) || (json?.ready ? 100 : 0),
+          detail: json?.detail || "",
         };
       }
       last = {
