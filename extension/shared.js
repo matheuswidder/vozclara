@@ -120,7 +120,10 @@
       model = { kind: "ok", text: "Pronto para transcrever", percent: 100, indeterminate: false };
     } else if (error && alive) {
       model = { kind: "warn", text: error, percent: 0, indeterminate: false };
-    } else if (alive && (phase === "download" || (percent > 0 && percent < 100 && phase !== "load" && phase !== "deps"))) {
+    } else if (
+      alive &&
+      (phase === "download" || (percent > 0 && percent < 100 && phase !== "load" && phase !== "deps"))
+    ) {
       model = {
         kind: "warn",
         text: detail || `Baixando o modelo… ${percent}%`,
@@ -143,6 +146,47 @@
       };
     }
     return { motor, model };
+  }
+
+  function collapseRepeats(text) {
+    let s = String(text || "").replace(/\s+/g, " ").trim();
+    if (s.length < 40) return s;
+    const words = s.split(" ");
+    for (let len = 16; len >= 2; len--) {
+      const out = [];
+      let i = 0;
+      while (i < words.length) {
+        if (i + len * 3 <= words.length) {
+          const chunk = words.slice(i, i + len);
+          const key = chunk.join(" ").toLowerCase();
+          let reps = 1;
+          while (
+            i + len * (reps + 1) <= words.length &&
+            words
+              .slice(i + len * reps, i + len * (reps + 1))
+              .join(" ")
+              .toLowerCase() === key
+          ) {
+            reps += 1;
+          }
+          if (reps >= 3) {
+            out.push(...chunk);
+            i += len * reps;
+            continue;
+          }
+        }
+        out.push(words[i]);
+        i += 1;
+      }
+      words.splice(0, words.length, ...out);
+    }
+    return words.join(" ").replace(/\s+,/g, ",").replace(/,\s*,+/g, ",").trim();
+  }
+
+  function isRepeatLoop(original, cleaned) {
+    const raw = String(original || "");
+    const out = String(cleaned || "");
+    return raw.length > 80 && out.length * 2.5 < raw.length;
   }
 
   async function setQualityFallback(label) {
@@ -179,6 +223,8 @@
     downloadLabel,
     primaryAction,
     motorView,
+    collapseRepeats,
+    isRepeatLoop,
     setQualityFallback,
     takeQualityFallback,
   };
