@@ -21,6 +21,8 @@ const MODELS = {
   },
 };
 
+// SYNC: shared.js — cópia quente; o teste extension/tests/shared-sync.test.mjs
+// falha se divergir.
 function normalizeKind(kind) {
   const k = String(kind || "").toLowerCase();
   if (k === "v3" || k === "precise" || k === "large" || k === "large-v3") return "v3";
@@ -96,6 +98,16 @@ function emit(partial) {
   }
 }
 
+function persistLocalModelDevice(device) {
+  if (!device) return;
+  try {
+    const p = chrome.storage?.local?.set({ localModelDevice: device });
+    p?.catch?.(() => {});
+  } catch {
+    /* o service worker grava via persistProgress */
+  }
+}
+
 function onHfProgress(data) {
   if (!data || typeof data !== "object") return;
   if (data.status === "progress" && data.file) {
@@ -158,8 +170,28 @@ async function loadHf() {
   return hf;
 }
 
+/** @type {null | boolean} */
+let webgpuCache = null;
+
 async function hasWebGPU() {
-  return false;
+  if (webgpuCache !== null) return webgpuCache;
+  try {
+    if (!self.navigator?.gpu) {
+      webgpuCache = false;
+      return false;
+    }
+    const adapter = await self.navigator.gpu.requestAdapter();
+    if (!adapter) {
+      webgpuCache = false;
+      return false;
+    }
+    // limite conservador: GPU integrada atende; offscreen herda o mesmo adapter
+    webgpuCache = (adapter.features?.size || 0) > 0;
+    return webgpuCache;
+  } catch {
+    webgpuCache = false;
+    return false;
+  }
 }
 
 function attempts(webgpu) {
@@ -224,6 +256,7 @@ async function loadKind(kind, repoOverride) {
         });
         const label = repo.split("/")[1] || spec.label;
         loaded = { pipe, kind: want, label, device: a.device, repo };
+        persistLocalModelDevice(a.device);
         emit({
           downloading: false,
           ready: true,
@@ -264,6 +297,7 @@ async function ensureModel(kind, repo) {
         return await loadKind(want, parsed);
       } catch (err) {
         if (want === "turbo") {
+          // Parte 7.2: fallback turbo→leve avisado durante E depois do download.
           emit({
             downloading: true,
             ready: false,
@@ -271,7 +305,28 @@ async function ensureModel(kind, repo) {
             label: "O modelo grande não coube. Baixando a versão leve…",
             error: "",
           });
-          return await loadKind("light");
+          const light = await loadKind("light");
+          try {
+            await chrome.storage.local.set({
+              lastQualityFallback: {
+                label: "O modelo grande não coube. Está em uso a versão leve (whisper-small).",
+                at: Date.now(),
+              },
+            });
+          } catch {
+            /* popup/dock também avisam via persistProgress */
+          }
+          emit({
+            downloading: false,
+            ready: true,
+            percent: 100,
+            warning: true,
+            label: `Pronto (versão leve) · ${light.label}`,
+            model: light.label,
+            device: light.device,
+            kind: light.kind,
+          });
+          return light;
         }
         throw err;
       }
@@ -635,9 +690,22 @@ async function toMono16k(bytes, mimeType) {
   );
 }
 
-async function transcribe({ audioBase64, audioBuffer, mimeType, language, kind, byteLength, repo }) {
+async function transcribe({ audioBase64, audioBuffer, mimeType, language, kind, byteLength, repo, requestId, key }) {
   const want = normalizeKind(kind || loaded?.kind);
   const model = await ensureModel(want, repo);
+  const reemit = (partial) => {
+    if (!requestId) return;
+    try {
+      port?.postMessage({
+        type: "VOZCLARA_STT_PROGRESS",
+        requestId,
+        key,
+        ...partial,
+      });
+    } catch {
+      /* o SW reencaminha; se falhar, o card mantém a fase atual */
+    }
+  };
   emit({
     downloading: false,
     ready: true,
@@ -647,8 +715,15 @@ async function transcribe({ audioBase64, audioBuffer, mimeType, language, kind, 
     device: model.device,
     kind: model.kind,
   });
+  // Parte 1.2: fase ① de decode antes de toMono16k.
+  reemit({ phase: "decode", label: "Lendo o áudio…" });
   const bytes = bytesFromMsg({ audioBase64, audioBuffer, byteLength });
   const audio = await toMono16k(bytes, mimeType);
+  const secs = audio.length / 16000;
+  const mm = Math.floor(secs / 60);
+  const ss = String(Math.round(secs % 60)).padStart(2, "0");
+  // Parte 1.2: fase ③ com duração real — nunca % fantasma de inferência.
+  reemit({ phase: "transcribe", label: "Transcrevendo…", detail: `áudio de ${mm}:${ss}` });
   const lang = !language || language === "auto" ? null : language;
   const result = await model.pipe(audio, {
     language: lang || undefined,

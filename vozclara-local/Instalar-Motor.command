@@ -23,7 +23,7 @@ if ! command -v python3 >/dev/null 2>&1; then
 fi
 echo " Instalando as bibliotecas (uma vez)…"
 python3 -m pip install --user --upgrade pip
-python3 -m pip install --user transformers torch torchaudio accelerate soundfile librosa scipy numpy soxr einops
+python3 -m pip install --user -r requirements.txt
 PLIST="$HOME/Library/LaunchAgents/com.vozclara.engine.plist"
 cat > "$PLIST" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>

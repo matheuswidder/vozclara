@@ -330,7 +330,6 @@
               </select>
             </label>
             <p class="status" id="save-status"></p>
-            <p class="hint" id="reload-hint" hidden>Recarregue o WhatsApp (F5) para aplicar.</p>
             <div class="test">
               <p>Testar</p>
               <p class="drop">Solte um áudio aqui ou escolha um arquivo. Não usa o WhatsApp — só para ver se o Whisper está ok.</p>
@@ -403,28 +402,10 @@
     if (custom) custom.hidden = $p("model")?.value !== "custom";
   }
 
-  function parseHfRepo(raw) {
-    let s = String(raw || "").trim();
-    if (!s) return "";
-    s = s.replace(/^https?:\/\/huggingface\.co\//i, "");
-    s = s.replace(/^hf:\/\//i, "");
-    s = s.split("?")[0].split("#")[0];
-    s = s.replace(/\/(tree|blob|resolve|discussions|commits)\/.*$/i, "");
-    s = s.replace(/\/+$/, "");
-    const parts = s.split("/").filter(Boolean);
-    if (parts.length < 2) return "";
-    return `${parts[0]}/${parts[1]}`;
-  }
-
-  function normalizeKind(kind) {
-    const k = String(kind || "").toLowerCase();
-    if (k === "v3" || k === "precise" || k === "large" || k === "large-v3") return "v3";
-    if (k === "light" || k === "small") return "light";
-    if (k === "tiny") return "tiny";
-    if (k === "nemotron") return "nemotron";
-    if (k === "custom") return "custom";
-    return "turbo";
-  }
+  // Parte 6: funções compartilhadas via shared.js (VCShared), carregado pelo
+  // manifest antes deste content script — sem import, Chrome 116 ok.
+  const normalizeKind = (k) => globalThis.VCShared.normalizeKind(k);
+  const parseHfRepo = (r) => globalThis.VCShared.parseHfRepo(r);
 
   async function save() {
     await chrome.storage.local.set({
@@ -445,11 +426,10 @@
     await save();
     const kind = normalizeKind($p("model")?.value);
     const stored = await chrome.storage.local.get(["localModelKind", "localModelReady", "customModelRepo"]);
-    const hint = $p("reload-hint");
-    if (hint) hint.hidden = false;
+    // Parte 7.1: sem mentira de F5 — provider é lido a cada transcrição.
     const s = $p("save-status");
     if (s) {
-      s.textContent = "Aplicado. Recarregue o WhatsApp (F5) para valer.";
+      s.textContent = "Aplicado — já vale na próxima transcrição.";
       s.className = "status ok";
     }
     const sameRepo =
@@ -485,6 +465,18 @@
     await refreshLocal();
   }
 
+  function showQualityFallback() {
+    const take = globalThis.VCShared?.takeQualityFallback;
+    if (!take) return Promise.resolve();
+    return take().then((entry) => {
+      if (!entry?.label) return;
+      const el = $p("local-status") || $p("save-status");
+      if (!el) return;
+      el.textContent = entry.label;
+      el.className = "status warn";
+    });
+  }
+
   function paintLocal(state) {
     const status = $p("local-status");
     const meter = $p("meter");
@@ -495,9 +487,7 @@
     const downloading = Boolean(state?.downloading);
     const percent = Number(state?.percent) || 0;
     const error = state?.error || "";
-    const label =
-      state?.label ||
-      (ready ? `Pronto · ${state.model || "Whisper"}` : "Ainda não baixou o Whisper.");
+    const label = globalThis.VCShared.stateLabel(state);
     if (status) {
       status.textContent = error || label;
       status.className = "status " + (error ? "warn" : ready ? "ok" : downloading ? "warn" : "");
@@ -536,6 +526,7 @@
       const state = await chrome.runtime.sendMessage({ type: "VOZCLARA_MODEL_VERIFY" });
       if (state && typeof state === "object") {
         paintLocal(state);
+        void showQualityFallback();
         return;
       }
     } catch {
@@ -556,6 +547,7 @@
       model: stored.localModelId,
       kind: stored.localModelKind,
     });
+    void showQualityFallback();
   }
 
   async function wakeMotor() {
@@ -595,18 +587,7 @@
       ready: false,
       percent: 1,
       kind: want,
-      label:
-        want === "nemotron"
-          ? "Baixando o instalador do motor…"
-          : want === "custom"
-          ? `Baixando ${parseHfRepo(repo)}…`
-          : want === "tiny"
-            ? "Baixando o tiny…"
-            : want === "light"
-              ? "Baixando a versão leve…"
-              : want === "v3"
-                ? "Baixando o v3…"
-                : "Abrindo o download…",
+      label: globalThis.VCShared.downloadLabel(want, repo),
     });
     await chrome.storage.local.set({
       provider: "local",

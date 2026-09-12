@@ -9,7 +9,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
+import secrets
+import stat
 import subprocess
 import sys
 import tempfile
@@ -29,6 +32,39 @@ STATE = {
 }
 
 
+def token_path() -> Path:
+    if os.name == "nt":
+        base = Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local")
+    elif sys.platform == "darwin":
+        base = Path.home() / "Library" / "Application Support"
+    else:
+        base = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share")
+    return base / "VozClara" / "motor.token"
+
+
+def load_or_create_token() -> str:
+    path = token_path()
+    try:
+        if path.is_file():
+            token = path.read_text(encoding="utf-8").strip()
+            if token:
+                return token
+    except Exception as exc:
+        log(f"Não li o token existente ({exc}); vou gerar outro.")
+    token = secrets.token_hex(16)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(token + "\n", encoding="utf-8")
+        if os.name == "posix":
+            path.chmod(stat.S_IRUSR | stat.S_IWUSR)
+    except Exception as exc:
+        log(f"Aviso: não consegui gravar {path} ({exc}).")
+    return token
+
+
+TOKEN = load_or_create_token()
+
+
 def log(msg: str) -> None:
     print(msg, flush=True)
 
@@ -39,6 +75,11 @@ def ensure_faster_whisper() -> None:
         return
     except ImportError:
         pass
+    if not PACKAGED:
+        raise RuntimeError(
+            "Falta faster-whisper. Rode Instalar-Motor.bat (Windows) ou "
+            "Instalar-Motor.command (macOS/Linux) para instalar as bibliotecas."
+        )
     log("Instalando faster-whisper (uma vez)…")
     subprocess.check_call(
         [sys.executable, "-m", "pip", "install", "--user", "faster-whisper"]
@@ -74,10 +115,18 @@ MISSING_LIB = re.compile(
 )
 
 
+PACKAGED = os.environ.get("VOZCLARA_PACKAGED") == "1"
+
+
 def pip_install(*packages: str) -> None:
     pkgs = [p for p in packages if p]
     if not pkgs:
         return
+    if not PACKAGED:
+        raise RuntimeError(
+            "Faltam bibliotecas Python. Rode Instalar-Motor.bat (Windows) "
+            "ou Instalar-Motor.command (macOS/Linux) para instalá-las."
+        )
     log("Instalando " + ", ".join(pkgs) + "…")
     subprocess.check_call(
         [sys.executable, "-m", "pip", "install", "--user", *pkgs]
@@ -112,7 +161,13 @@ def ensure_transformers() -> None:
 
 
 def load_nemotron() -> None:
-    ensure_nemotron_deps()
+    try:
+        ensure_nemotron_deps()
+    except Exception as exc:
+        STATE["error"] = str(exc)
+        STATE["ready"] = False
+        log(f"Falha ao preparar o Nemotron: {exc}")
+        return
     last = ""
     for attempt in range(4):
         try:
@@ -164,7 +219,13 @@ def load_model(model_id: str) -> None:
     if model_id in ("nemotron", "nemotron-3.5-asr-streaming-0.6b"):
         load_nemotron()
         return
-    ensure_faster_whisper()
+    try:
+        ensure_faster_whisper()
+    except Exception as exc:
+        STATE["error"] = str(exc)
+        STATE["ready"] = False
+        log(f"Falha ao preparar o Whisper: {exc}")
+        return
     from faster_whisper import WhisperModel
 
     device, compute = pick_device()
@@ -255,7 +316,10 @@ class Handler(BaseHTTPRequestHandler):
     def _cors(self) -> None:
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, Access-Control-Request-Private-Network")
+        self.send_header(
+            "Access-Control-Allow-Headers",
+            "Authorization, Content-Type, Access-Control-Request-Private-Network",
+        )
         self.send_header("Access-Control-Allow-Private-Network", "true")
 
     def _json(self, code: int, payload: dict) -> None:
@@ -272,6 +336,13 @@ class Handler(BaseHTTPRequestHandler):
         self._cors()
         self.end_headers()
 
+    def _authorized(self, fields: dict[str, str]) -> bool:
+        header = self.headers.get("Authorization") or ""
+        expected = f"Bearer {TOKEN}"
+        if header.strip() == expected:
+            return True
+        return fields.get("token", "").strip() == TOKEN
+
     def do_GET(self) -> None:  # noqa: N802
         path = urlparse(self.path).path
         if path in ("/", "/health"):
@@ -282,6 +353,7 @@ class Handler(BaseHTTPRequestHandler):
                     "ready": STATE["ready"],
                     "model": STATE["model_id"],
                     "engine": STATE["engine"],
+                    "paired": True,
                     "error": STATE["error"] or None,
                 },
             )
@@ -290,6 +362,9 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802
         path = urlparse(self.path).path
+        if path == "/pair":
+            self._pair()
+            return
         if path not in ("/v1/audio/transcriptions", "/inference"):
             self._json(404, {"error": "not found"})
             return
@@ -297,6 +372,9 @@ class Handler(BaseHTTPRequestHandler):
         body = self.rfile.read(length) if length else b""
         ctype = self.headers.get("Content-Type") or ""
         fields, files = parse_multipart(body, ctype)
+        if not self._authorized(fields):
+            self._json(401, {"error": "bad token", "unpaired": False})
+            return
         audio = files.get("file") or files.get("audio")
         if not audio:
             self._json(400, {"error": "Envie o campo file com o áudio."})
@@ -309,6 +387,13 @@ class Handler(BaseHTTPRequestHandler):
             return
         self._json(200, {"text": text})
 
+    def _pair(self) -> None:
+        origin = (self.headers.get("Origin") or "").strip()
+        if origin and not origin.startswith("chrome-extension://"):
+            self._json(403, {"error": "Origem não permitida para parear.", "unpaired": False})
+            return
+        self._json(200, {"token": TOKEN})
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Motor local VozClara (Whisper)")
@@ -319,7 +404,19 @@ def main() -> int:
         help="turbo, large-v3, tiny ou nemotron (NVIDIA, no PC)",
     )
     parser.add_argument("--port", type=int, default=PORT)
+    parser.add_argument(
+        "--reset-token",
+        action="store_true",
+        help="Apaga o token pareado e gera outro (pareie de novo pelo painel VozClara).",
+    )
     args = parser.parse_args()
+    if args.reset_token:
+        try:
+            token_path().unlink(missing_ok=True)
+        except Exception:
+            pass
+        globals()["TOKEN"] = load_or_create_token()
+        log("Token novo gerado. Pareie de novo pelo painel VozClara.")
     STATE["model_id"] = args.model
     threading.Thread(target=load_model, args=(args.model,), daemon=True).start()
     httpd = ThreadingHTTPServer((HOST, args.port), Handler)

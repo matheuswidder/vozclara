@@ -38,7 +38,7 @@ if not defined PY (
 
 echo  Instalando as bibliotecas (uma vez^)...
 %PY% -m pip install --user --upgrade pip
-%PY% -m pip install --user transformers torch torchaudio accelerate soundfile librosa scipy numpy soxr einops
+%PY% -m pip install --user -r requirements.txt
 if errorlevel 1 (
   echo  Falhou o pip. Rode de novo depois de instalar o Python com PATH.
   pause

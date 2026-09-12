@@ -11,6 +11,7 @@ chrome.runtime.onInstalled.addListener(() => {
 
 chrome.runtime.onStartup.addListener(() => {
   void verifyModel();
+  void pruneCache().catch(() => {});
 });
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
@@ -43,6 +44,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
   if (msg?.type === "VOZCLARA_MODEL_DOWNLOAD") {
+    if (sender.tab?.id && msg.requestId) {
+      setProgressTarget(sender.tab.id, msg.requestId, msg.key);
+    }
     sendResponse({ ok: true, started: true });
     void beginDownload(normalizeKind(msg.kind), msg.repo);
     return false;
@@ -70,6 +74,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
   if (msg?.type === "VOZCLARA_STT") {
+    if (sender.tab?.id && msg.requestId) {
+      setProgressTarget(sender.tab.id, msg.requestId, msg.key);
+    }
     transcribe(msg, sender.tab?.id)
       .then(sendResponse)
       .catch((err) =>
@@ -77,7 +84,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           ok: false,
           error: err instanceof Error ? err.message : "Falha ao transcrever.",
         }),
-      );
+      )
+      .finally(() => clearProgressTarget(msg.requestId));
+    return true;
+  }
+  if (msg?.type === "VOZCLARA_STT_CANCEL") {
+    cancelRequest(msg.requestId, sender.tab?.id);
+    sendResponse({ ok: true, cancelled: true });
     return true;
   }
   return false;
@@ -86,7 +99,68 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 let activeTabId = null;
 let whisperPort = null;
 const pending = new Map();
+/** @type {Set<string>} Parte 7.4: resultados de requisições canceladas a ignorar */
+const cancelledRequests = new Set();
+/** @type {null | { tabId: number, requestId: string, key: string }} */
+let progressTarget = null;
 let keepTimer = null;
+
+function setProgressTarget(tabId, requestId, key) {
+  if (tabId && requestId) {
+    progressTarget = { tabId, requestId, key: key || "" };
+  }
+}
+
+function clearProgressTarget(requestId) {
+  if (!requestId || progressTarget?.requestId === requestId) progressTarget = null;
+}
+
+function tabForProgress() {
+  return progressTarget?.tabId || activeTabId || null;
+}
+
+function forwardToCard(payload) {
+  const tabId = tabForProgress();
+  if (!tabId) return;
+  chrome.tabs
+    .sendMessage(tabId, {
+      type: "VOZCLARA_PROGRESS",
+      requestId: payload.requestId || progressTarget?.requestId,
+      key: payload.key || progressTarget?.key,
+      phase: payload.phase,
+      percent: payload.percent,
+      label: payload.label,
+      detail: payload.detail,
+      ready: payload.ready,
+    })
+    .catch(() => {});
+}
+
+function cancelRequest(requestId, tabId) {
+  if (!requestId) return;
+  cancelledRequests.add(requestId);
+  for (const [id, job] of pending) {
+    if (job.requestId === requestId) {
+      pending.delete(id);
+      keepAwake();
+      try {
+        job.resolve({ ok: false, cancelled: true, requestId });
+      } catch {
+        /* already settled */
+      }
+    }
+  }
+  const dest = tabId || progressTarget?.tabId || activeTabId;
+  if (dest) {
+    chrome.tabs
+      .sendMessage(dest, {
+        type: "VOZCLARA_STT_CANCELLED",
+        requestId,
+        key: progressTarget?.key,
+      })
+      .catch(() => {});
+  }
+}
 
 chrome.runtime.onConnect.addListener((port) => {
   if (port.name !== "vozclara-whisper") return;
@@ -96,15 +170,27 @@ chrome.runtime.onConnect.addListener((port) => {
     if (msg.type === "VOZCLARA_MODEL_PROGRESS") {
       updateBadge(msg);
       persistProgress(msg);
-      if (activeTabId && (msg.label || msg.percent != null)) {
-        chrome.tabs
-          .sendMessage(activeTabId, {
-            type: "VOZCLARA_PROGRESS",
-            label: msg.label,
-            percent: msg.percent,
-          })
-          .catch(() => {});
+      if (msg.label || msg.percent != null || msg.ready) {
+        forwardToCard({
+          phase: "download",
+          percent: msg.percent,
+          label: msg.label,
+          detail: msg.detail,
+          ready: msg.ready,
+        });
       }
+      return;
+    }
+    // Parte 1.3: progresso do caminho STT (fases ①/②/③) com requestId/key.
+    if (msg.type === "VOZCLARA_STT_PROGRESS") {
+      forwardToCard({
+        requestId: msg.requestId,
+        key: msg.key,
+        phase: msg.phase,
+        percent: msg.percent,
+        label: msg.label,
+        detail: msg.detail,
+      });
       return;
     }
     if (msg.id && pending.has(msg.id)) {
@@ -312,6 +398,7 @@ function callOffscreen(payload, timeoutMs) {
       reject(new Error("O Whisper demorou demais."));
     }, timeoutMs);
     pending.set(id, {
+      requestId: payload.requestId,
       resolve: (msg) => {
         clearTimeout(timer);
         resolve(msg);
@@ -383,6 +470,8 @@ const MODEL_REPOS = {
   },
 };
 
+// SYNC: shared.js — cópia quente (SW clássico não importa módulos); o teste
+// extension/tests/shared-sync.test.mjs falha se divergir.
 function normalizeKind(kind) {
   const k = String(kind || "").toLowerCase();
   if (k === "v3" || k === "precise" || k === "large" || k === "large-v3") return "v3";
@@ -488,14 +577,42 @@ async function scanModelCache(kind, repo) {
       });
     }
   }
-  const onnxCount = files.filter((f) => f.onnx).length;
+  const has = (suffix) =>
+    files.some((f) => f.name.toLowerCase().endsWith(suffix));
+  const hasTokenizer = has("tokenizer.json") || has("tokenizer_config.json");
+  const onnxFiles = files.filter((f) => f.onnx);
+  const essentialsComplete =
+    has("config.json") &&
+    has("preprocessor_config.json") &&
+    hasTokenizer &&
+    onnxFiles.length >= 1;
+  let onnxValid = false;
+  if (essentialsComplete) {
+    for (const file of onnxFiles) {
+      try {
+        const res = await caches
+          .open(file.cache)
+          .then((c) => c.match(file.url));
+        if (!res) continue;
+        const length = Number(res.headers.get("content-length") || "0");
+        const size = length > 0 ? length : (await res.blob()).size;
+        if (size > 1_000_000) {
+          onnxValid = true;
+          break;
+        }
+      } catch {
+        /* tenta o próximo */
+      }
+    }
+  }
+  const onnxCount = onnxFiles.length;
   return {
     kind: want,
     model: spec.label,
     files,
     fileCount: files.length,
     onnxCount,
-    ready: onnxCount >= 1 && files.length >= 2,
+    ready: essentialsComplete && onnxValid,
   };
 }
 
@@ -612,6 +729,17 @@ async function verifyModel(opts = {}) {
       },
     });
   }
+  if (!downloading && !disk.ready && stored.ready && !stored.downloading) {
+    await chrome.storage.local.set({
+      localModelReady: false,
+      localProgress: {
+        downloading: false,
+        percent: 0,
+        error: "Download incompleto — baixe de novo.",
+        label: "Download incompleto — baixe de novo.",
+      },
+    });
+  }
   const fresh = await storedStatus();
   return {
     ...fresh,
@@ -620,7 +748,11 @@ async function verifyModel(opts = {}) {
     fileCount: disk.fileCount,
     onnxCount: disk.onnxCount,
     folder: folder?.filename || "",
-    ready: downloading ? false : Boolean(disk.ready || stored.ready),
+    ready: downloading ? false : Boolean(disk.ready),
+    label:
+      !downloading && !disk.ready && stored.ready
+        ? "Download incompleto — baixe de novo."
+        : fresh.label,
   };
 }
 
@@ -748,9 +880,21 @@ async function transcribeInBrowser(msg, tabId) {
     await verifyModel({ silent: true });
     const stored = await chrome.storage.local.get(["localModelKind", "customModelRepo"]);
     await ensureOffscreen();
+    // Parte 1.3: requestId/key viajam para o offscreen, que emite fases ①/③
+    // com o id; o SW reencaminha ao card certo.
+    if (msg.requestId) {
+      forwardToCard({
+        requestId: msg.requestId,
+        key: msg.key,
+        phase: "transcribe",
+        label: "Transcrevendo…",
+      });
+    }
     const result = await callOffscreen(
       {
         action: "transcribe",
+        requestId: msg.requestId,
+        key: msg.key,
         audioBase64: msg.audioBase64,
         mimeType: msg.mimeType,
         language: msg.language,
@@ -760,10 +904,14 @@ async function transcribeInBrowser(msg, tabId) {
       },
       15 * 60 * 1000,
     );
+    if (msg.requestId && cancelledRequests.has(msg.requestId)) {
+      cancelledRequests.delete(msg.requestId);
+      return { ok: false, cancelled: true };
+    }
     if (!result?.ok) {
       throw new Error(result?.error || "Whisper local falhou.");
     }
-    return result.text;
+    return result;
   } finally {
     activeTabId = null;
   }
@@ -883,11 +1031,15 @@ async function transcribeGemini(blob, apiKey, language) {
   const models = ["gemini-2.5-flash", "gemini-2.0-flash"];
   let last = "Gemini recusou a transcrição.";
   for (const model of models) {
+    // Parte 7.6: chave no header — nunca na query string (pode vazar em logs).
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": apiKey,
+        },
         body: JSON.stringify({
           contents: [
             {
@@ -947,6 +1099,33 @@ function localRoot(url) {
   return raw.replace(/\/+$/, "");
 }
 
+function pairEndpoint(url) {
+  return `${localRoot(url)}/pair`;
+}
+
+async function pairMotor(url) {
+  const res = await fetch(pairEndpoint(url), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: "{}",
+  });
+  const json = await res.json().catch(() => null);
+  if (!res.ok) {
+    throw new Error(json?.error || `Não pareei com o motor (${res.status}).`);
+  }
+  const token = typeof json?.token === "string" ? json.token.trim() : "";
+  if (!token) throw new Error("O motor não devolveu um token válido.");
+  await chrome.storage.local.set({ motorToken: token });
+  return token;
+}
+
+async function motorToken() {
+  const stored = await chrome.storage.local.get(["motorToken"]);
+  const saved = typeof stored.motorToken === "string" ? stored.motorToken.trim() : "";
+  if (saved) return saved;
+  return pairMotor(undefined);
+}
+
 async function probeLocal(url) {
   const roots = [
     localRoot(url),
@@ -974,6 +1153,7 @@ async function probeLocal(url) {
           ok: true,
           alive: true,
           ready: json?.ready === true,
+          paired: json?.paired === true,
           model: json?.model,
           engine: json?.engine,
           error: json?.error || "",
@@ -1000,7 +1180,6 @@ async function probeLocal(url) {
 }
 
 async function wakeMotor() {
-  await chrome.storage.local.set({ motorInstalled: true });
   try {
     const tab = await chrome.tabs.create({ url: "vozclara://run", active: false });
     if (tab?.id) {
@@ -1194,20 +1373,33 @@ async function beginNemotron() {
   }
 }
 
-async function transcribeLocal(blob, name, language, url) {
+async function transcribeLocal(blob, name, language, url, probe) {
   const root = localRoot(url);
   const form = new FormData();
   form.append("file", new File([blob], name, { type: blob.type || "audio/ogg" }));
   if (language) form.append("language", language);
   const paths = ["/v1/audio/transcriptions", "/inference"];
   let last = "Motor local não respondeu.";
+  let token = "";
+  if (probe?.paired) {
+    token = await motorToken();
+  }
   for (const path of paths) {
-    const res = await fetch(`${root}${path}`, { method: "POST", body: form });
+    const headers = token ? { Authorization: `Bearer ${token}` } : {};
+    const res = await fetch(`${root}${path}`, {
+      method: "POST",
+      headers,
+      body: form,
+    });
     const json = await res.json().catch(() => null);
     if (res.ok) {
       const text = asText(json);
       if (text) return text;
       last = "O Whisper local devolveu uma transcrição vazia.";
+      continue;
+    }
+    if (res.status === 401 && json?.unpaired === true) {
+      token = await pairMotor(url);
       continue;
     }
     last =
@@ -1245,13 +1437,23 @@ async function transcribe(msg, tabId) {
 
   const cacheKey = `tx:${await hashBlob(blob)}:${provider}:${kind}:${language || "auto"}`;
   const cached = await chrome.storage.local.get(cacheKey);
-  if (cached[cacheKey]) {
-    return { ok: true, text: cached[cacheKey], provider, cached: true };
+  const cachedText = txText(cached[cacheKey]);
+  if (cachedText) {
+    return { ok: true, text: cachedText, provider, cached: true };
   }
 
   let text = "";
+  let model = "";
+  let device = "";
   if (provider === "local" && kind === "nemotron") {
     let probe = await probeLocal(stored.localUrl);
+    if (probe?.ok && probe.paired === false) {
+      return {
+        ok: false,
+        error:
+          "Motor desatualizado neste PC. Rode de novo o Instalar-Motor para atualizar o motor no PC.",
+      };
+    }
     if (!probe?.ok || !probe.ready) {
       const woke = await wakeMotor();
       probe = await probeLocal(stored.localUrl);
@@ -1273,7 +1475,9 @@ async function transcribe(msg, tabId) {
       }
     }
     try {
-      text = await transcribeLocal(blob, name, language, stored.localUrl);
+      text = await transcribeLocal(blob, name, language, stored.localUrl, probe);
+      model = probe?.model || "Nemotron";
+      device = "motor";
     } catch (err) {
       return {
         ok: false,
@@ -1285,10 +1489,17 @@ async function transcribe(msg, tabId) {
     }
   } else if (provider === "local") {
     try {
-      text = await transcribeInBrowser({ ...msg, language }, tabId);
+      const result = await transcribeInBrowser({ ...msg, language }, tabId);
+      if (result?.cancelled) return { ok: false, cancelled: true };
+      text = result?.text || "";
+      model = result?.model || "";
+      device = result?.device || "";
     } catch (err) {
       try {
-        text = await transcribeLocal(blob, name, language, stored.localUrl);
+        const fallback = await probeLocal(stored.localUrl);
+        text = await transcribeLocal(blob, name, language, stored.localUrl, fallback);
+        model = fallback?.model || model;
+        device = device || "motor";
       } catch {
         return {
           ok: false,
@@ -1304,6 +1515,45 @@ async function transcribe(msg, tabId) {
   else if (provider === "gemini") text = await transcribeGemini(blob, apiKey, language);
   else text = await transcribeXai(blob, name, apiKey, language);
 
-  await chrome.storage.local.set({ [cacheKey]: text });
-  return { ok: true, text, provider };
+  // Parte 7.4: card cancelou — descarta o resultado (não promete abortar o fetch).
+  if (msg.requestId && cancelledRequests.has(msg.requestId)) {
+    cancelledRequests.delete(msg.requestId);
+    return { ok: false, cancelled: true };
+  }
+
+  try {
+    await chrome.storage.local.set({ [cacheKey]: { t: Date.now(), text } });
+  } catch {
+    await pruneCache().catch(() => {});
+    try {
+      await chrome.storage.local.set({ [cacheKey]: { t: Date.now(), text } });
+    } catch {
+      /* segue sem cache — transcrição já está OK */
+    }
+  }
+  return { ok: true, text, provider, model, device };
+}
+
+const TX_PREFIX = "tx:";
+const TX_KEEP = 200;
+
+function txText(value) {
+  if (typeof value === "string") return value;
+  if (value && typeof value.text === "string") return value.text;
+  return "";
+}
+
+function txTime(value) {
+  if (value && typeof value.t === "number") return value.t;
+  return 0;
+}
+
+async function pruneCache() {
+  const all = await chrome.storage.local.get(null);
+  const entries = Object.keys(all)
+    .filter((k) => k.startsWith(TX_PREFIX))
+    .map((k) => ({ k, ts: txTime(all[k]) }));
+  entries.sort((a, b) => b.ts - a.ts);
+  const excess = entries.slice(TX_KEEP).map((e) => e.k);
+  if (excess.length) await chrome.storage.local.remove(excess);
 }
