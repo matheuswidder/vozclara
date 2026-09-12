@@ -47,6 +47,7 @@
       max-width: 100%;
       box-sizing: border-box;
       font-family: Segoe UI, Helvetica, Arial, sans-serif;
+      overflow-anchor: none;
     }
     .box {
       margin: 0;
@@ -195,6 +196,72 @@
   const rootByKey = new Map();
   /** @type {Map<string, number>} requestId → interval id do cronômetro da fase ① */
   const timersByRequest = new Map();
+  let mutating = false;
+  let paneCache = null;
+  /** @type {MutationObserver | null} */
+  let obs = null;
+
+  function chatPane() {
+    if (paneCache?.isConnected) return paneCache;
+    const main = document.getElementById("main");
+    if (!main) return null;
+    let best = null;
+    let bestArea = 0;
+    const nodes = main.querySelectorAll("div");
+    for (const el of nodes) {
+      const st = getComputedStyle(el);
+      if (!/(auto|scroll)/.test(st.overflowY)) continue;
+      const r = el.getBoundingClientRect();
+      const area = r.width * r.height;
+      if (r.height > 200 && area > bestArea) {
+        best = el;
+        bestArea = area;
+      }
+    }
+    paneCache = best;
+    return best;
+  }
+
+  function withFrozenScroll(fn) {
+    const pane = chatPane();
+    if (!pane) return fn();
+    const box = pane.getBoundingClientRect();
+    const hit = document.elementFromPoint(
+      box.left + Math.min(72, box.width / 2),
+      box.top + Math.min(110, box.height / 3),
+    );
+    const anchor =
+      hit instanceof Element ? hit.closest("[data-id]") || hit : null;
+    const anchorTop =
+      anchor instanceof Element ? anchor.getBoundingClientRect().top : null;
+    const fromBottom = pane.scrollHeight - pane.scrollTop;
+    const prev = pane.scrollTop;
+    const oldAnchor = pane.style.overflowAnchor;
+    pane.style.overflowAnchor = "none";
+    try {
+      return fn();
+    } finally {
+      if (anchor instanceof Element && anchor.isConnected && anchorTop != null) {
+        pane.scrollTop += anchor.getBoundingClientRect().top - anchorTop;
+      } else {
+        pane.scrollTop = pane.scrollHeight - fromBottom;
+        if (Math.abs(pane.scrollTop - prev) < 2) pane.scrollTop = prev;
+      }
+      pane.style.overflowAnchor = oldAnchor;
+    }
+  }
+
+  function runMutate(fn) {
+    if (mutating) return fn();
+    mutating = true;
+    try {
+      obs?.disconnect();
+      return withFrozenScroll(fn);
+    } finally {
+      mutating = false;
+      obs?.observe(document.documentElement, { childList: true, subtree: true });
+    }
+  }
 
   function cardOf(root) {
     const key = keyFor(root);
@@ -362,6 +429,7 @@
   function makeCard(root) {
     const el = document.createElement("div");
     el.className = "vozclara-card";
+    el.style.overflowAnchor = "none";
     const shadow = el.attachShadow({ mode: "open" });
     shadow.innerHTML = `<style>${CARD_STYLE}</style><div class="panel">${idleHtml()}</div>`;
     bindTx(root, el);
@@ -390,6 +458,7 @@
       retry.addEventListener("click", (e) => {
         e.preventDefault();
         e.stopPropagation();
+        retry.blur();
         void transcribeRoot(root, { fresh: true });
       });
     }
@@ -403,6 +472,7 @@
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation();
+      btn.blur();
       if (btn.dataset.wake === "1") {
         try {
           window.open("vozclara://run", "_blank", "noopener");
@@ -430,16 +500,20 @@
     if (br.width < 40) return;
     const outgoing = br.left - rr.left > rr.right - br.right;
     const left = Math.max(0, Math.round(br.left - rr.left));
-    cardEl.style.cssText = [
-      "display:block",
-      "position:relative",
-      "box-sizing:border-box",
-      `width:${Math.round(br.width)}px`,
-      outgoing ? "margin:6px 0 12px auto" : `margin:6px 0 12px ${left}px`,
-      "max-width:100%",
-      "pointer-events:auto",
-      "z-index:5",
-    ].join(";");
+    const width = Math.round(br.width);
+    const margin = outgoing ? "6px 0 12px auto" : `6px 0 12px ${left}px`;
+    if (cardEl.dataset.vcW === String(width) && cardEl.dataset.vcM === margin) return;
+    cardEl.dataset.vcW = String(width);
+    cardEl.dataset.vcM = margin;
+    cardEl.style.display = "block";
+    cardEl.style.position = "relative";
+    cardEl.style.boxSizing = "border-box";
+    cardEl.style.width = `${width}px`;
+    cardEl.style.margin = margin;
+    cardEl.style.maxWidth = "100%";
+    cardEl.style.pointerEvents = "auto";
+    cardEl.style.zIndex = "5";
+    cardEl.style.overflowAnchor = "none";
     paintTheme(bubble, cardEl);
   }
 
@@ -524,30 +598,36 @@
     const el = cardOf(root);
     const panel = el?.shadowRoot?.querySelector(".panel");
     if (!panel || !el) return;
-    panel.innerHTML = html || idleHtml();
-    htmlByKey.set(keyFor(root), panel.innerHTML);
-    el.style.display = "block";
-    if (!html || /button class="tx"|data-retry|data-copy/.test(html)) {
-      bindTx(root, el);
-      bindResultTools(root, el);
-    }
+    const ae = document.activeElement;
+    if (ae && el.contains(ae)) ae.blur();
+    runMutate(() => {
+      panel.innerHTML = html || idleHtml();
+      htmlByKey.set(keyFor(root), panel.innerHTML);
+      el.style.display = "block";
+      if (!html || /button class="tx"|data-retry|data-copy/.test(html)) {
+        bindTx(root, el);
+        bindResultTools(root, el);
+      }
+    });
   }
 
   function scan(from) {
-    cleanupStrays();
-    const live = new Set();
-    collectRoots(from).forEach((root) => {
-      const key = keyFor(root);
-      if (key) live.add(key);
-      ensureUi(root);
-    });
-    for (const [key, el] of cardByKey) {
-      if (!live.has(key)) {
-        htmlByKey.set(key, el.shadowRoot?.querySelector(".panel")?.innerHTML || "");
-        el.remove();
-        cardByKey.delete(key);
+    runMutate(() => {
+      cleanupStrays();
+      const live = new Set();
+      collectRoots(from).forEach((root) => {
+        const key = keyFor(root);
+        if (key) live.add(key);
+        ensureUi(root);
+      });
+      for (const [key, el] of cardByKey) {
+        if (!live.has(key)) {
+          htmlByKey.set(key, el.shadowRoot?.querySelector(".panel")?.innerHTML || "");
+          el.remove();
+          cardByKey.delete(key);
+        }
       }
-    }
+    });
   }
 
   function positionAll() {
@@ -1095,7 +1175,21 @@
       .replace(/"/g, "&quot;");
   }
 
-  const obs = new MutationObserver(() => scheduleScan());
+  obs = new MutationObserver((records) => {
+    if (mutating) return;
+    for (const rec of records) {
+      const target = rec.target instanceof Element ? rec.target : rec.target?.parentElement;
+      if (target?.closest?.(".vozclara-card, .vozclara-dock, #vozclara-layer")) continue;
+      const ours = [...rec.addedNodes, ...rec.removedNodes].every(
+        (n) =>
+          n instanceof Element &&
+          (n.classList.contains("vozclara-card") || n.closest(".vozclara-card")),
+      );
+      if (ours && rec.addedNodes.length + rec.removedNodes.length > 0) continue;
+      scheduleScan();
+      return;
+    }
+  });
 
   let scanTick = 0;
   function scheduleScan() {
@@ -1131,8 +1225,10 @@
       childList: true,
       subtree: true,
     });
-    document.addEventListener("scroll", positionAll, true);
-    window.addEventListener("resize", positionAll);
+    window.addEventListener("resize", () => {
+      paneCache = null;
+      positionAll();
+    });
     if (!document.hidden) startIdleScan();
   }
 
