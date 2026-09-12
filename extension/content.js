@@ -434,6 +434,7 @@
       cardEl = sib;
       cardEl.dataset.vcKey = key;
       cardByKey.set(key, cardEl);
+      bindTx(root, cardEl);
     }
     if (!cardEl || !cardEl.isConnected) {
       cardEl = makeCard(root);
