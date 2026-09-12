@@ -141,6 +141,43 @@
       margin: 10px 0 0; padding: 10px; border-radius: 10px;
       background: var(--bg); font-size: 13px; line-height: 1.4; white-space: pre-wrap;
     }
+    textarea {
+      width: 100%; min-height: 72px; resize: vertical;
+      border: 1px solid var(--line); background: var(--field);
+      color: var(--fg); border-radius: 10px; padding: 8px 10px;
+      font: inherit; font-weight: 400;
+    }
+    .gemma {
+      margin: 4px 0 14px; padding: 12px 10px 8px;
+      border: 1px solid var(--line); border-radius: 12px; background: var(--field);
+    }
+    .gemma-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 6px; }
+    .gemma-head strong { font-size: 12.5px; }
+    .toggle { display: flex; flex-direction: row; align-items: center; gap: 6px; margin: 0; font-size: 12px; color: var(--muted); }
+    .picks { display: grid; gap: 6px; margin: 10px 0; }
+    .pick {
+      position: relative; display: grid; grid-template-columns: auto 1fr auto;
+      align-items: center; gap: 8px; margin: 0; padding: 8px 10px;
+      border: 1px solid var(--line); border-radius: 10px; background: var(--bg);
+      font-weight: 500; cursor: pointer;
+    }
+    .pick:hover, .pick:has(input:checked) { border-color: #00a884; }
+    .pick b { display: block; font-size: 12.5px; }
+    .pick small { display: block; color: var(--muted); font-size: 11px; font-weight: 400; }
+    .help {
+      width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--line);
+      color: var(--muted); font-size: 11px; font-style: normal;
+      display: grid; place-items: center;
+    }
+    .bubble {
+      display: none; position: absolute; left: 8px; right: 8px; top: calc(100% - 4px);
+      z-index: 30; padding: 10px 12px; background: #111b21; border: 1px solid var(--line);
+      border-radius: 10px; box-shadow: 0 10px 28px rgba(0,0,0,.4);
+      font-size: 12px; font-weight: 400; line-height: 1.4;
+    }
+    .bubble strong { display: block; margin: 0 0 4px; font-size: 12px; color: #00a884; }
+    .pick:hover .bubble, .help:hover + .bubble, .help:focus + .bubble { display: block; }
+    #gemma-extra[hidden] { display: none; }
     .light { --bg:#fff; --fg:#111b21; --muted:#667781; --line:#e9edef; --field:#f0f2f5; --hover:#f0f2f5; }
     .dark { --bg:#202c33; --fg:#e9edef; --muted:#8696a0; --line:#3b4a54; --field:#111b21; --hover:#2a3942; }
   `;
@@ -391,6 +428,49 @@
                 <option value="auto">Detectar</option>
               </select>
             </label>
+            <section class="gemma" id="gemma-box">
+              <div class="gemma-head">
+                <strong>Sugestão de resposta</strong>
+                <label class="toggle"><input type="checkbox" id="gemma-on" /> Ligar</label>
+              </div>
+              <p class="hint">Whisper transcreve. Gemma propõe 3 respostas no motor. Passe o mouse no ?</p>
+              <div class="picks">
+                <label class="pick">
+                  <input type="radio" name="gemma-kind" value="e2b" />
+                  <span><b>E2B</b><small>base · não conversa</small></span>
+                  <i class="help" tabindex="0">?</i>
+                  <span class="bubble"><strong>E2B — modelo cru</strong>Aprendeu a língua, mas não foi treinado para atender. Completa frase; não sugere resposta de WhatsApp.</span>
+                </label>
+                <label class="pick">
+                  <input type="radio" name="gemma-kind" value="it" checked />
+                  <span><b>E2B-it</b><small>recomendado · conversa</small></span>
+                  <i class="help" tabindex="0">?</i>
+                  <span class="bubble"><strong>E2B-it — o que responde</strong>Treinado para seguir instruções. Lê a transcrição, o tom e o texto da empresa, e propõe 3 respostas prontas.</span>
+                </label>
+                <label class="pick">
+                  <input type="radio" name="gemma-kind" value="assistant" />
+                  <span><b>E2B-it + acelerador</b><small>mais rápido · 78 MB extra</small></span>
+                  <i class="help" tabindex="0">?</i>
+                  <span class="bubble"><strong>Acelerador, não o cérebro</strong>O -assistant sozinho não entende a conversa. É um rascunho de 78 MB junto do E2B-it (~2–3× mais rápido).</span>
+                </label>
+              </div>
+              <div id="gemma-extra" hidden>
+                <label>Quem você é
+                  <input id="gemma-who" type="text" maxlength="240" placeholder="Atendimento da loja X…" />
+                </label>
+                <label>Tom
+                  <select id="gemma-tone">
+                    <option value="cliente">No clima de quem falou</option>
+                    <option value="curto">Curto</option>
+                    <option value="formal">Formal</option>
+                    <option value="comercial">Comercial, sem enrolação</option>
+                  </select>
+                </label>
+                <label>O que consultar
+                  <textarea id="gemma-notes" maxlength="4000" placeholder="Preço, horário, FAQ…"></textarea>
+                </label>
+              </div>
+            </section>
             <p class="status" id="save-status"></p>
             <div class="test">
               <p>Testar</p>
@@ -423,6 +503,17 @@
     $p("apiKey")?.addEventListener("change", () => void save());
     $p("model")?.addEventListener("change", () => void onModelChange());
     $p("hf-repo")?.addEventListener("change", () => void save());
+    $p("gemma-on")?.addEventListener("change", () => {
+      const extra = $p("gemma-extra");
+      if (extra) extra.hidden = !$p("gemma-on")?.checked;
+      void save();
+    });
+    shadow.querySelectorAll('input[name="gemma-kind"]').forEach((el) => {
+      el.addEventListener("change", () => void save());
+    });
+    $p("gemma-who")?.addEventListener("change", () => void save());
+    $p("gemma-tone")?.addEventListener("change", () => void save());
+    $p("gemma-notes")?.addEventListener("change", () => void save());
     $p("download")?.addEventListener("click", () => void commitModel());
     $p("reveal")?.addEventListener("click", () => void revealFolder());
     $p("confirm-yes")?.addEventListener("click", () => {
@@ -470,6 +561,13 @@
       apiKey: $p("apiKey")?.value.trim() || "",
       language: $p("language")?.value || "pt",
       customModelInput: $p("hf-repo")?.value.trim() || "",
+      gemmaOn: Boolean($p("gemma-on")?.checked),
+      gemmaKind: globalThis.VCShared.normalizeGemma(
+        shadow.querySelector('input[name="gemma-kind"]:checked')?.value || "it",
+      ),
+      gemmaWho: $p("gemma-who")?.value.trim() || "",
+      gemmaTone: $p("gemma-tone")?.value || "cliente",
+      gemmaNotes: $p("gemma-notes")?.value.trim() || "",
     });
     const s = $p("save-status");
     if (s) {
@@ -559,6 +657,11 @@
       "preferredKind",
       "customModelInput",
       "customModelRepo",
+      "gemmaOn",
+      "gemmaKind",
+      "gemmaWho",
+      "gemmaTone",
+      "gemmaNotes",
     ]);
     if ($p("provider")) $p("provider").value = stored.provider || "local";
     if ($p("apiKey")) $p("apiKey").value = stored.apiKey || "";
@@ -572,6 +675,16 @@
     if ($p("hf-repo")) {
       $p("hf-repo").value = stored.customModelInput || stored.customModelRepo || "";
     }
+    if ($p("gemma-on")) $p("gemma-on").checked = Boolean(stored.gemmaOn);
+    const gWant = globalThis.VCShared.normalizeGemma(stored.gemmaKind);
+    shadow.querySelectorAll('input[name="gemma-kind"]').forEach((el) => {
+      el.checked = el.value === gWant;
+    });
+    if ($p("gemma-who")) $p("gemma-who").value = stored.gemmaWho || "";
+    if ($p("gemma-tone")) $p("gemma-tone").value = stored.gemmaTone || "cliente";
+    if ($p("gemma-notes")) $p("gemma-notes").value = stored.gemmaNotes || "";
+    const extra = $p("gemma-extra");
+    if (extra) extra.hidden = !$p("gemma-on")?.checked;
     syncFields();
     await refreshLocal();
   }

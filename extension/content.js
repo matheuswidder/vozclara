@@ -121,6 +121,14 @@
       margin: 4px 0 0; font-size: 11px; font-weight: 400;
       color: var(--vc-muted, #8696a0);
     }
+    .replies { display: grid; gap: 6px; margin: 8px 0 0; }
+    button.reply {
+      appearance: none; border: 1px solid rgba(0,168,132,.35);
+      background: transparent; color: var(--vc-fg, #e9edef);
+      font: 500 12.5px/1.35 Segoe UI, Helvetica, Arial, sans-serif;
+      border-radius: 8px; padding: 8px 10px; text-align: left; cursor: pointer;
+    }
+    button.reply:hover { background: rgba(0,168,132,.12); }
   `;
 
   /** @type {Array<{ t: number; mime: string; size: number; buffer: ArrayBuffer; requestId: string }>} */
@@ -1133,6 +1141,10 @@
       const note = result.cleaned
         ? `<p class="micro">O tiny repetiu demais — texto limpo. Troque o modelo e clique em De novo.</p>`
         : "";
+      const gemmaOn = Boolean((await chrome.storage.local.get(["gemmaOn"])).gemmaOn);
+      const suggest = gemmaOn
+        ? `<div class="replies" data-suggest="1"><p class="micro">Sugerindo respostas…</p></div>`
+        : "";
       setPanel(
         root,
         `<div class="box">
@@ -1145,8 +1157,10 @@
            <p class="text">${safe}</p>
            <p class="micro">✓ Pronto${model}${device} · ${spent}</p>
            ${note}
+           ${suggest}
          </div>`,
       );
+      if (gemmaOn) void fillSuggestions(root, result.text);
     } catch (err) {
       if (cancelledHere || cancelled.get(requestId)?.cancel) return;
       const raw = err instanceof Error ? err.message : "Falha ao transcrever.";
@@ -1164,6 +1178,67 @@
       timersByRequest.delete(requestId);
       jobs.delete(requestId);
       if (btn) btn.disabled = false;
+    }
+  }
+
+  function insertCompose(text) {
+    const box =
+      document.querySelector('footer [contenteditable="true"]') ||
+      document.querySelector('[contenteditable="true"][data-tab]') ||
+      document.querySelector('[data-testid="conversation-compose-box-input"]');
+    if (!box) return false;
+    box.focus();
+    try {
+      document.execCommand("insertText", false, text);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async function fillSuggestions(root, text) {
+    const slot = panelOf(root)?.querySelector("[data-suggest]");
+    if (!slot || !text) return;
+    try {
+      const stored = await chrome.storage.local.get(["gemmaOn"]);
+      if (!stored.gemmaOn) {
+        slot.remove();
+        return;
+      }
+      const result = await chrome.runtime.sendMessage({
+        type: "VOZCLARA_SUGGEST",
+        text,
+      });
+      if (!result?.ok || !Array.isArray(result.replies) || !result.replies.length) {
+        slot.innerHTML = `<p class="micro">${escapeHtml(result?.error || "Não sugeri agora. Ligue o motor.")}</p>`;
+        return;
+      }
+      slot.innerHTML = result.replies
+        .slice(0, 3)
+        .map(
+          (line) =>
+            `<button class="reply" type="button">${escapeHtml(line)}</button>`,
+        )
+        .join("");
+      slot.querySelectorAll("button.reply").forEach((btn) => {
+        btn.addEventListener("click", async (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const line = btn.textContent || "";
+          if (!insertCompose(line)) {
+            try {
+              await navigator.clipboard.writeText(line);
+              btn.textContent = "Copiado";
+            } catch {
+              /* ignore */
+            }
+          } else {
+            btn.textContent = "No campo";
+          }
+        });
+      });
+    } catch (err) {
+      slot.innerHTML = `<p class="micro">${escapeHtml(err instanceof Error ? err.message : "Não sugeri.")}</p>`;
     }
   }
 

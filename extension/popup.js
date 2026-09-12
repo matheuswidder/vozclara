@@ -231,6 +231,11 @@ async function load() {
       "preferredKind",
       "customModelInput",
       "customModelRepo",
+      "gemmaOn",
+      "gemmaKind",
+      "gemmaWho",
+      "gemmaTone",
+      "gemmaNotes",
     ]);
     $("provider").value = stored.provider || "local";
     $("apiKey").value = stored.apiKey || "";
@@ -244,6 +249,7 @@ async function load() {
     if ($("hf-repo")) {
       $("hf-repo").value = stored.customModelInput || stored.customModelRepo || "";
     }
+    loadGemma(stored);
     syncFields();
     paint();
     if (isLocal()) void queryLocal();
@@ -258,8 +264,38 @@ async function save() {
     apiKey: $("apiKey").value.trim(),
     language: $("language").value,
     customModelInput: $("hf-repo")?.value.trim() || "",
+    ...gemmaPayload(),
   });
   paint({ text: "Guardado.", kind: "ok" });
+}
+
+function gemmaPayload() {
+  const kind =
+    document.querySelector('input[name="gemma-kind"]:checked')?.value || "it";
+  return {
+    gemmaOn: Boolean($("gemma-on")?.checked),
+    gemmaKind: globalThis.VCShared.normalizeGemma(kind),
+    gemmaWho: $("gemma-who")?.value.trim() || "",
+    gemmaTone: $("gemma-tone")?.value || "cliente",
+    gemmaNotes: $("gemma-notes")?.value.trim() || "",
+  };
+}
+
+function syncGemma() {
+  const extra = $("gemma-extra");
+  if (extra) extra.hidden = !$("gemma-on")?.checked;
+}
+
+function loadGemma(stored) {
+  if ($("gemma-on")) $("gemma-on").checked = Boolean(stored.gemmaOn);
+  const want = globalThis.VCShared.normalizeGemma(stored.gemmaKind);
+  document.querySelectorAll('input[name="gemma-kind"]').forEach((el) => {
+    el.checked = el.value === want;
+  });
+  if ($("gemma-who")) $("gemma-who").value = stored.gemmaWho || "";
+  if ($("gemma-tone")) $("gemma-tone").value = stored.gemmaTone || "cliente";
+  if ($("gemma-notes")) $("gemma-notes").value = stored.gemmaNotes || "";
+  syncGemma();
 }
 
 async function hideConfirm() {
@@ -444,6 +480,16 @@ document.addEventListener("DOMContentLoaded", () => {
   $("apiKey").addEventListener("change", () => void save());
   $("model")?.addEventListener("change", () => void onModelChange());
   $("hf-repo")?.addEventListener("change", () => void save());
+  $("gemma-on")?.addEventListener("change", () => {
+    syncGemma();
+    void save();
+  });
+  document.querySelectorAll('input[name="gemma-kind"]').forEach((el) => {
+    el.addEventListener("change", () => void save());
+  });
+  $("gemma-who")?.addEventListener("change", () => void save());
+  $("gemma-tone")?.addEventListener("change", () => void save());
+  $("gemma-notes")?.addEventListener("change", () => void save());
   $("confirm-yes")?.addEventListener("click", () => {
     hideConfirm();
     void startDownload(normalizeKind($("model")?.value));
