@@ -433,7 +433,7 @@
                 <strong>Sugestão de resposta</strong>
                 <label class="toggle"><input type="checkbox" id="gemma-on" /> Ligar</label>
               </div>
-              <p class="hint">Whisper transcreve. Gemma propõe 3 respostas no motor. Passe o mouse no ?</p>
+              <p class="hint">Whisper transcreve. Gemma propõe 3 respostas. Texto: Sugerir. Chips em cima do campo. Passe o mouse no ?</p>
               <div class="picks">
                 <label class="pick">
                   <input type="radio" name="gemma-kind" value="e2b" />

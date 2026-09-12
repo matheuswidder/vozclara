@@ -121,14 +121,26 @@
       margin: 4px 0 0; font-size: 11px; font-weight: 400;
       color: var(--vc-muted, #8696a0);
     }
-    .replies { display: grid; gap: 6px; margin: 8px 0 0; }
+    .replies { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 0; }
     button.reply {
-      appearance: none; border: 1px solid rgba(0,168,132,.35);
+      appearance: none; border: 1px solid rgba(0,168,132,.45);
       background: transparent; color: var(--vc-fg, #e9edef);
       font: 500 12.5px/1.35 Segoe UI, Helvetica, Arial, sans-serif;
-      border-radius: 8px; padding: 8px 10px; text-align: left; cursor: pointer;
+      border-radius: 16px; padding: 6px 10px; text-align: left; cursor: pointer;
+      max-width: 100%;
     }
     button.reply:hover { background: rgba(0,168,132,.12); }
+    .box.mini {
+      padding: 0; background: transparent; border: 0; border-radius: 0;
+    }
+    button.sug {
+      appearance: none; border: 0; background: transparent; cursor: pointer;
+      color: var(--vc-accent, #00a884);
+      font: 600 11.5px/1 Segoe UI, Helvetica, Arial, sans-serif;
+      padding: 4px 2px;
+    }
+    button.sug:hover { filter: brightness(1.12); }
+    button.sug:disabled { opacity: .55; cursor: default; }
   `;
 
   /** @type {Array<{ t: number; mime: string; size: number; buffer: ArrayBuffer; requestId: string }>} */
@@ -200,12 +212,14 @@
 
   const cardByKey = new Map();
   const htmlByKey = new Map();
+  const miniByKey = new Map();
   /** @type {Map<string, { root: Element | null; html: string }>} Parte 1.1 */
   const rootByKey = new Map();
   /** @type {Map<string, number>} requestId → interval id do cronômetro da fase ① */
   const timersByRequest = new Map();
   let mutating = false;
   let paneCache = null;
+  let gemmaEnabled = false;
   /** @type {MutationObserver | null} */
   let obs = null;
 
@@ -297,6 +311,87 @@
       return true;
     }
     return false;
+  }
+
+  function isOutgoing(root) {
+    if (!root) return false;
+    if (root.classList?.contains("message-out")) return true;
+    if (root.querySelector(".message-out")) return true;
+    if (root.querySelector(".message-in") || root.classList?.contains("message-in")) {
+      return false;
+    }
+    const id = String(root.getAttribute("data-id") || "");
+    if (/^true[_-]/.test(id)) return true;
+    if (/^false[_-]/.test(id)) return false;
+    const bubble = findTextBubble(root);
+    if (!bubble) return false;
+    const br = bubble.getBoundingClientRect();
+    const rr = root.getBoundingClientRect();
+    return br.left - rr.left > rr.right - br.right;
+  }
+
+  function findTextBubble(root) {
+    return (
+      root.querySelector(".copyable-text") ||
+      root.querySelector('[data-testid="msg-container"]') ||
+      root.querySelector("span.selectable-text")?.closest("div") ||
+      root.firstElementChild ||
+      root
+    );
+  }
+
+  function readableText(root) {
+    if (!root) return "";
+    const quoted = root.querySelector(
+      '[data-testid="quoted-message"], .quoted-message, [class*="quoted"]',
+    );
+    let best = "";
+    root.querySelectorAll("span.selectable-text, span.copyable-text").forEach((n) => {
+      if (quoted && quoted.contains(n)) return;
+      if (n.closest("footer, header, #side")) return;
+      const t = String(n.innerText || "").replace(/\s+/g, " ").trim();
+      if (t.length > best.length) best = t;
+    });
+    if (!best) {
+      const raw = String(root.innerText || "")
+        .replace(quoted ? String(quoted.innerText || "") : "", "")
+        .replace(/\b\d{1,2}:\d{2}\b/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+      best = raw;
+    }
+    if (/criptografad|encrypted|clique para|tap to/i.test(best) && best.length < 80) {
+      return "";
+    }
+    return best.slice(0, 4000);
+  }
+
+  function isTextRoot(root) {
+    if (!root || isChromeUi(root) || isVoiceRoot(root)) return false;
+    if (root.querySelector("video") || root.querySelector('[data-icon*="video"]')) {
+      return false;
+    }
+    if (isOutgoing(root)) return false;
+    return readableText(root).length >= 2;
+  }
+
+  function collectTextRoots(from = document) {
+    const set = new Set();
+    const add = (n) => {
+      if (!(n instanceof Element) || isChromeUi(n)) return;
+      const root = n.closest?.("[data-id]") || (n.matches?.("[data-id]") ? n : null);
+      if (isTextRoot(root)) set.add(root);
+    };
+    const main =
+      document.querySelector("#main") ||
+      document.querySelector('[data-testid="conversation-panel-messages"]') ||
+      document;
+    const scope = from instanceof Element ? from : main;
+    if (from instanceof Element) add(from);
+    scope.querySelectorAll?.("[data-id]").forEach(add);
+    const list = [...set];
+    const uniq = list.filter((r) => !list.some((o) => o !== r && r.contains(o)));
+    return new Set(uniq.slice(-16));
   }
 
   function collectRoots(from = document) {
@@ -407,6 +502,10 @@
       if (!key || cardByKey.get(key) !== n) n.remove();
       if (n.previousElementSibling?.classList.contains("vozclara-card")) n.remove();
     });
+    document.querySelectorAll(".vozclara-mini").forEach((n) => {
+      const key = n.dataset.vcKey;
+      if (!key || miniByKey.get(key) !== n) n.remove();
+    });
   }
 
   // Parte 7.5: preferir a duração do bloco de áudio; excluir citação (reply).
@@ -442,6 +541,63 @@
     shadow.innerHTML = `<style>${CARD_STYLE}</style><div class="panel">${idleHtml()}</div>`;
     bindTx(root, el);
     return el;
+  }
+
+  function miniHtml() {
+    return `<div class="box mini"><button class="sug" type="button">Sugerir</button></div>`;
+  }
+
+  function makeMini(root) {
+    const el = document.createElement("div");
+    el.className = "vozclara-mini";
+    el.style.overflowAnchor = "none";
+    const shadow = el.attachShadow({ mode: "open" });
+    shadow.innerHTML = `<style>${CARD_STYLE}</style><div class="panel">${miniHtml()}</div>`;
+    bindMini(root, el);
+    return el;
+  }
+
+  function bindMini(root, el) {
+    const btn = el.shadowRoot?.querySelector("button.sug");
+    if (!btn || btn.dataset.bound) return;
+    btn.dataset.bound = "1";
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      btn.blur();
+      void suggestFromRoot(root);
+    });
+  }
+
+  function ensureMini(root) {
+    if (!gemmaEnabled || !isTextRoot(root) || isChromeUi(root)) {
+      const dead = miniByKey.get(keyFor(root));
+      if (dead) {
+        dead.remove();
+        miniByKey.delete(keyFor(root));
+      }
+      return;
+    }
+    const key = keyFor(root);
+    const sib = root.nextElementSibling;
+    let el = miniByKey.get(key);
+    if (sib?.classList.contains("vozclara-mini") && sib !== el) {
+      if (el && el !== sib) el.remove();
+      el = sib;
+      el.dataset.vcKey = key;
+      miniByKey.set(key, el);
+      bindMini(root, el);
+    }
+    if (!el || !el.isConnected) {
+      el = makeMini(root);
+      el.dataset.vcKey = key;
+      miniByKey.set(key, el);
+    }
+    const host = root.parentElement;
+    if (host && (el.parentElement !== host || el.previousElementSibling !== root)) {
+      root.insertAdjacentElement("afterend", el);
+    }
+    placeCard(findTextBubble(root) || root, el, root);
   }
 
   function bindResultTools(root, el) {
@@ -509,7 +665,9 @@
     const outgoing = br.left - rr.left > rr.right - br.right;
     const left = Math.max(0, Math.round(br.left - rr.left));
     const width = Math.round(br.width);
-    const margin = outgoing ? "6px 0 12px auto" : `6px 0 12px ${left}px`;
+    const compact = cardEl.classList.contains("vozclara-mini");
+    const gap = compact ? "2px 0 8px" : "6px 0 12px";
+    const margin = outgoing ? `${gap} auto` : `${gap} ${left}px`;
     if (cardEl.dataset.vcW === String(width) && cardEl.dataset.vcM === margin) return;
     cardEl.dataset.vcW = String(width);
     cardEl.dataset.vcM = margin;
@@ -635,7 +793,22 @@
           cardByKey.delete(key);
         }
       }
+      const liveMini = new Set();
+      if (gemmaEnabled) {
+        collectTextRoots(from).forEach((root) => {
+          const key = keyFor(root);
+          if (key) liveMini.add(key);
+          ensureMini(root);
+        });
+      }
+      for (const [key, el] of miniByKey) {
+        if (!liveMini.has(key)) {
+          el.remove();
+          miniByKey.delete(key);
+        }
+      }
     });
+    ensureSmartBar();
   }
 
   function positionAll() {
@@ -643,6 +816,12 @@
       const el = cardOf(root);
       if (el) placeCard(findAudioCard(root) || root, el, root);
     });
+    if (gemmaEnabled) {
+      collectTextRoots(document).forEach((root) => {
+        const el = miniByKey.get(keyFor(root));
+        if (el) placeCard(findTextBubble(root) || root, el, root);
+      });
+    }
   }
 
   document.addEventListener(
@@ -1142,6 +1321,7 @@
         ? `<p class="micro">O tiny repetiu demais — texto limpo. Troque o modelo e clique em De novo.</p>`
         : "";
       const gemmaOn = Boolean((await chrome.storage.local.get(["gemmaOn"])).gemmaOn);
+      gemmaEnabled = gemmaOn;
       const suggest = gemmaOn
         ? `<div class="replies" data-suggest="1"><p class="micro">Sugerindo respostas…</p></div>`
         : "";
@@ -1181,18 +1361,281 @@
     }
   }
 
-  function insertCompose(text) {
-    const box =
-      document.querySelector('footer [contenteditable="true"]') ||
+  function composeBox() {
+    return (
+      document.querySelector("#main footer [contenteditable='true']") ||
+      document.querySelector("footer [contenteditable='true']") ||
       document.querySelector('[contenteditable="true"][data-tab]') ||
-      document.querySelector('[data-testid="conversation-compose-box-input"]');
+      document.querySelector('[data-testid="conversation-compose-box-input"]')
+    );
+  }
+
+  function composeFooter() {
+    const box = composeBox();
+    return (
+      document.querySelector("#main footer") ||
+      box?.closest("footer") ||
+      box?.closest('[data-testid="compose-box"]') ||
+      null
+    );
+  }
+
+  function composeEmpty() {
+    const box = composeBox();
+    if (!box) return true;
+    return !String(box.innerText || "").replace(/\u00a0/g, " ").trim();
+  }
+
+  function insertCompose(text) {
+    const box = composeBox();
     if (!box) return false;
     box.focus();
     try {
-      document.execCommand("insertText", false, text);
-      return true;
+      const sel = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(box);
+      range.collapse(false);
+      sel.removeAllRanges();
+      sel.addRange(range);
     } catch {
-      return false;
+      /* segue */
+    }
+    const ok = document.execCommand("insertText", false, text);
+    try {
+      box.dispatchEvent(
+        new InputEvent("input", {
+          bubbles: true,
+          composed: true,
+          data: text,
+          inputType: "insertText",
+        }),
+      );
+    } catch {
+      /* ignore */
+    }
+    return Boolean(ok) || Boolean(box.innerText);
+  }
+
+  function lastIncomingText() {
+    const main = document.querySelector("#main") || document;
+    const nodes = [...main.querySelectorAll("[data-id]")];
+    for (let i = nodes.length - 1; i >= 0; i--) {
+      const root = nodes[i];
+      if (isChromeUi(root) || isOutgoing(root)) continue;
+      if (isVoiceRoot(root)) {
+        const t = cardOf(root)?.shadowRoot?.querySelector(".text")?.textContent || "";
+        if (t.trim()) return t.trim();
+        continue;
+      }
+      const t = readableText(root);
+      if (t) return t;
+    }
+    return "";
+  }
+
+  const SMART_ID = "vozclara-smart";
+  const SMART_CSS = `
+    :host { all: initial; display: block; overflow-anchor: none; font-family: Segoe UI, Helvetica, Arial, sans-serif; }
+    .bar { padding: 6px 12px 2px; }
+    .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    button.go {
+      appearance: none; border: 0; cursor: pointer;
+      background: #00a884; color: #062016;
+      font: 600 12px/1 Segoe UI, Helvetica, Arial, sans-serif;
+      border-radius: 16px; padding: 7px 12px;
+    }
+    button.go:disabled { opacity: .55; cursor: default; }
+    button.chip {
+      appearance: none; cursor: pointer;
+      border: 1px solid rgba(0,168,132,.45); background: transparent;
+      color: inherit; font: 500 12.5px/1.3 Segoe UI, Helvetica, Arial, sans-serif;
+      border-radius: 16px; padding: 6px 10px; max-width: 100%; text-align: left;
+    }
+    button.chip:hover { background: rgba(0,168,132,.12); }
+    button.x {
+      appearance: none; border: 0; background: transparent; cursor: pointer;
+      color: #8696a0; font-size: 16px; line-height: 1; padding: 4px 6px;
+    }
+    .hint { margin: 4px 0 0; font-size: 11px; color: #8696a0; }
+    .light { color: #111b21; }
+    .dark { color: #e9edef; }
+  `;
+
+  function smartHost() {
+    return document.getElementById(SMART_ID);
+  }
+
+  function ensureSmartBar() {
+    if (!gemmaEnabled) {
+      smartHost()?.remove();
+      return;
+    }
+    const footer = composeFooter();
+    if (!footer) return;
+    let host = smartHost();
+    if (!host) {
+      host = document.createElement("div");
+      host.id = SMART_ID;
+      host.style.overflowAnchor = "none";
+      const shadow = host.attachShadow({ mode: "open" });
+      shadow.innerHTML = `<style>${SMART_CSS}</style><div class="bar dark"><div class="row"></div><p class="hint"></p></div>`;
+      host.dataset.mode = "idle";
+    }
+    if (host.parentElement !== footer) {
+      footer.insertBefore(host, footer.firstChild);
+    }
+    const fg = getComputedStyle(footer).color;
+    const dark = rgbLum(fg) > 140;
+    shadowBar(host).className = `bar ${dark ? "dark" : "light"}`;
+    if (host.dataset.mode === "idle") paintSmartIdle();
+    bindComposeWatch();
+  }
+
+  function shadowBar(host) {
+    return host.shadowRoot?.querySelector(".bar");
+  }
+
+  function paintSmartIdle() {
+    const host = smartHost();
+    if (!host?.shadowRoot) return;
+    host.dataset.mode = "idle";
+    const row = host.shadowRoot.querySelector(".row");
+    const hint = host.shadowRoot.querySelector(".hint");
+    const has = Boolean(lastIncomingText());
+    if (row) {
+      row.innerHTML = `<button class="go" type="button" ${has ? "" : "disabled"}>Sugerir resposta</button>`;
+      const go = row.querySelector(".go");
+      go?.addEventListener("click", (e) => {
+        e.preventDefault();
+        void suggestLastIncoming();
+      });
+    }
+    if (hint) hint.textContent = has ? "Da última mensagem recebida" : "Espere uma mensagem para sugerir";
+  }
+
+  function paintSmartBusy() {
+    const host = smartHost();
+    if (!host?.shadowRoot) return;
+    host.dataset.mode = "busy";
+    const row = host.shadowRoot.querySelector(".row");
+    const hint = host.shadowRoot.querySelector(".hint");
+    if (row) row.innerHTML = `<button class="go" type="button" disabled>Sugerindo…</button>`;
+    if (hint) hint.textContent = "No motor do Windows. Primeira vez pode demorar.";
+  }
+
+  function showSmartChips(replies, error) {
+    ensureSmartBar();
+    const host = smartHost();
+    if (!host?.shadowRoot) return;
+    const row = host.shadowRoot.querySelector(".row");
+    const hint = host.shadowRoot.querySelector(".hint");
+    if (!row) return;
+    if (error || !replies?.length) {
+      host.dataset.mode = "idle";
+      paintSmartIdle();
+      if (hint) hint.textContent = error || "Não sugeri agora.";
+      return;
+    }
+    host.dataset.mode = "chips";
+    row.innerHTML =
+      replies
+        .slice(0, 3)
+        .map((line) => `<button class="chip" type="button">${escapeHtml(line)}</button>`)
+        .join("") + `<button class="x" type="button" aria-label="Fechar">×</button>`;
+    row.querySelectorAll("button.chip").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        const line = btn.textContent || "";
+        if (insertCompose(line)) {
+          paintSmartIdle();
+        } else {
+          navigator.clipboard.writeText(line).catch(() => {});
+          btn.textContent = "Copiado";
+        }
+      });
+    });
+    row.querySelector(".x")?.addEventListener("click", () => paintSmartIdle());
+    if (hint) hint.textContent = "Clique cola no campo";
+  }
+
+  let composeBound = false;
+  function bindComposeWatch() {
+    if (composeBound) return;
+    composeBound = true;
+    document.addEventListener(
+      "input",
+      (e) => {
+        const t = e.target;
+        if (!(t instanceof Element)) return;
+        if (!t.closest("footer")) return;
+        const host = smartHost();
+        if (host?.dataset.mode === "chips" && !composeEmpty()) paintSmartIdle();
+      },
+      true,
+    );
+  }
+
+  async function askGemma(text) {
+    const result = await chrome.runtime.sendMessage({
+      type: "VOZCLARA_SUGGEST",
+      text,
+    });
+    if (!result?.ok || !Array.isArray(result.replies) || !result.replies.length) {
+      throw new Error(result?.error || "Não sugeri agora. Ligue o motor.");
+    }
+    return result.replies.slice(0, 3);
+  }
+
+  async function suggestLastIncoming() {
+    const text = lastIncomingText();
+    if (!text) {
+      showSmartChips([], "Não achei uma mensagem para responder.");
+      return;
+    }
+    paintSmartBusy();
+    try {
+      const replies = await askGemma(text);
+      showSmartChips(replies);
+    } catch (err) {
+      showSmartChips([], err instanceof Error ? err.message : "Não sugeri.");
+    }
+  }
+
+  async function suggestFromRoot(root) {
+    const text =
+      cardOf(root)?.shadowRoot?.querySelector(".text")?.textContent?.trim() ||
+      readableText(root);
+    const el = miniByKey.get(keyFor(root));
+    const btn = el?.shadowRoot?.querySelector("button.sug");
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "Sugerindo…";
+    }
+    paintSmartBusy();
+    try {
+      const replies = await askGemma(text);
+      showSmartChips(replies);
+      if (el) {
+        const slot = `<div class="box mini"><div class="replies">${replies
+          .map((line) => `<button class="reply" type="button">${escapeHtml(line)}</button>`)
+          .join("")}</div></div>`;
+        const panel = el.shadowRoot?.querySelector(".panel");
+        if (panel) panel.innerHTML = slot;
+        panel?.querySelectorAll("button.reply").forEach((b) => {
+          b.addEventListener("click", (e) => {
+            e.preventDefault();
+            const line = b.textContent || "";
+            if (insertCompose(line)) showSmartChips(replies);
+          });
+        });
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Não sugeri.";
+      showSmartChips([], msg);
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = "Sugerir";
+      }
     }
   }
 
@@ -1200,45 +1643,33 @@
     const slot = panelOf(root)?.querySelector("[data-suggest]");
     if (!slot || !text) return;
     try {
-      const stored = await chrome.storage.local.get(["gemmaOn"]);
-      if (!stored.gemmaOn) {
+      if (!gemmaEnabled) {
         slot.remove();
         return;
       }
-      const result = await chrome.runtime.sendMessage({
-        type: "VOZCLARA_SUGGEST",
-        text,
-      });
-      if (!result?.ok || !Array.isArray(result.replies) || !result.replies.length) {
-        slot.innerHTML = `<p class="micro">${escapeHtml(result?.error || "Não sugeri agora. Ligue o motor.")}</p>`;
-        return;
-      }
-      slot.innerHTML = result.replies
-        .slice(0, 3)
-        .map(
-          (line) =>
-            `<button class="reply" type="button">${escapeHtml(line)}</button>`,
-        )
+      paintSmartBusy();
+      const replies = await askGemma(text);
+      slot.innerHTML = replies
+        .map((line) => `<button class="reply" type="button">${escapeHtml(line)}</button>`)
         .join("");
       slot.querySelectorAll("button.reply").forEach((btn) => {
-        btn.addEventListener("click", async (e) => {
+        btn.addEventListener("click", (e) => {
           e.preventDefault();
           e.stopPropagation();
           const line = btn.textContent || "";
-          if (!insertCompose(line)) {
-            try {
-              await navigator.clipboard.writeText(line);
-              btn.textContent = "Copiado";
-            } catch {
-              /* ignore */
-            }
+          if (insertCompose(line)) {
+            showSmartChips(replies);
           } else {
-            btn.textContent = "No campo";
+            navigator.clipboard.writeText(line).catch(() => {});
+            btn.textContent = "Copiado";
           }
         });
       });
+      showSmartChips(replies);
     } catch (err) {
-      slot.innerHTML = `<p class="micro">${escapeHtml(err instanceof Error ? err.message : "Não sugeri.")}</p>`;
+      const msg = err instanceof Error ? err.message : "Não sugeri.";
+      slot.innerHTML = `<p class="micro">${escapeHtml(msg)}</p>`;
+      showSmartChips([], msg);
     }
   }
 
@@ -1254,11 +1685,14 @@
     if (mutating) return;
     for (const rec of records) {
       const target = rec.target instanceof Element ? rec.target : rec.target?.parentElement;
-      if (target?.closest?.(".vozclara-card, .vozclara-dock, #vozclara-layer")) continue;
+      if (target?.closest?.(".vozclara-card, .vozclara-mini, .vozclara-dock, #vozclara-layer, #vozclara-smart")) continue;
       const ours = [...rec.addedNodes, ...rec.removedNodes].every(
         (n) =>
           n instanceof Element &&
-          (n.classList.contains("vozclara-card") || n.closest(".vozclara-card")),
+          (n.classList.contains("vozclara-card") ||
+            n.classList.contains("vozclara-mini") ||
+            n.id === SMART_ID ||
+            n.closest(".vozclara-card, .vozclara-mini, #vozclara-smart")),
       );
       if (ours && rec.addedNodes.length + rec.removedNodes.length > 0) continue;
       scheduleScan();
@@ -1295,6 +1729,20 @@
   });
 
   function start() {
+    chrome.storage.local.get(["gemmaOn"]).then((s) => {
+      gemmaEnabled = Boolean(s.gemmaOn);
+      scan(document);
+    });
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area !== "local" || !changes.gemmaOn) return;
+      gemmaEnabled = Boolean(changes.gemmaOn.newValue);
+      if (!gemmaEnabled) {
+        for (const [, el] of miniByKey) el.remove();
+        miniByKey.clear();
+        smartHost()?.remove();
+      }
+      scan(document);
+    });
     scan(document);
     obs.observe(document.documentElement, {
       childList: true,
