@@ -181,6 +181,7 @@ code { color: var(--accent); }
 
 #local-fields[hidden],
 #cloud-fields[hidden],
+#custom-fields[hidden],
 #light[hidden],
 #reveal[hidden],
 #local-path[hidden] {

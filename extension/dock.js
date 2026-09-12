@@ -71,11 +71,9 @@
     .actions {
       display: flex; gap: 8px; margin: 8px 0 14px;
     }
-    .actions button {
-      flex: 1; min-width: 0;
-      display: flex; align-items: center; justify-content: center; gap: 6px;
-    }
-    .actions svg { flex: 0 0 auto; }
+    .actions button { min-width: 0; }
+    .actions button.act { flex: 2; }
+    .actions button.ghost { flex: 1; }
     button.act {
       border: 0; background: #00a884; color: #062016;
       font-weight: 700; border-radius: 10px; padding: 9px 10px; cursor: pointer;
@@ -267,7 +265,7 @@
             <div class="mark"></div>
             <div>
               <strong>VozClara</strong>
-              <p>Configurar e testar neste WhatsApp</p>
+              <p>Áudio do WhatsApp em texto</p>
             </div>
             <button class="x" id="close" type="button" aria-label="Fechar">×</button>
           </header>
@@ -289,36 +287,26 @@
               </label>
             </div>
             <div id="local-fields">
-              <p class="hint">O modelo fica neste navegador. O áudio não sai da máquina.</p>
+              <p class="hint">O modelo fica neste navegador. Um clique: Baixar e usar.</p>
               <label>Modelo
                 <select id="model">
-                  <option value="turbo">v3 turbo — Whisper, neste Chrome (~560 MB)</option>
-                  <option value="v3">v3 — Whisper, neste Chrome (~1,5 GB)</option>
-                  <option value="light">small — Whisper leve (~120 MB)</option>
-                  <option value="tiny">tiny — Whisper OpenAI (~40 MB)</option>
-                  <option value="nemotron">Nemotron 3.5 ASR 0.6B — NVIDIA (instalador Windows)</option>
-                  <option value="custom">Outro Whisper (colar link do Hugging Face)</option>
+                  <option value="turbo">Turbo — recomendado (~560 MB)</option>
+                  <option value="tiny">Tiny — mais leve (~40 MB)</option>
+                  <option value="light">Small — intermediário (~120 MB)</option>
+                  <option value="v3">v3 — mais preciso (~1,5 GB)</option>
+                  <option value="nemotron">Nemotron — programa no Windows</option>
+                  <option value="custom">Outro Whisper — colar um link</option>
                 </select>
               </label>
               <div id="custom-fields" hidden>
                 <label>Link do modelo
-                  <input id="hf-repo" type="text" spellcheck="false" autocomplete="off" placeholder="https://huggingface.co/openai/whisper-tiny" />
+                  <input id="hf-repo" type="text" spellcheck="false" autocomplete="off" placeholder="https://huggingface.co/onnx-community/whisper-tiny" />
                 </label>
-                <p class="hint">Só Whisper ONNX neste Chrome. Nemotron instala um programa no Windows — a extensão baixa o VozClara-Motor-Setup.exe.</p>
+                <p class="hint">Cole o link de um Whisper ONNX. Nemotron é o item do seletor.</p>
               </div>
               <div class="actions">
-                <button class="act" id="download" type="button">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
-                  Baixar
-                </button>
-                <button class="ghost" id="reveal" type="button">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 7h6l2 2h10v10H3z"/></svg>
-                  Pasta
-                </button>
-                <button class="ghost" id="apply" type="button">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12l5 5L20 7"/></svg>
-                  Aplicar
-                </button>
+                <button class="act" id="download" type="button">Baixar e usar</button>
+                <button class="ghost" id="reveal" type="button">Pasta</button>
               </div>
             </div>
             <label>Idioma
@@ -364,15 +352,8 @@
       void refreshLocal();
     });
     $p("hf-repo")?.addEventListener("change", () => void save());
-    $p("download")?.addEventListener("click", () => {
-      if ($p("download")?.dataset.wake === "1") {
-        void wakeMotor();
-        return;
-      }
-      void startDownload($p("model")?.value || "turbo");
-    });
+    $p("download")?.addEventListener("click", () => void commitModel());
     $p("reveal")?.addEventListener("click", () => void revealFolder());
-    $p("apply")?.addEventListener("click", () => void apply());
     $p("file")?.addEventListener("change", (e) => {
       const file = e.target.files?.[0];
       if (file) void testFile(file);
@@ -412,7 +393,6 @@
       provider: $p("provider")?.value || "local",
       apiKey: $p("apiKey")?.value.trim() || "",
       language: $p("language")?.value || "pt",
-      preferredKind: normalizeKind($p("model")?.value),
       customModelInput: $p("hf-repo")?.value.trim() || "",
     });
     const s = $p("save-status");
@@ -422,22 +402,15 @@
     }
   }
 
-  async function apply() {
-    await save();
-    const kind = normalizeKind($p("model")?.value);
-    const stored = await chrome.storage.local.get(["localModelKind", "localModelReady", "customModelRepo"]);
-    // Parte 7.1: sem mentira de F5 — provider é lido a cada transcrição.
-    const s = $p("save-status");
-    if (s) {
-      s.textContent = "Aplicado — já vale na próxima transcrição.";
-      s.className = "status ok";
+  async function commitModel() {
+    const download = $p("download");
+    const action = download?.dataset.action || "download";
+    if (action === "wait" || action === "ready") return;
+    if (action === "wake") {
+      void wakeMotor();
+      return;
     }
-    const sameRepo =
-      kind !== "custom" ||
-      parseHfRepo($p("hf-repo")?.value) === parseHfRepo(stored.customModelRepo);
-    if (!stored.localModelReady || normalizeKind(stored.localModelKind) !== kind || !sameRepo) {
-      void startDownload(kind);
-    }
+    void startDownload($p("model")?.value || "turbo");
   }
 
   async function loadForm() {
@@ -488,36 +461,31 @@
     const percent = Number(state?.percent) || 0;
     const error = state?.error || "";
     const label = globalThis.VCShared.stateLabel(state);
+    const selected = normalizeKind($p("model")?.value);
+    const action = globalThis.VCShared.primaryAction(state, selected);
     if (status) {
       status.textContent = error || label;
-      status.className = "status " + (error ? "warn" : ready ? "ok" : downloading ? "warn" : "");
+      status.className =
+        "status " +
+        (error ? "warn" : action.id === "ready" ? "ok" : downloading ? "warn" : "");
     }
     if (meter && bar) {
       const show = downloading || (percent > 0 && percent < 100 && !ready);
       meter.hidden = !show;
       bar.style.width = `${Math.max(0, Math.min(100, percent))}%`;
     }
-    const selected = normalizeKind($p("model")?.value);
-    const installed = normalizeKind(state?.kind);
-    const motorUp = Boolean(state?.motorUp);
-    const motorAlive = Boolean(state?.motorAlive);
-    const motorInstalled = Boolean(state?.motorInstalled) || motorUp || motorAlive;
     if (download) {
-      download.disabled = downloading;
-      download.dataset.wake = selected === "nemotron" && motorInstalled && !motorUp && !motorAlive ? "1" : selected === "nemotron" && motorInstalled && !motorUp ? "1" : "";
-      download.innerHTML = downloading || (selected === "nemotron" && motorAlive && !motorUp)
-        ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg> Carregando…`
-        : selected === "nemotron" && motorUp
-          ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12l5 5L20 7"/></svg> Na bandeja`
-          : selected === "nemotron" && motorInstalled
-            ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14"/><path d="M12 5v14"/></svg> Ligar motor`
-            : selected === "nemotron"
-              ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg> Instalar no PC`
-              : ready && selected === installed
-                ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12l5 5L20 7"/></svg> Pronto`
-                : `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg> Baixar`;
+      download.disabled = action.disabled;
+      download.dataset.action = action.id;
+      download.textContent = action.label;
     }
-    if (reveal) reveal.disabled = downloading || !ready;
+    if (reveal) {
+      reveal.hidden = action.id !== "ready";
+      reveal.disabled = downloading || action.id !== "ready";
+    }
+    if (action.id === "ready") {
+      chrome.storage.local.set({ preferredKind: selected }).catch(() => {});
+    }
     paintDot(document.getElementById(BTN_ID));
   }
 
@@ -604,7 +572,7 @@
       });
       const s = $p("save-status");
       if (s) {
-        s.textContent = "Download numa aba da extensão. Deixe-a aberta até Pronto.";
+        s.textContent = "Deixe a aba aberta até Pronto.";
         s.className = "status ok";
       }
     } catch (err) {

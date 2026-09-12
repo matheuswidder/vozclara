@@ -57,9 +57,21 @@ export const DEFAULT_LOCAL_URL = "http://127.0.0.1:8173";
 export const INPAGE_MODELS = [
   {
     id: "turbo",
-    label: "v3 turbo",
+    label: "Turbo",
     size: "~560 MB",
-    hint: "Rápido. É o padrão — quase a qualidade do v3.",
+    hint: "Recomendado. Rápido e preciso o bastante para conversas.",
+  },
+  {
+    id: "tiny",
+    label: "Tiny",
+    size: "~40 MB",
+    hint: "O mais leve. Qualidade menor, baixa em poucos segundos.",
+  },
+  {
+    id: "light",
+    label: "Small",
+    size: "~120 MB",
+    hint: "Meio-termo, se o turbo não couber.",
   },
   {
     id: "v3",
@@ -68,27 +80,15 @@ export const INPAGE_MODELS = [
     hint: "Mais preciso. Demora mais para baixar e transcrever.",
   },
   {
-    id: "light",
-    label: "Leve",
-    size: "~120 MB",
-    hint: "whisper-small. Para computador apertado.",
-  },
-  {
-    id: "tiny",
-    label: "Whisper tiny",
-    size: "~40 MB",
-    hint: "OpenAI whisper-tiny. Roda neste Chrome. Leve, qualidade menor.",
-  },
-  {
     id: "nemotron",
-    label: "Nemotron 3.5",
-    size: "PC",
-    hint: "NVIDIA ASR 0.6B no Windows. A extensão baixa o instalador .exe.",
+    label: "Nemotron",
+    size: "Windows",
+    hint: "Programa no PC. A extensão baixa o instalador.",
   },
   {
     id: "custom",
     label: "Outro Whisper",
     size: "link",
-    hint: "Cole um link do Hugging Face. Só Whisper ONNX neste Chrome.",
+    hint: "Cole um link de Whisper ONNX do Hugging Face.",
   },
 ] as const;

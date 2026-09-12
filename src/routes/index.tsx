@@ -26,8 +26,8 @@ function Home() {
               <span className="block italic text-fg-muted">vira texto no chat.</span>
             </h1>
             <p className="mt-5 max-w-md text-base leading-relaxed text-fg-muted">
-              Instale a extensão, baixe o Whisper uma vez e clique em
-              Transcrever. O áudio não sai do computador.
+              Instale, clique em Baixar e usar e depois em Transcrever no áudio.
+              O arquivo não sai do computador.
             </p>
             <div className="mt-7 flex flex-wrap gap-3">
               <Button asChild>

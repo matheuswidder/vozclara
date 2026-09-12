@@ -48,20 +48,31 @@ test("parseHfRepo aceita link, hf:// e org/name", () => {
 
 test("stateLabel cobre ready/downloading/error/label", () => {
   assert.equal(VC.stateLabel({ ready: true, model: "large-v3-turbo" }), "Pronto · large-v3-turbo");
-  assert.equal(VC.stateLabel({ downloading: true }), "Baixando Whisper…");
+  assert.equal(VC.stateLabel({ downloading: true }), "Baixando… deixe a aba aberta.");
   assert.equal(VC.stateLabel({ error: "boom" }), "boom");
   assert.equal(VC.stateLabel({ label: "custom" }), "custom");
-  assert.equal(VC.stateLabel({}), "Ainda não baixou. Um clique, uma vez.");
+  assert.equal(VC.stateLabel({}), "Escolha o modelo e clique em Baixar e usar.");
 });
 
 test("downloadLabel cobre todos os kinds", () => {
-  assert.equal(VC.downloadLabel("nemotron"), "Baixando o instalador do motor…");
+  assert.equal(VC.downloadLabel("nemotron"), "Baixando o instalador do Windows…");
   assert.equal(
     VC.downloadLabel("custom", "onnx-community/whisper-tiny"),
     "Baixando onnx-community/whisper-tiny…",
   );
-  assert.equal(VC.downloadLabel("tiny"), "Baixando o tiny…");
-  assert.equal(VC.downloadLabel("light"), "Baixando a versão leve…");
-  assert.equal(VC.downloadLabel("v3"), "Baixando o v3…");
-  assert.equal(VC.downloadLabel("turbo"), "Abrindo o download…");
+  assert.equal(VC.downloadLabel("tiny"), "Baixando o tiny (~40 MB)…");
+  assert.equal(VC.downloadLabel("light"), "Baixando o small (~120 MB)…");
+  assert.equal(VC.downloadLabel("v3"), "Baixando o v3 (~1,5 GB)…");
+  assert.equal(VC.downloadLabel("turbo"), "Baixando o turbo (~560 MB)…");
+});
+
+test("primaryAction: um botão, ação óbvia", () => {
+  assert.equal(typeof VC.primaryAction, "function");
+  assert.equal(VC.primaryAction({ downloading: true }, "turbo").id, "wait");
+  assert.equal(VC.primaryAction({ ready: true, kind: "turbo" }, "turbo").id, "ready");
+  assert.equal(VC.primaryAction({ ready: true, kind: "turbo" }, "tiny").id, "download");
+  assert.equal(VC.primaryAction({ motorUp: true }, "nemotron").id, "ready");
+  assert.equal(VC.primaryAction({ motorInstalled: true }, "nemotron").id, "wake");
+  assert.equal(VC.primaryAction({}, "nemotron").id, "install");
+  assert.match(VC.primaryAction({}, "tiny").label, /40 MB/);
 });
