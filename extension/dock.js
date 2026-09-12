@@ -87,7 +87,30 @@
       border-radius: 10px; padding: 9px 12px; cursor: pointer; font-size: 13px;
     }
     .meter { height: 6px; background: var(--line); border-radius: 99px; overflow: hidden; margin: 0 0 8px; }
-    .meter span { display: block; height: 100%; width: 0; background: #00a884; transition: width .25s ease; }
+    .meter.indeterminate span {
+      width: 38% !important;
+      animation: vc-slide 1.15s ease-in-out infinite;
+    }
+    @keyframes vc-slide {
+      0% { transform: translateX(-120%); }
+      100% { transform: translateX(280%); }
+    }
+    .split { display: grid; gap: 8px; margin: 0 0 10px; }
+    .pill {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 10px; border: 1px solid var(--line);
+      border-radius: 10px; background: var(--field);
+      font-size: 12.5px; font-weight: 500;
+    }
+    .pill .k {
+      width: 52px; flex: 0 0 auto; color: var(--muted);
+      font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+    }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #8696a0; flex: 0 0 auto; }
+    .dot.ok { background: #00a884; }
+    .dot.warn { background: #c47f17; animation: vc-pulse 1.2s ease-in-out infinite; }
+    .dot.off { background: #8696a0; }
+    @keyframes vc-pulse { 50% { opacity: .35; } }
     .status { margin: 0 0 10px; font-size: 12.5px; color: var(--muted); transition: color .2s ease, opacity .18s ease; }
     .status.ok { color: #1fa855; }
     .status.warn { color: #c47f17; }
@@ -125,6 +148,7 @@
   let shadow = null;
   let raf = 0;
   let lastPreferred = "turbo";
+  let motorPoll = null;
 
   function metaOf(kind) {
     return globalThis.VCShared.modelMeta(kind);
@@ -299,6 +323,21 @@
           </header>
           <div class="body">
             <p class="status" id="local-status">Checando o Whisper…</p>
+            <div id="motor-panel" hidden>
+              <div class="split">
+                <div class="pill">
+                  <span class="k">Motor</span>
+                  <i id="motor-dot" class="dot"></i>
+                  <span id="motor-text">—</span>
+                </div>
+                <div class="pill">
+                  <span class="k">Modelo</span>
+                  <i id="model-dot" class="dot"></i>
+                  <span id="model-text">—</span>
+                </div>
+              </div>
+              <div class="meter" id="motor-meter" hidden><span id="motor-bar"></span></div>
+            </div>
             <div class="meter" id="meter" hidden><span id="bar"></span></div>
             <label>Provedor
               <select id="provider">
@@ -549,6 +588,17 @@
     });
   }
 
+  function watchMotor(state) {
+    const selected = normalizeKind($p("model")?.value);
+    const busy = selected === "nemotron" && Boolean(state?.motorAlive) && !state?.motorUp;
+    if (busy && !motorPoll) {
+      motorPoll = setInterval(() => void refreshLocal(), 1500);
+    } else if (!busy && motorPoll) {
+      clearInterval(motorPoll);
+      motorPoll = null;
+    }
+  }
+
   function paintLocal(state) {
     const status = $p("local-status");
     const meter = $p("meter");
@@ -562,14 +612,43 @@
     const label = globalThis.VCShared.stateLabel(state);
     const selected = normalizeKind($p("model")?.value);
     const action = globalThis.VCShared.primaryAction(state, selected);
-    if (status) {
+    const isNemo = selected === "nemotron";
+    const motorPanel = $p("motor-panel");
+    if (motorPanel) motorPanel.hidden = !isNemo;
+    if (isNemo) {
+      const view = globalThis.VCShared.motorView(state);
+      const motorText = $p("motor-text");
+      const modelText = $p("model-text");
+      const motorDot = $p("motor-dot");
+      const modelDot = $p("model-dot");
+      const motorMeter = $p("motor-meter");
+      const motorBar = $p("motor-bar");
+      if (motorText) motorText.textContent = view.motor.text;
+      if (modelText) modelText.textContent = view.model.text;
+      if (motorDot) motorDot.className = `dot ${view.motor.kind || "off"}`;
+      if (modelDot) modelDot.className = `dot ${view.model.kind || "off"}`;
+      if (motorMeter && motorBar) {
+        const show =
+          Boolean(state?.motorAlive) &&
+          !state?.motorUp &&
+          (view.model.percent > 0 || view.model.indeterminate);
+        motorMeter.hidden = !show;
+        motorMeter.classList.toggle("indeterminate", Boolean(view.model.indeterminate));
+        motorBar.style.width = `${Math.max(0, Math.min(100, view.model.percent || 8))}%`;
+      }
+      if (status) {
+        status.textContent = error || view.model.text;
+        status.className = "status " + (error ? "warn" : state?.motorUp ? "ok" : "warn");
+      }
+      if (meter) meter.hidden = true;
+    } else if (status) {
       status.textContent = error || label;
       status.className =
         "status " +
         (error ? "warn" : action.id === "ready" ? "ok" : downloading ? "warn" : "");
       flashEl(status);
     }
-    if (meter && bar) {
+    if (meter && bar && !isNemo) {
       const show = downloading || (percent > 0 && percent < 100 && !ready);
       meter.hidden = !show;
       bar.style.width = `${Math.max(0, Math.min(100, percent))}%`;
@@ -580,12 +659,13 @@
       download.textContent = action.label;
     }
     if (reveal) {
-      reveal.hidden = action.id !== "ready";
+      reveal.hidden = isNemo || action.id !== "ready";
       reveal.disabled = downloading || action.id !== "ready";
     }
-    if (action.id === "ready") {
+    if (action.id === "ready" && !isNemo) {
       chrome.storage.local.set({ preferredKind: selected }).catch(() => {});
     }
+    watchMotor(state);
     paintDot(document.getElementById(BTN_ID));
   }
 

@@ -77,14 +77,14 @@
     const motorAlive = Boolean(state?.motorAlive);
     const motorInstalled = Boolean(state?.motorInstalled) || motorUp || motorAlive;
     const meta = modelMeta(want);
-    if (downloading) {
-      return { id: "wait", label: "Baixando…", disabled: true };
-    }
     if (want === "nemotron") {
       if (motorUp) return { id: "ready", label: "Motor ligado", disabled: true };
-      if (motorAlive) return { id: "wait", label: "Carregando…", disabled: true };
+      if (motorAlive) return { id: "ready", label: "Motor ligado", disabled: true };
       if (motorInstalled) return { id: "wake", label: "Ligar o motor", disabled: false };
       return { id: "install", label: "Instalar no Windows", disabled: false };
+    }
+    if (downloading) {
+      return { id: "wait", label: "Baixando…", disabled: true };
     }
     if (ready && kind === want) {
       return { id: "ready", label: "Em uso", disabled: true };
@@ -97,6 +97,52 @@
       label: meta.size ? `Baixar ${meta.name} (${meta.size})` : `Baixar ${meta.name}`,
       disabled: false,
     };
+  }
+
+  function motorView(state) {
+    const alive = Boolean(state?.motorAlive);
+    const up = Boolean(state?.motorUp);
+    const installed = Boolean(state?.motorInstalled) || alive || up;
+    const phase = String(state?.phase || "");
+    const percent = Number(state?.percent) || 0;
+    const detail = String(state?.detail || "").trim();
+    const error = String(state?.error || "").trim();
+    let motor = { kind: "off", text: "Não instalado" };
+    if (up || alive) motor = { kind: "ok", text: "Ligado na bandeja" };
+    else if (installed) motor = { kind: "warn", text: "Instalado, mas desligado" };
+    let model = {
+      kind: "",
+      text: "Aguardando o motor",
+      percent: 0,
+      indeterminate: false,
+    };
+    if (up) {
+      model = { kind: "ok", text: "Pronto para transcrever", percent: 100, indeterminate: false };
+    } else if (error && alive) {
+      model = { kind: "warn", text: error, percent: 0, indeterminate: false };
+    } else if (alive && (phase === "download" || (percent > 0 && percent < 100 && phase !== "load" && phase !== "deps"))) {
+      model = {
+        kind: "warn",
+        text: detail || `Baixando o modelo… ${percent}%`,
+        percent,
+        indeterminate: percent < 2,
+      };
+    } else if (alive && phase === "deps") {
+      model = {
+        kind: "warn",
+        text: detail || "Instalando bibliotecas no PC…",
+        percent: percent || 8,
+        indeterminate: true,
+      };
+    } else if (alive) {
+      model = {
+        kind: "warn",
+        text: detail || "Carregando o modelo na memória…",
+        percent,
+        indeterminate: percent < 3,
+      };
+    }
+    return { motor, model };
   }
 
   async function setQualityFallback(label) {
@@ -132,6 +178,7 @@
     stateKind,
     downloadLabel,
     primaryAction,
+    motorView,
     setQualityFallback,
     takeQualityFallback,
   };

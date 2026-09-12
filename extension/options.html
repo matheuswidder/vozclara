@@ -53,6 +53,21 @@
           </label>
           <p class="hint">Cole o link de um Whisper ONNX. Nemotron é o item do seletor, não um link.</p>
         </div>
+        <div id="motor-panel" hidden>
+          <div class="split">
+            <div class="pill">
+              <span class="k">Motor</span>
+              <i id="motor-dot" class="dot" aria-hidden="true"></i>
+              <span id="motor-text">—</span>
+            </div>
+            <div class="pill">
+              <span class="k">Modelo</span>
+              <i id="model-dot" class="dot" aria-hidden="true"></i>
+              <span id="model-text">—</span>
+            </div>
+          </div>
+          <div class="meter" id="motor-meter" hidden><span id="motor-bar"></span></div>
+        </div>
         <div class="meter" id="meter" hidden><span id="bar"></span></div>
         <p id="local-status" class="status"></p>
         <p id="local-path" class="hint" hidden></p>

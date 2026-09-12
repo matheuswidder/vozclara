@@ -87,3 +87,24 @@ test("primaryAction: um botão, ação óbvia", () => {
   assert.equal(VC.primaryAction({}, "nemotron").id, "install");
   assert.match(VC.primaryAction({}, "tiny").label, /40 MB/);
 });
+
+test("Nemotron não mistura motor com download", () => {
+  const loading = VC.primaryAction(
+    { downloading: true, motorAlive: true, motorUp: false, phase: "download", percent: 32 },
+    "nemotron",
+  );
+  assert.equal(loading.id, "ready");
+  assert.equal(loading.label, "Motor ligado");
+  const view = VC.motorView({
+    motorAlive: true,
+    motorUp: false,
+    phase: "download",
+    percent: 32,
+    detail: "Baixando model.safetensors · 32%",
+  });
+  assert.equal(view.motor.text, "Ligado na bandeja");
+  assert.match(view.model.text, /32%/);
+  assert.equal(view.model.kind, "warn");
+  const ready = VC.motorView({ motorAlive: true, motorUp: true });
+  assert.equal(ready.model.text, "Pronto para transcrever");
+});
