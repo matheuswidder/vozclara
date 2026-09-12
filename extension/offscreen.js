@@ -738,11 +738,17 @@ async function transcribe({ audioBase64, audioBuffer, mimeType, language, kind, 
   // Parte 1.2: fase ③ com duração real — nunca % fantasma de inferência.
   reemit({ phase: "transcribe", label: "Transcrevendo…", detail: `áudio de ${mm}:${ss}` });
   const lang = !language || language === "auto" ? null : language;
+  const tiny = want === "tiny";
   const result = await model.pipe(audio, {
     language: lang || undefined,
     task: "transcribe",
-    chunk_length_s: 30,
-    stride_length_s: 5,
+    chunk_length_s: tiny ? 20 : 30,
+    stride_length_s: tiny ? 4 : 5,
+    condition_on_previous_text: false,
+    compression_ratio_threshold: 2.4,
+    logprob_threshold: -1.0,
+    no_repeat_ngram_size: tiny ? 3 : 0,
+    repetition_penalty: tiny ? 1.15 : 1.0,
   });
   const text = (result?.text || "").trim();
   if (!text) throw new Error("O Whisper local devolveu uma transcrição vazia.");

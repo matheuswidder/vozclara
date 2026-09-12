@@ -76,6 +76,7 @@
       padding: 0;
     }
     .copy:hover { color: var(--vc-fg, #e9edef); }
+    .tools { display: flex; gap: 10px; align-items: center; }
     .text {
       margin: 0;
       font-size: 13.5px; line-height: 1.35; white-space: pre-wrap;
@@ -367,6 +368,33 @@
     return el;
   }
 
+  function bindResultTools(root, el) {
+    const copyBtn = el.shadowRoot?.querySelector("[data-copy]");
+    if (copyBtn && !copyBtn.dataset.bound) {
+      copyBtn.dataset.bound = "1";
+      copyBtn.addEventListener("click", async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const text = el.shadowRoot?.querySelector(".text")?.textContent || "";
+        try {
+          await navigator.clipboard.writeText(text);
+          copyBtn.textContent = "Copiado";
+        } catch {
+          /* ignore */
+        }
+      });
+    }
+    const retry = el.shadowRoot?.querySelector("[data-retry]");
+    if (retry && !retry.dataset.bound) {
+      retry.dataset.bound = "1";
+      retry.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        void transcribeRoot(root, { fresh: true });
+      });
+    }
+  }
+
   function bindTx(root, el) {
     const btn = el.shadowRoot?.querySelector("button.tx");
     if (!btn || btn.dataset.bound) return;
@@ -435,6 +463,7 @@
       cardEl.dataset.vcKey = key;
       cardByKey.set(key, cardEl);
       bindTx(root, cardEl);
+      bindResultTools(root, cardEl);
     }
     if (!cardEl || !cardEl.isConnected) {
       cardEl = makeCard(root);
@@ -445,6 +474,7 @@
         if (panel) {
           panel.innerHTML = kept;
           bindTx(root, cardEl);
+          bindResultTools(root, cardEl);
         }
       }
       cardByKey.set(key, cardEl);
@@ -497,7 +527,10 @@
     panel.innerHTML = html || idleHtml();
     htmlByKey.set(keyFor(root), panel.innerHTML);
     el.style.display = "block";
-    if (!html || /button class="tx"/.test(html)) bindTx(root, el);
+    if (!html || /button class="tx"|data-retry|data-copy/.test(html)) {
+      bindTx(root, el);
+      bindResultTools(root, el);
+    }
   }
 
   function scan(from) {
@@ -875,7 +908,7 @@
     return btoa(binary);
   }
 
-  async function transcribeRoot(root) {
+  async function transcribeRoot(root, opts = {}) {
     lastVoice = root;
     ensureUi(root);
     const btn = buttonOf(root);
@@ -999,6 +1032,7 @@
         mimeType: blob.type || "audio/ogg",
         fileName: "voice.ogg",
         byteLength: audioBuffer.byteLength,
+        fresh: Boolean(opts.fresh),
       });
       if (cancelledHere || cancelled.get(requestId)?.cancel) return;
       if (!result?.ok) {
@@ -1016,25 +1050,23 @@
       const device = result.device ? ` · ${escapeHtml(result.device)}` : "";
       const model = result.model ? ` · ${escapeHtml(result.model)}` : "";
       const safe = escapeHtml(result.text);
+      const note = result.cleaned
+        ? `<p class="micro">O tiny repetiu demais — texto limpo. Troque o modelo e clique em De novo.</p>`
+        : "";
       setPanel(
         root,
         `<div class="box">
            <div class="label"><span>VozClara</span>
-             <button class="copy" type="button" data-copy="1" aria-label="Copiar">Copiar</button>
+             <span class="tools">
+               <button class="copy" type="button" data-retry="1">De novo</button>
+               <button class="copy" type="button" data-copy="1" aria-label="Copiar">Copiar</button>
+             </span>
            </div>
            <p class="text">${safe}</p>
            <p class="micro">✓ Pronto${model}${device} · ${spent}</p>
+           ${note}
          </div>`,
       );
-      const copyBtn = panelOf(root)?.querySelector("[data-copy]");
-      copyBtn?.addEventListener("click", async () => {
-        try {
-          await navigator.clipboard.writeText(result.text);
-          copyBtn.textContent = "Copiado";
-        } catch {
-          /* ignore */
-        }
-      });
     } catch (err) {
       if (cancelledHere || cancelled.get(requestId)?.cancel) return;
       const raw = err instanceof Error ? err.message : "Falha ao transcrever.";

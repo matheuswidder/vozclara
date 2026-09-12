@@ -1544,8 +1544,11 @@ async function transcribe(msg, tabId) {
   const cacheKey = `tx:${await hashBlob(blob)}:${provider}:${kind}:${language || "auto"}`;
   const cached = await chrome.storage.local.get(cacheKey);
   const cachedText = txText(cached[cacheKey]);
-  if (cachedText) {
-    return { ok: true, text: cachedText, provider, cached: true };
+  if (cachedText && !msg.fresh) {
+    const cleanedCache = collapseRepeats(cachedText);
+    if (!isRepeatLoop(cachedText, cleanedCache)) {
+      return { ok: true, text: cleanedCache, provider, cached: true };
+    }
   }
 
   let text = "";
@@ -1627,21 +1630,73 @@ async function transcribe(msg, tabId) {
     return { ok: false, cancelled: true };
   }
 
-  try {
-    await chrome.storage.local.set({ [cacheKey]: { t: Date.now(), text } });
-  } catch {
-    await pruneCache().catch(() => {});
+  const rawText = text;
+  text = collapseRepeats(text);
+  const cleaned = isRepeatLoop(rawText, text);
+  if (!cleaned) {
     try {
       await chrome.storage.local.set({ [cacheKey]: { t: Date.now(), text } });
     } catch {
-      /* segue sem cache — transcrição já está OK */
+      await pruneCache().catch(() => {});
+      try {
+        await chrome.storage.local.set({ [cacheKey]: { t: Date.now(), text } });
+      } catch {
+        /* segue sem cache — transcrição já está OK */
+      }
+    }
+  } else {
+    try {
+      await chrome.storage.local.remove(cacheKey);
+    } catch {
+      /* ignore */
     }
   }
-  return { ok: true, text, provider, model, device };
+  return { ok: true, text, provider, model, device, cleaned };
 }
 
 const TX_PREFIX = "tx:";
 const TX_KEEP = 200;
+
+function collapseRepeats(text) {
+  let s = String(text || "").replace(/\s+/g, " ").trim();
+  if (s.length < 40) return s;
+  const words = s.split(" ");
+  for (let len = 16; len >= 2; len--) {
+    const out = [];
+    let i = 0;
+    while (i < words.length) {
+      if (i + len * 3 <= words.length) {
+        const chunk = words.slice(i, i + len);
+        const key = chunk.join(" ").toLowerCase();
+        let reps = 1;
+        while (
+          i + len * (reps + 1) <= words.length &&
+          words
+            .slice(i + len * reps, i + len * (reps + 1))
+            .join(" ")
+            .toLowerCase() === key
+        ) {
+          reps += 1;
+        }
+        if (reps >= 3) {
+          out.push(...chunk);
+          i += len * reps;
+          continue;
+        }
+      }
+      out.push(words[i]);
+      i += 1;
+    }
+    words.splice(0, words.length, ...out);
+  }
+  return words.join(" ").replace(/\s+,/g, ",").replace(/,\s*,+/g, ",").trim();
+}
+
+function isRepeatLoop(original, cleaned) {
+  const raw = String(original || "");
+  const out = String(cleaned || "");
+  return raw.length > 80 && out.length * 2.5 < raw.length;
+}
 
 function txText(value) {
   if (typeof value === "string") return value;

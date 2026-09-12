@@ -108,3 +108,16 @@ test("Nemotron não mistura motor com download", () => {
   const ready = VC.motorView({ motorAlive: true, motorUp: true });
   assert.equal(ready.model.text, "Pronto para transcrever");
 });
+
+test("collapseRepeats corta loop do tiny", () => {
+  const loop =
+    "Eu não tinha me falar do que eu não fui lá, " +
+    "mas não fui lá, ".repeat(40) +
+    "mas não minha vida, mas eu vou";
+  const out = VC.collapseRepeats(loop);
+  assert.ok(out.length < loop.length / 3);
+  assert.match(out, /não fui lá/);
+  assert.equal((out.match(/não fui lá/gi) || []).length < 6, true);
+  assert.equal(VC.isRepeatLoop(loop, out), true);
+  assert.equal(VC.collapseRepeats("oi tudo bem"), "oi tudo bem");
+});
