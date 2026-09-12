@@ -78,18 +78,34 @@
       border: 0; background: #00a884; color: #062016;
       font-weight: 700; border-radius: 10px; padding: 9px 10px; cursor: pointer;
       font-size: 12.5px;
+      transition: opacity .18s ease, transform .15s ease;
     }
+    button.act:active:not(:disabled) { transform: scale(.98); }
     button.act:disabled { opacity: .55; cursor: default; }
     button.ghost {
       border: 1px solid var(--line); background: transparent; color: var(--fg);
       border-radius: 10px; padding: 9px 12px; cursor: pointer; font-size: 13px;
     }
     .meter { height: 6px; background: var(--line); border-radius: 99px; overflow: hidden; margin: 0 0 8px; }
-    .meter span { display: block; height: 100%; width: 0; background: #00a884; }
-    .status { margin: 0 0 10px; font-size: 12.5px; color: var(--muted); }
+    .meter span { display: block; height: 100%; width: 0; background: #00a884; transition: width .25s ease; }
+    .status { margin: 0 0 10px; font-size: 12.5px; color: var(--muted); transition: color .2s ease, opacity .18s ease; }
     .status.ok { color: #1fa855; }
     .status.warn { color: #c47f17; }
+    .status.flash, .confirm.flash { animation: vc-in .22s ease; }
     .hint { font-size: 12px; color: var(--muted); margin: 0 0 12px; font-weight: 400; }
+    .confirm {
+      margin: 0 0 12px; padding: 12px; border: 1px solid var(--line);
+      border-radius: 12px; background: var(--field);
+    }
+    .confirm p { margin: 0 0 10px; font-size: 13px; font-weight: 400; }
+    .confirm .actions { margin: 0; }
+    @keyframes vc-in {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: none; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { animation: none !important; transition: none !important; }
+    }
     .test {
       border: 1px dashed var(--line); border-radius: 12px; padding: 12px;
       background: var(--field);
@@ -108,6 +124,18 @@
 
   let shadow = null;
   let raf = 0;
+  let lastPreferred = "turbo";
+
+  function metaOf(kind) {
+    return globalThis.VCShared.modelMeta(kind);
+  }
+
+  function flashEl(el) {
+    if (!el) return;
+    el.classList.remove("flash");
+    void el.offsetWidth;
+    el.classList.add("flash");
+  }
 
   function isDark() {
     const bg = getComputedStyle(document.body).backgroundColor;
@@ -287,7 +315,7 @@
               </label>
             </div>
             <div id="local-fields">
-              <p class="hint">O modelo fica neste navegador. Um clique: Baixar e usar.</p>
+              <p class="hint">Trocar de modelo: se já baixou, aplica na hora. Se não, pergunta.</p>
               <label>Modelo
                 <select id="model">
                   <option value="turbo">Turbo — recomendado (~560 MB)</option>
@@ -303,6 +331,13 @@
                   <input id="hf-repo" type="text" spellcheck="false" autocomplete="off" placeholder="https://huggingface.co/onnx-community/whisper-tiny" />
                 </label>
                 <p class="hint">Cole o link de um Whisper ONNX. Nemotron é o item do seletor.</p>
+              </div>
+              <div id="confirm" class="confirm" hidden>
+                <p id="confirm-text"></p>
+                <div class="actions">
+                  <button class="act" id="confirm-yes" type="button">Baixar</button>
+                  <button class="ghost" id="confirm-no" type="button">Agora não</button>
+                </div>
               </div>
               <div class="actions">
                 <button class="act" id="download" type="button">Baixar e usar</button>
@@ -347,13 +382,15 @@
     });
     $p("language")?.addEventListener("change", () => void save());
     $p("apiKey")?.addEventListener("change", () => void save());
-    $p("model")?.addEventListener("change", () => {
-      syncModelFields();
-      void refreshLocal();
-    });
+    $p("model")?.addEventListener("change", () => void onModelChange());
     $p("hf-repo")?.addEventListener("change", () => void save());
     $p("download")?.addEventListener("click", () => void commitModel());
     $p("reveal")?.addEventListener("click", () => void revealFolder());
+    $p("confirm-yes")?.addEventListener("click", () => {
+      hideConfirm();
+      void startDownload($p("model")?.value || "turbo");
+    });
+    $p("confirm-no")?.addEventListener("click", () => revertModel());
     $p("file")?.addEventListener("change", (e) => {
       const file = e.target.files?.[0];
       if (file) void testFile(file);
@@ -410,7 +447,68 @@
       void wakeMotor();
       return;
     }
-    void startDownload($p("model")?.value || "turbo");
+    hideConfirm();
+    void startDownload($p("model")?.value || "turbo", { switching: action === "switch" });
+  }
+
+  function hideConfirm() {
+    const box = $p("confirm");
+    if (box) box.hidden = true;
+  }
+
+  function showConfirm(kind) {
+    const box = $p("confirm");
+    const text = $p("confirm-text");
+    const yes = $p("confirm-yes");
+    const meta = metaOf(kind);
+    if (!box || !text) return;
+    text.textContent = `${meta.name} ainda não está neste Chrome (${meta.size}). Baixar agora?`;
+    if (yes) yes.textContent = `Baixar ${meta.name}`;
+    box.hidden = false;
+    flashEl(box);
+  }
+
+  function revertModel() {
+    if ($p("model")) $p("model").value = lastPreferred;
+    hideConfirm();
+    syncFields();
+    void refreshLocal();
+  }
+
+  async function onModelChange() {
+    syncModelFields();
+    hideConfirm();
+    const kind = normalizeKind($p("model")?.value);
+    const status = $p("local-status");
+    if (status) {
+      status.textContent = `Verificando ${metaOf(kind).name}…`;
+      status.className = "status warn flash";
+      flashEl(status);
+    }
+    if (kind === "custom") {
+      void refreshLocal();
+      return;
+    }
+    try {
+      const probe = await chrome.runtime.sendMessage({
+        type: "VOZCLARA_MODEL_PROBE",
+        kind,
+        repo: $p("hf-repo")?.value.trim() || "",
+      });
+      if (probe?.cached && kind !== "nemotron") {
+        lastPreferred = kind;
+        void startDownload(kind, { switching: true });
+        return;
+      }
+      if (kind === "nemotron") {
+        void refreshLocal();
+        return;
+      }
+      showConfirm(kind);
+      void refreshLocal();
+    } catch {
+      showConfirm(kind);
+    }
   }
 
   async function loadForm() {
@@ -427,9 +525,10 @@
     if ($p("apiKey")) $p("apiKey").value = stored.apiKey || "";
     if ($p("language")) $p("language").value = stored.language || "pt";
     if ($p("model")) {
-      $p("model").value = normalizeKind(
+      lastPreferred = normalizeKind(
         stored.preferredKind || stored.localModelKind || "turbo",
       );
+      $p("model").value = lastPreferred;
     }
     if ($p("hf-repo")) {
       $p("hf-repo").value = stored.customModelInput || stored.customModelRepo || "";
@@ -468,6 +567,7 @@
       status.className =
         "status " +
         (error ? "warn" : action.id === "ready" ? "ok" : downloading ? "warn" : "");
+      flashEl(status);
     }
     if (meter && bar) {
       const show = downloading || (percent > 0 && percent < 100 && !ready);
@@ -505,6 +605,8 @@
       "localModelId",
       "localModelKind",
       "localProgress",
+      "cachedKinds",
+      "preferredKind",
     ]);
     paintLocal({
       ready: Boolean(stored.localModelReady),
@@ -513,7 +615,8 @@
       label: stored.localProgress?.label,
       error: stored.localProgress?.error,
       model: stored.localModelId,
-      kind: stored.localModelKind,
+      kind: stored.preferredKind || stored.localModelKind,
+      cachedKinds: stored.cachedKinds,
     });
     void showQualityFallback();
   }
@@ -537,10 +640,11 @@
     await refreshLocal();
   }
 
-  async function startDownload(kind) {
+  async function startDownload(kind, opts = {}) {
     const want = normalizeKind(kind);
     const repo = want === "custom" ? ($p("hf-repo")?.value.trim() || "") : "";
     const parsed = parseHfRepo(repo);
+    const meta = metaOf(want);
     if (want === "custom" && /nemotron|parakeet|fastconformer|canary|nemo[-_]?asr/i.test(parsed)) {
       const s = $p("save-status");
       if (s) {
@@ -550,12 +654,16 @@
       }
       return;
     }
+    hideConfirm();
+    lastPreferred = want;
     paintLocal({
-      downloading: true,
-      ready: false,
-      percent: 1,
+      downloading: !opts.switching,
+      ready: Boolean(opts.switching),
+      percent: opts.switching ? 70 : 1,
       kind: want,
-      label: globalThis.VCShared.downloadLabel(want, repo),
+      label: opts.switching
+        ? `Trocando para ${meta.name}…`
+        : globalThis.VCShared.downloadLabel(want, repo),
     });
     await chrome.storage.local.set({
       provider: "local",
@@ -572,8 +680,11 @@
       });
       const s = $p("save-status");
       if (s) {
-        s.textContent = "Deixe a aba aberta até Pronto.";
+        s.textContent = opts.switching
+          ? `${meta.name} já estava aqui. Aplicando…`
+          : "Deixe a aba aberta até Pronto.";
         s.className = "status ok";
+        flashEl(s);
       }
     } catch (err) {
       paintLocal({
