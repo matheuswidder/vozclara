@@ -15,7 +15,7 @@ const STEPS = [
   {
     n: "3",
     title: "Baixe o Whisper",
-    body: "Abra o WhatsApp Web. No ícone da VozClara, clique em Baixar. Deixe a aba aberta até Pronto.",
+    body: "No WhatsApp, clique no ícone da VozClara na barra. Escolha o modelo e clique em Baixar e usar. Espere Pronto.",
   },
 ];
 

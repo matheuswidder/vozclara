@@ -11,7 +11,7 @@ const STEPS = [
   {
     n: "2",
     title: "Baixe o modelo",
-    body: "No ícone da VozClara, escolha turbo ou v3 e clique em Baixar.",
+    body: "No ícone da VozClara, escolha o modelo e clique em Baixar e usar.",
   },
   {
     n: "3",
@@ -32,9 +32,8 @@ export function LocalEngine() {
             Whisper neste Chrome
           </h2>
           <p className="mt-1 text-sm text-fg-muted">
-            O modelo baixa uma vez e fica no navegador. Abrir no Explorer copia
-            para Downloads/VozClara. Nemotron (Windows): a extensão baixa o
-            instalador VozClara-Motor-Setup.exe. Abra e clique Instalar.
+            Um clique em Baixar e usar. Turbo é o recomendado. Tiny é o mais
+            leve. Nemotron é um programa à parte, no Windows.
           </p>
         </div>
         <Button asChild className="shrink-0">

@@ -53,6 +53,7 @@
     -moz-osx-font-smoothing: grayscale;
     background: var(--color-bg);
     color: var(--color-fg);
+    overflow-x: clip;
   }
 
   body {
@@ -60,6 +61,7 @@
     font-family: var(--font-sans);
     background: var(--color-bg);
     color: var(--color-fg);
+    overflow-x: clip;
   }
 
   button:not(:disabled),

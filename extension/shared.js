@@ -31,10 +31,12 @@
     const ready = Boolean(state?.ready);
     const downloading = Boolean(state?.downloading);
     if (state?.error) return state.error;
-    if (state?.label) return state.label;
+    if (downloading) return state?.label || "Baixando… deixe a aba aberta.";
+    if (state?.label && !/ainda não baixou|um clique/i.test(state.label)) {
+      return state.label;
+    }
     if (ready) return `Pronto · ${state.model || "Whisper"}`;
-    if (downloading) return "Baixando Whisper…";
-    return "Ainda não baixou. Um clique, uma vez.";
+    return "Escolha o modelo e clique em Baixar e usar.";
   }
 
   function stateKind(state) {
@@ -44,15 +46,48 @@
     return "";
   }
 
-  // Label de download inicial compartilhado entre popup e dock.
   function downloadLabel(kind, repo) {
     const want = normalizeKind(kind);
-    if (want === "nemotron") return "Baixando o instalador do motor…";
+    if (want === "nemotron") return "Baixando o instalador do Windows…";
     if (want === "custom") return `Baixando ${parseHfRepo(repo) || "modelo"}…`;
-    if (want === "tiny") return "Baixando o tiny…";
-    if (want === "light") return "Baixando a versão leve…";
-    if (want === "v3") return "Baixando o v3…";
-    return "Abrindo o download…";
+    if (want === "tiny") return "Baixando o tiny (~40 MB)…";
+    if (want === "light") return "Baixando o small (~120 MB)…";
+    if (want === "v3") return "Baixando o v3 (~1,5 GB)…";
+    return "Baixando o turbo (~560 MB)…";
+  }
+
+  function primaryAction(state, selected) {
+    const want = normalizeKind(selected);
+    const ready = Boolean(state?.ready);
+    const downloading = Boolean(state?.downloading);
+    const kind = normalizeKind(state?.kind);
+    const motorUp = Boolean(state?.motorUp);
+    const motorAlive = Boolean(state?.motorAlive);
+    const motorInstalled = Boolean(state?.motorInstalled) || motorUp || motorAlive;
+    if (downloading) {
+      return { id: "wait", label: "Baixando…", disabled: true };
+    }
+    if (want === "nemotron") {
+      if (motorUp) return { id: "ready", label: "Motor ligado", disabled: true };
+      if (motorAlive) return { id: "wait", label: "Carregando…", disabled: true };
+      if (motorInstalled) return { id: "wake", label: "Ligar o motor", disabled: false };
+      return { id: "install", label: "Instalar no Windows", disabled: false };
+    }
+    if (ready && kind === want) {
+      return { id: "ready", label: "Em uso", disabled: true };
+    }
+    const sizes = {
+      tiny: "~40 MB",
+      light: "~120 MB",
+      turbo: "~560 MB",
+      v3: "~1,5 GB",
+    };
+    const size = sizes[want];
+    return {
+      id: "download",
+      label: size ? `Baixar e usar (${size})` : "Baixar e usar",
+      disabled: false,
+    };
   }
 
   // Parte 7.2: persistência/leitura do aviso de fallback de qualidade.
@@ -84,6 +119,7 @@
     stateLabel,
     stateKind,
     downloadLabel,
+    primaryAction,
     setQualityFallback,
     takeQualityFallback,
   };

@@ -29,7 +29,7 @@ function paint(extra) {
     return;
   }
   if (isLocal()) {
-    status.textContent = "Whisper neste Chrome — o áudio não sai da máquina.";
+    status.textContent = "O áudio não sai deste computador.";
     status.dataset.kind = "ok";
     return;
   }
@@ -70,12 +70,14 @@ function renderLocal(state) {
   const percent = Number(state?.percent) || 0;
   const error = state?.error || "";
   const label = globalThis.VCShared.stateLabel(state);
+  const selected = normalizeKind($("model")?.value);
+  const action = globalThis.VCShared.primaryAction(state, selected);
 
   if (localStatus) {
     localStatus.textContent = error || label;
     localStatus.dataset.kind = error
       ? "warn"
-      : ready
+      : action.id === "ready"
         ? "ok"
         : downloading
           ? "warn"
@@ -83,11 +85,11 @@ function renderLocal(state) {
   }
 
   if (pathEl) {
-    if (ready && !error) {
+    if (ready && action.id === "ready" && !error) {
       pathEl.hidden = false;
       pathEl.textContent = state.folder
         ? `Pasta: Downloads/VozClara/${state.model || "Whisper"}`
-        : `Neste Brave · ${state.fileCount || "?"} arquivos. Abrir no Explorer copia para Downloads/VozClara.`;
+        : "Fica neste navegador. Pasta copia para Downloads/VozClara.";
     } else {
       pathEl.hidden = true;
     }
@@ -99,27 +101,17 @@ function renderLocal(state) {
     bar.style.width = `${Math.max(0, Math.min(100, percent))}%`;
   }
 
-  const kind = normalizeKind(state?.kind);
-  const selected = normalizeKind($("model")?.value);
-
-  if (download) {
-    download.disabled = downloading;
-    const motorUp = Boolean(state?.motorUp);
-    const motorAlive = Boolean(state?.motorAlive);
-    const motorInstalled = Boolean(state?.motorInstalled) || motorUp || motorAlive;
-    download.dataset.wake = selected === "nemotron" && motorInstalled && !motorUp ? "1" : "";
-    if (downloading) download.textContent = "Baixando…";
-    else if (selected === "nemotron" && motorAlive && !motorUp) download.textContent = "Carregando…";
-    else if (selected === "nemotron" && motorUp) download.textContent = "Na bandeja";
-    else if (selected === "nemotron" && motorInstalled) download.textContent = "Ligar motor";
-    else if (selected === "nemotron") download.textContent = "Instalar no PC";
-    else if (ready && selected === kind) download.textContent = "Pronto";
-    else download.textContent = "Baixar";
-  }
+  download.disabled = action.disabled;
+  download.dataset.action = action.id;
+  download.textContent = action.label;
 
   if (reveal) {
-    reveal.hidden = false;
-    reveal.disabled = downloading || !ready;
+    reveal.hidden = action.id !== "ready";
+    reveal.disabled = downloading || action.id !== "ready";
+  }
+
+  if (action.id === "ready") {
+    chrome.storage.local.set({ preferredKind: selected }).catch(() => {});
   }
 }
 
@@ -198,32 +190,23 @@ async function save() {
     provider: $("provider").value,
     apiKey: $("apiKey").value.trim(),
     language: $("language").value,
-    preferredKind: normalizeKind($("model")?.value),
     customModelInput: $("hf-repo")?.value.trim() || "",
   });
   paint({ text: "Guardado.", kind: "ok" });
 }
 
-async function apply() {
-  await save();
-  // Parte 7.1: provider é lido do storage a cada transcrição — F5 nunca foi
-  // preciso; hint removido.
-  paint({
-    text: "Aplicado — já vale na próxima transcrição.",
-    kind: "ok",
-  });
+async function commitModel() {
   const kind = normalizeKind($("model")?.value);
-  const stored = await chrome.storage.local.get([
-    "localModelKind",
-    "localModelReady",
-    "customModelRepo",
-  ]);
-  const sameRepo =
-    kind !== "custom" ||
-    parseHfRepo($("hf-repo")?.value) === parseHfRepo(stored.customModelRepo);
-  if (!stored.localModelReady || normalizeKind(stored.localModelKind) !== kind || !sameRepo) {
-    void startDownload(kind);
+  const download = $("download");
+  const action = download?.dataset.action || "download";
+  if (action === "wait" || action === "ready") return;
+  if (action === "wake") {
+    chrome.runtime.sendMessage({ type: "VOZCLARA_MOTOR_WAKE" }).finally(() => {
+      void queryLocal();
+    });
+    return;
   }
+  void startDownload(kind);
 }
 
 function friendly(err) {
@@ -301,7 +284,7 @@ async function startDownload(kind) {
       throw new Error(result?.error || "Não deu para iniciar o download.");
     }
     paint({
-      text: "Download numa aba. Deixe-a aberta até Pronto.",
+      text: "Deixe a aba aberta até Pronto. Pode fechar este painel.",
       kind: "ok",
     });
   } catch (err) {
@@ -331,17 +314,8 @@ document.addEventListener("DOMContentLoaded", () => {
   $("hf-repo")?.addEventListener("change", () => void save());
   const download = $("download");
   if (download) {
-    download.addEventListener("click", () => {
-      if (download.dataset.wake === "1") {
-        chrome.runtime.sendMessage({ type: "VOZCLARA_MOTOR_WAKE" }).finally(() => {
-          void queryLocal();
-        });
-        return;
-      }
-      void startDownload(normalizeKind($("model")?.value));
-    });
+    download.addEventListener("click", () => void commitModel());
   }
-  $("apply")?.addEventListener("click", () => void apply());
   const reveal = $("reveal");
   if (reveal) reveal.addEventListener("click", () => void revealFolder());
 });
