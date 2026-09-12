@@ -4,6 +4,15 @@
 // - service worker clássico (background.js mantém cópia com "// SYNC: shared.js")
 // Não assume DOM; só define globalThis.VCShared.
 (() => {
+  const MODEL_META = {
+    turbo: { name: "Turbo", size: "~560 MB" },
+    tiny: { name: "Tiny", size: "~40 MB" },
+    light: { name: "Small", size: "~120 MB" },
+    v3: { name: "v3", size: "~1,5 GB" },
+    nemotron: { name: "Nemotron", size: "Windows" },
+    custom: { name: "Este Whisper", size: "" },
+  };
+
   function normalizeKind(kind) {
     const k = String(kind || "").toLowerCase();
     if (k === "v3" || k === "precise" || k === "large" || k === "large-v3") return "v3";
@@ -27,6 +36,10 @@
     return `${parts[0]}/${parts[1]}`;
   }
 
+  function modelMeta(kind) {
+    return MODEL_META[normalizeKind(kind)] || MODEL_META.turbo;
+  }
+
   function stateLabel(state) {
     const ready = Boolean(state?.ready);
     const downloading = Boolean(state?.downloading);
@@ -36,7 +49,7 @@
       return state.label;
     }
     if (ready) return `Pronto · ${state.model || "Whisper"}`;
-    return "Escolha o modelo e clique em Baixar e usar.";
+    return "Escolha o modelo. Se já estiver aqui, entra na hora.";
   }
 
   function stateKind(state) {
@@ -48,12 +61,10 @@
 
   function downloadLabel(kind, repo) {
     const want = normalizeKind(kind);
+    const meta = modelMeta(want);
     if (want === "nemotron") return "Baixando o instalador do Windows…";
     if (want === "custom") return `Baixando ${parseHfRepo(repo) || "modelo"}…`;
-    if (want === "tiny") return "Baixando o tiny (~40 MB)…";
-    if (want === "light") return "Baixando o small (~120 MB)…";
-    if (want === "v3") return "Baixando o v3 (~1,5 GB)…";
-    return "Baixando o turbo (~560 MB)…";
+    return `Baixando ${meta.name} (${meta.size})…`;
   }
 
   function primaryAction(state, selected) {
@@ -61,9 +72,11 @@
     const ready = Boolean(state?.ready);
     const downloading = Boolean(state?.downloading);
     const kind = normalizeKind(state?.kind);
+    const cached = Array.isArray(state?.cachedKinds) && state.cachedKinds.includes(want);
     const motorUp = Boolean(state?.motorUp);
     const motorAlive = Boolean(state?.motorAlive);
     const motorInstalled = Boolean(state?.motorInstalled) || motorUp || motorAlive;
+    const meta = modelMeta(want);
     if (downloading) {
       return { id: "wait", label: "Baixando…", disabled: true };
     }
@@ -76,25 +89,23 @@
     if (ready && kind === want) {
       return { id: "ready", label: "Em uso", disabled: true };
     }
-    const sizes = {
-      tiny: "~40 MB",
-      light: "~120 MB",
-      turbo: "~560 MB",
-      v3: "~1,5 GB",
-    };
-    const size = sizes[want];
+    if (cached) {
+      return { id: "switch", label: `Usar ${meta.name}`, disabled: false };
+    }
     return {
       id: "download",
-      label: size ? `Baixar e usar (${size})` : "Baixar e usar",
+      label: meta.size ? `Baixar ${meta.name} (${meta.size})` : `Baixar ${meta.name}`,
       disabled: false,
     };
   }
 
-  // Parte 7.2: persistência/leitura do aviso de fallback de qualidade.
   async function setQualityFallback(label) {
     try {
       await chrome.storage.local.set({
-        lastQualityFallback: { label: label || "O modelo grande não coube. Foi usada a versão leve.", at: Date.now() },
+        lastQualityFallback: {
+          label: label || "O modelo grande não coube. Foi usada a versão leve.",
+          at: Date.now(),
+        },
       });
     } catch {
       /* ignore */
@@ -116,6 +127,7 @@
   globalThis.VCShared = {
     normalizeKind,
     parseHfRepo,
+    modelMeta,
     stateLabel,
     stateKind,
     downloadLabel,

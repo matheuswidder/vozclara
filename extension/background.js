@@ -51,6 +51,18 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     void beginDownload(normalizeKind(msg.kind), msg.repo);
     return false;
   }
+  if (msg?.type === "VOZCLARA_MODEL_PROBE") {
+    probeKind(msg.kind, msg.repo)
+      .then(sendResponse)
+      .catch((err) =>
+        sendResponse({
+          ok: false,
+          cached: false,
+          error: err instanceof Error ? err.message : "Não verifiquei o modelo.",
+        }),
+      );
+    return true;
+  }
   if (msg?.type === "VOZCLARA_MOTOR_WAKE") {
     wakeMotor()
       .then(sendResponse)
@@ -426,6 +438,7 @@ async function storedStatus() {
     "customModelRepo",
     "customModelInput",
     "preferredKind",
+    "cachedKinds",
   ]);
   return {
     ok: true,
@@ -438,6 +451,7 @@ async function storedStatus() {
     kind: stored.preferredKind || stored.localModelKind,
     device: stored.localModelDevice,
     customRepo: stored.customModelRepo || stored.customModelInput || "",
+    cachedKinds: Array.isArray(stored.cachedKinds) ? stored.cachedKinds : [],
   };
 }
 
@@ -616,6 +630,60 @@ async function scanModelCache(kind, repo) {
   };
 }
 
+async function markCached(kind) {
+  const want = normalizeKind(kind);
+  if (want === "nemotron" || want === "custom") return;
+  const stored = await chrome.storage.local.get(["cachedKinds"]);
+  const list = Array.isArray(stored.cachedKinds) ? stored.cachedKinds.slice() : [];
+  if (!list.includes(want)) list.push(want);
+  await chrome.storage.local.set({ cachedKinds: list });
+}
+
+async function scanKnownKinds() {
+  const kinds = ["tiny", "light", "turbo", "v3"];
+  const cached = [];
+  for (const k of kinds) {
+    try {
+      const disk = await scanModelCache(k);
+      if (disk.ready) cached.push(k);
+    } catch {
+      /* ignore */
+    }
+  }
+  await chrome.storage.local.set({ cachedKinds: cached });
+  return cached;
+}
+
+async function probeKind(kind, repo) {
+  const want = normalizeKind(kind);
+  if (want === "nemotron") {
+    const extra = await chrome.storage.local.get(["localUrl", "motorInstalled"]);
+    const probe = await probeLocal(extra.localUrl);
+    const alive = Boolean(probe?.ok);
+    const up = Boolean(probe?.ok && probe.ready);
+    return {
+      ok: true,
+      kind: want,
+      cached: Boolean(extra.motorInstalled) || alive || up,
+      ready: up,
+      motorUp: up,
+      motorAlive: alive,
+      motorInstalled: Boolean(extra.motorInstalled) || alive || up,
+    };
+  }
+  const disk = await scanModelCache(want, repo);
+  if (disk.ready) await markCached(want);
+  const stored = await chrome.storage.local.get(["cachedKinds"]);
+  return {
+    ok: true,
+    kind: want,
+    cached: disk.ready,
+    ready: disk.ready,
+    model: disk.model,
+    cachedKinds: Array.isArray(stored.cachedKinds) ? stored.cachedKinds : [],
+  };
+}
+
 async function existingExport() {
   if (!chrome.downloads?.search) return null;
   const stored = await chrome.storage.local.get(["localExportIds"]);
@@ -716,6 +784,14 @@ async function verifyModel(opts = {}) {
   const disk = await scanModelCache(kind, stored.customRepo || stored.customModelRepo);
   const folder = await existingExport();
   const downloading = Boolean(stored.downloading);
+  let cachedKinds = Array.isArray(stored.cachedKinds) ? stored.cachedKinds : [];
+  if (!downloading) {
+    try {
+      cachedKinds = await scanKnownKinds();
+    } catch {
+      /* keep */
+    }
+  }
   if (!downloading && disk.ready && !stored.ready) {
     await chrome.storage.local.set({
       localModelReady: true,
@@ -745,6 +821,7 @@ async function verifyModel(opts = {}) {
     ...fresh,
     ok: true,
     checked: true,
+    cachedKinds,
     fileCount: disk.fileCount,
     onnxCount: disk.onnxCount,
     folder: folder?.filename || "",
@@ -820,20 +897,27 @@ async function beginDownload(kind, repo) {
     return;
   }
   const parsed = parseHfRepo(repo || "");
+  const disk = await scanModelCache(want, parsed);
+  const switching = Boolean(disk.ready);
+  const label = switching
+    ? `Trocando para ${disk.model}…`
+    : want === "custom"
+      ? `Baixando ${parsed || "modelo"}…`
+      : `Baixando ${disk.model}…`;
   await chrome.storage.local.set({
     provider: "local",
     preferredKind: want,
     customModelInput: repo || "",
     customModelRepo: parsed,
     localProgress: {
-      downloading: true,
-      percent: 1,
-      label: want === "custom" ? `Baixando ${parsed || "modelo"}…` : "Abrindo o download…",
+      downloading: !switching,
+      percent: switching ? 70 : 1,
+      label,
       error: "",
     },
   });
-  updateBadge({ downloading: true, percent: 1 });
-  openProgressTab();
+  updateBadge({ downloading: !switching, percent: switching ? 70 : 1 });
+  if (!switching) openProgressTab();
   try {
     await ensureOffscreen();
     const result = await callOffscreen(
@@ -843,6 +927,7 @@ async function beginDownload(kind, repo) {
     if (!result?.ok) {
       throw new Error(result?.error || "Não deu para baixar o Whisper.");
     }
+    await markCached(result.kind || want);
     await chrome.storage.local.set({
       provider: "local",
       localModelReady: true,
@@ -850,6 +935,7 @@ async function beginDownload(kind, repo) {
       localModelKind: result.kind || want,
       localModelDevice: result.device || "",
       customModelRepo: result.repo || parsed,
+      preferredKind: result.kind || want,
       localProgress: {
         downloading: false,
         percent: 100,

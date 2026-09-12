@@ -51,7 +51,18 @@ test("stateLabel cobre ready/downloading/error/label", () => {
   assert.equal(VC.stateLabel({ downloading: true }), "Baixando… deixe a aba aberta.");
   assert.equal(VC.stateLabel({ error: "boom" }), "boom");
   assert.equal(VC.stateLabel({ label: "custom" }), "custom");
-  assert.equal(VC.stateLabel({}), "Escolha o modelo e clique em Baixar e usar.");
+  assert.equal(VC.stateLabel({}), "Escolha o modelo. Se já estiver aqui, entra na hora.");
+});
+
+test("modelMeta e troca rápida", () => {
+  assert.equal(VC.modelMeta("tiny").name, "Tiny");
+  assert.equal(VC.modelMeta("turbo").size, "~560 MB");
+  const sw = VC.primaryAction(
+    { ready: true, kind: "turbo", cachedKinds: ["turbo", "tiny"] },
+    "tiny",
+  );
+  assert.equal(sw.id, "switch");
+  assert.match(sw.label, /Tiny/);
 });
 
 test("downloadLabel cobre todos os kinds", () => {
@@ -60,10 +71,10 @@ test("downloadLabel cobre todos os kinds", () => {
     VC.downloadLabel("custom", "onnx-community/whisper-tiny"),
     "Baixando onnx-community/whisper-tiny…",
   );
-  assert.equal(VC.downloadLabel("tiny"), "Baixando o tiny (~40 MB)…");
-  assert.equal(VC.downloadLabel("light"), "Baixando o small (~120 MB)…");
-  assert.equal(VC.downloadLabel("v3"), "Baixando o v3 (~1,5 GB)…");
-  assert.equal(VC.downloadLabel("turbo"), "Baixando o turbo (~560 MB)…");
+  assert.equal(VC.downloadLabel("tiny"), "Baixando Tiny (~40 MB)…");
+  assert.equal(VC.downloadLabel("light"), "Baixando Small (~120 MB)…");
+  assert.equal(VC.downloadLabel("v3"), "Baixando v3 (~1,5 GB)…");
+  assert.equal(VC.downloadLabel("turbo"), "Baixando Turbo (~560 MB)…");
 });
 
 test("primaryAction: um botão, ação óbvia", () => {

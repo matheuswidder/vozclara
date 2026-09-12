@@ -6,6 +6,19 @@ const parseHfRepo = (r) => globalThis.VCShared.parseHfRepo(r);
 
 const $ = (id) => document.getElementById(id);
 
+let lastPreferred = "turbo";
+
+function metaOf(kind) {
+  return globalThis.VCShared.modelMeta(kind);
+}
+
+function flashEl(el) {
+  if (!el) return;
+  el.classList.remove("flash");
+  void el.offsetWidth;
+  el.classList.add("flash");
+}
+
 function isLocal() {
   return $("provider").value === "local";
 }
@@ -82,6 +95,7 @@ function renderLocal(state) {
         : downloading
           ? "warn"
           : "";
+    flashEl(localStatus);
   }
 
   if (pathEl) {
@@ -135,6 +149,8 @@ async function queryLocal() {
       "localModelKind",
       "localModelDevice",
       "localProgress",
+      "cachedKinds",
+      "preferredKind",
     ]);
     renderLocal({
       ready: Boolean(stored.localModelReady),
@@ -143,8 +159,9 @@ async function queryLocal() {
       label: stored.localProgress?.label,
       error: stored.localProgress?.error,
       model: stored.localModelId,
-      kind: stored.localModelKind,
+      kind: stored.preferredKind || stored.localModelKind,
       device: stored.localModelDevice,
+      cachedKinds: stored.cachedKinds,
     });
     void showQualityFallback();
   } catch (err) {
@@ -170,9 +187,10 @@ async function load() {
     $("apiKey").value = stored.apiKey || "";
     $("language").value = stored.language || "pt";
     if ($("model")) {
-      $("model").value = normalizeKind(
+      lastPreferred = normalizeKind(
         stored.preferredKind || stored.localModelKind || "turbo",
       );
+      $("model").value = lastPreferred;
     }
     if ($("hf-repo")) {
       $("hf-repo").value = stored.customModelInput || stored.customModelRepo || "";
@@ -195,6 +213,66 @@ async function save() {
   paint({ text: "Guardado.", kind: "ok" });
 }
 
+async function hideConfirm() {
+  const box = $("confirm");
+  if (box) box.hidden = true;
+}
+
+function showConfirm(kind) {
+  const box = $("confirm");
+  const text = $("confirm-text");
+  const yes = $("confirm-yes");
+  const meta = metaOf(kind);
+  if (!box || !text) return;
+  text.textContent = `${meta.name} ainda não está neste Chrome (${meta.size}). Baixar agora?`;
+  if (yes) yes.textContent = `Baixar ${meta.name}`;
+  box.hidden = false;
+  flashEl(box);
+}
+
+async function onModelChange() {
+  syncFields();
+  hideConfirm();
+  const kind = normalizeKind($("model")?.value);
+  const localStatus = $("local-status");
+  if (localStatus) {
+    localStatus.textContent = `Verificando ${metaOf(kind).name}…`;
+    localStatus.dataset.kind = "warn";
+    flashEl(localStatus);
+  }
+  if (kind === "custom") {
+    void queryLocal();
+    return;
+  }
+  try {
+    const probe = await chrome.runtime.sendMessage({
+      type: "VOZCLARA_MODEL_PROBE",
+      kind,
+      repo: $("hf-repo")?.value.trim() || "",
+    });
+    if (probe?.cached && kind !== "nemotron") {
+      lastPreferred = kind;
+      void startDownload(kind, { switching: true });
+      return;
+    }
+    if (kind === "nemotron") {
+      void queryLocal();
+      return;
+    }
+    showConfirm(kind);
+    void queryLocal();
+  } catch {
+    showConfirm(kind);
+  }
+}
+
+function revertModel() {
+  if ($("model")) $("model").value = lastPreferred;
+  hideConfirm();
+  syncFields();
+  void queryLocal();
+}
+
 async function commitModel() {
   const kind = normalizeKind($("model")?.value);
   const download = $("download");
@@ -206,7 +284,8 @@ async function commitModel() {
     });
     return;
   }
-  void startDownload(kind);
+  hideConfirm();
+  void startDownload(kind, { switching: action === "switch" });
 }
 
 function friendly(err) {
@@ -242,10 +321,11 @@ async function revealFolder() {
   }
 }
 
-async function startDownload(kind) {
+async function startDownload(kind, opts = {}) {
   const want = normalizeKind(kind);
   const repo = want === "custom" ? ($("hf-repo")?.value.trim() || "") : "";
   const parsed = parseHfRepo(repo);
+  const meta = metaOf(want);
   if (want === "custom" && /nemotron|parakeet|fastconformer|canary|nemo[-_]?asr/i.test(parsed)) {
     paint({
       text: "Escolha Nemotron no seletor. A extensão baixa o instalador do PC.",
@@ -260,12 +340,16 @@ async function startDownload(kind) {
     });
     return;
   }
+  hideConfirm();
+  lastPreferred = want;
   renderLocal({
-    downloading: true,
-    ready: false,
-    percent: 1,
+    downloading: !opts.switching,
+    ready: Boolean(opts.switching),
+    percent: opts.switching ? 70 : 1,
     kind: want,
-    label: globalThis.VCShared.downloadLabel(want, repo),
+    label: opts.switching
+      ? `Trocando para ${meta.name}…`
+      : globalThis.VCShared.downloadLabel(want, repo),
   });
   await chrome.storage.local.set({
     provider: "local",
@@ -284,7 +368,9 @@ async function startDownload(kind) {
       throw new Error(result?.error || "Não deu para iniciar o download.");
     }
     paint({
-      text: "Deixe a aba aberta até Pronto. Pode fechar este painel.",
+      text: opts.switching
+        ? `${meta.name} já estava aqui. Aplicando…`
+        : "Deixe a aba aberta até Pronto. Pode fechar este painel.",
       kind: "ok",
     });
   } catch (err) {
@@ -307,11 +393,13 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   $("language").addEventListener("change", () => void save());
   $("apiKey").addEventListener("change", () => void save());
-  $("model")?.addEventListener("change", () => {
-    syncFields();
-    void queryLocal();
-  });
+  $("model")?.addEventListener("change", () => void onModelChange());
   $("hf-repo")?.addEventListener("change", () => void save());
+  $("confirm-yes")?.addEventListener("click", () => {
+    hideConfirm();
+    void startDownload(normalizeKind($("model")?.value));
+  });
+  $("confirm-no")?.addEventListener("click", () => revertModel());
   const download = $("download");
   if (download) {
     download.addEventListener("click", () => void commitModel());
@@ -325,7 +413,8 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (
     changes.localProgress ||
     changes.localModelReady ||
-    changes.localModelId
+    changes.localModelId ||
+    changes.cachedKinds
   ) {
     void queryLocal();
   }
