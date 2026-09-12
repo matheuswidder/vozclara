@@ -13,6 +13,33 @@
     custom: { name: "Este Whisper", size: "" },
   };
 
+  const GEMMA_META = {
+    e2b: {
+      id: "e2b",
+      name: "E2B",
+      tag: "base · não conversa",
+      repo: "google/gemma-4-E2B",
+      tipTitle: "E2B — modelo cru",
+      tip: "Aprendeu a língua, mas não foi treinado para atender. Completa frase; não sugere resposta de WhatsApp. Deixe para pesquisa.",
+    },
+    it: {
+      id: "it",
+      name: "E2B-it",
+      tag: "recomendado · conversa",
+      repo: "google/gemma-4-E2B-it",
+      tipTitle: "E2B-it — o que responde",
+      tip: "O mesmo E2B, treinado para seguir instruções. Lê a transcrição, o tom e o texto da empresa, e propõe 3 respostas prontas.",
+    },
+    assistant: {
+      id: "assistant",
+      name: "E2B-it + acelerador",
+      tag: "mais rápido · 78 MB extra",
+      repo: "google/gemma-4-E2B-it-assistant",
+      tipTitle: "Acelerador, não o cérebro",
+      tip: "O -assistant sozinho não entende a conversa. É um rascunho de 78 MB que adivinha tokens na frente do E2B-it (~2–3×). O VozClara liga os dois juntos.",
+    },
+  };
+
   function normalizeKind(kind) {
     const k = String(kind || "").toLowerCase();
     if (k === "v3" || k === "precise" || k === "large" || k === "large-v3") return "v3";
@@ -34,6 +61,20 @@
     const parts = s.split("/").filter(Boolean);
     if (parts.length < 2) return "";
     return `${parts[0]}/${parts[1]}`;
+  }
+
+  function gemmaMeta(kind) {
+    const k = normalizeGemma(kind);
+    return GEMMA_META[k] || GEMMA_META.it;
+  }
+
+  function normalizeGemma(kind) {
+    const k = String(kind || "").toLowerCase();
+    if (k === "e2b" || k === "base" || k === "gemma-4-e2b") return "e2b";
+    if (k === "assistant" || k === "e2b-it-assistant" || k === "turbo-gemma") {
+      return "assistant";
+    }
+    return "it";
   }
 
   function modelMeta(kind) {
@@ -218,6 +259,8 @@
     normalizeKind,
     parseHfRepo,
     modelMeta,
+    gemmaMeta,
+    normalizeGemma,
     stateLabel,
     stateKind,
     downloadLabel,

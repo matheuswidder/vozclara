@@ -121,3 +121,12 @@ test("collapseRepeats corta loop do tiny", () => {
   assert.equal(VC.isRepeatLoop(loop, out), true);
   assert.equal(VC.collapseRepeats("oi tudo bem"), "oi tudo bem");
 });
+
+test("gemmaMeta distingue base, it e assistant", () => {
+  assert.equal(VC.normalizeGemma("e2b"), "e2b");
+  assert.equal(VC.normalizeGemma("it"), "it");
+  assert.equal(VC.normalizeGemma("assistant"), "assistant");
+  assert.match(VC.gemmaMeta("e2b").tip, /não/i);
+  assert.match(VC.gemmaMeta("it").tipTitle, /responde/i);
+  assert.match(VC.gemmaMeta("assistant").tip, /sozinho/i);
+});

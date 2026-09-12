@@ -96,6 +96,53 @@
 
       <p id="status" class="status"></p>
 
+      <section class="gemma" id="gemma-box">
+        <div class="gemma-head">
+          <strong>Sugestão de resposta</strong>
+          <label class="toggle">
+            <input type="checkbox" id="gemma-on" />
+            Ligar
+          </label>
+        </div>
+        <p class="hint">Whisper transcreve. Gemma propõe 3 respostas no motor do Windows. Passe o mouse no ?</p>
+        <div class="picks">
+          <label class="pick">
+            <input type="radio" name="gemma-kind" value="e2b" />
+            <span><b>E2B</b><small>base · não conversa</small></span>
+            <i class="help" tabindex="0">?</i>
+            <span class="bubble"><strong>E2B — modelo cru</strong>Aprendeu a língua, mas não foi treinado para atender. Completa frase; não sugere resposta de WhatsApp. Deixe para pesquisa.</span>
+          </label>
+          <label class="pick">
+            <input type="radio" name="gemma-kind" value="it" checked />
+            <span><b>E2B-it</b><small>recomendado · conversa</small></span>
+            <i class="help" tabindex="0">?</i>
+            <span class="bubble"><strong>E2B-it — o que responde</strong>O mesmo E2B, treinado para seguir instruções. Lê a transcrição, o tom e o texto da empresa, e propõe 3 respostas prontas.</span>
+          </label>
+          <label class="pick">
+            <input type="radio" name="gemma-kind" value="assistant" />
+            <span><b>E2B-it + acelerador</b><small>mais rápido · 78 MB extra</small></span>
+            <i class="help" tabindex="0">?</i>
+            <span class="bubble"><strong>Acelerador, não o cérebro</strong>O -assistant sozinho não entende a conversa. É um rascunho de 78 MB que adivinha tokens na frente do E2B-it (~2–3×). O VozClara liga os dois juntos.</span>
+          </label>
+        </div>
+        <div id="gemma-extra" hidden>
+          <label>Quem você é
+            <input id="gemma-who" type="text" maxlength="240" placeholder="Atendimento da loja X…" />
+          </label>
+          <label>Tom
+            <select id="gemma-tone">
+              <option value="cliente">No clima de quem falou</option>
+              <option value="curto">Curto</option>
+              <option value="formal">Formal</option>
+              <option value="comercial">Comercial, sem enrolação</option>
+            </select>
+          </label>
+          <label>O que consultar
+            <textarea id="gemma-notes" maxlength="4000" placeholder="Preço, horário, FAQ… ele lê isto antes de sugerir."></textarea>
+          </label>
+        </div>
+      </section>
+
       <section>
         <h2>Como usar</h2>
         <ol>

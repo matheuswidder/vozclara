@@ -34,6 +34,17 @@ STATE = {
     "detail": "",
 }
 
+GEMMA = {
+    "ready": False,
+    "loading": False,
+    "kind": "it",
+    "model": None,
+    "processor": None,
+    "assistant": None,
+    "error": "",
+    "lock": threading.Lock(),
+}
+
 
 def token_path() -> Path:
     if os.name == "nt":
@@ -304,6 +315,155 @@ def load_model(model_id: str) -> None:
         log(f"Falha ao carregar o modelo: {exc}")
 
 
+def gemma_repo(kind: str) -> str:
+    if kind == "e2b":
+        return "google/gemma-4-E2B"
+    return "google/gemma-4-E2B-it"
+
+
+def load_gemma(kind: str) -> None:
+    want = kind if kind in ("e2b", "it", "assistant") else "it"
+    with GEMMA["lock"]:
+        if GEMMA["ready"] and GEMMA["kind"] == want and GEMMA.get("model") is not None:
+            return
+        GEMMA["loading"] = True
+        GEMMA["error"] = ""
+        GEMMA["kind"] = want
+    try:
+        import torch
+        from transformers import AutoModelForCausalLM, AutoTokenizer
+
+        repo = gemma_repo(want)
+        log(f"Carregando Gemma {repo}…")
+        tok = AutoTokenizer.from_pretrained(repo)
+        model = AutoModelForCausalLM.from_pretrained(
+            repo,
+            torch_dtype=torch.float32,
+            low_cpu_mem_usage=True,
+        )
+        assistant = None
+        if want == "assistant":
+            log("Carregando acelerador gemma-4-E2B-it-assistant…")
+            try:
+                assistant = AutoModelForCausalLM.from_pretrained(
+                    "google/gemma-4-E2B-it-assistant",
+                    torch_dtype=torch.float32,
+                    low_cpu_mem_usage=True,
+                )
+            except Exception as exc:
+                log(f"Acelerador não carregou ({exc}). Sigo só com o E2B-it.")
+                assistant = None
+        with GEMMA["lock"]:
+            GEMMA["processor"] = tok
+            GEMMA["model"] = model
+            GEMMA["assistant"] = assistant
+            GEMMA["ready"] = True
+            GEMMA["loading"] = False
+            GEMMA["error"] = ""
+            GEMMA["kind"] = want
+        log("Gemma pronto para sugerir respostas.")
+    except Exception as exc:
+        with GEMMA["lock"]:
+            GEMMA["ready"] = False
+            GEMMA["loading"] = False
+            GEMMA["error"] = str(exc)
+            GEMMA["model"] = None
+            GEMMA["assistant"] = None
+        log(f"Falha ao carregar o Gemma: {exc}")
+        raise
+
+
+def parse_replies(raw: str) -> list[str]:
+    lines = []
+    for line in str(raw or "").splitlines():
+        bit = line.strip()
+        bit = re.sub(r"^[\-\*\d\.\)\]]+\s*", "", bit)
+        bit = bit.strip(" \"'`")
+        if bit:
+            lines.append(bit)
+    uniq: list[str] = []
+    seen = set()
+    for line in lines:
+        key = line.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        uniq.append(line)
+        if len(uniq) == 3:
+            break
+    return uniq
+
+
+def suggest_replies(payload: dict) -> list[str]:
+    kind = payload.get("kind") or "it"
+    if kind not in ("e2b", "it", "assistant"):
+        kind = "it"
+    load_gemma(kind)
+    tok = GEMMA.get("processor")
+    model = GEMMA.get("model")
+    if tok is None or model is None:
+        raise RuntimeError(GEMMA.get("error") or "O Gemma ainda não carregou.")
+    who = str(payload.get("who") or "").strip() or "Atendimento no WhatsApp"
+    tone = str(payload.get("tone") or "cliente")
+    notes = str(payload.get("notes") or "").strip()
+    text = str(payload.get("text") or "").strip()
+    tone_line = {
+        "curto": "Respostas curtas, uma frase.",
+        "formal": "Tom formal e educado.",
+        "comercial": "Tom comercial, direto, sem enrolação.",
+    }.get(tone, "Espelhe o clima de quem falou.")
+    system = (
+        "Você sugere respostas prontas para colar no WhatsApp. "
+        f"Quem responde: {who}. {tone_line} "
+        "Só 3 linhas, cada uma uma mensagem pronta. Sem numerar, sem aspas, sem explicação."
+    )
+    if notes:
+        system += " Consulte isto se couber: " + notes[:3500]
+    if kind == "e2b":
+        prompt = (
+            system
+            + "\n\nMensagem recebida:\n"
+            + text
+            + "\n\nTrês respostas:\n"
+        )
+        inputs = tok(prompt, return_tensors="pt")
+        extra = {}
+        out_ids = model.generate(
+            **inputs,
+            max_new_tokens=180,
+            do_sample=True,
+            temperature=0.7,
+            **extra,
+        )
+        raw = tok.decode(out_ids[0][inputs["input_ids"].shape[-1]:], skip_special_tokens=True)
+    else:
+        messages = [
+            {"role": "system", "content": system},
+            {"role": "user", "content": "Mensagem recebida:\n" + text},
+        ]
+        try:
+            prompt = tok.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=True
+            )
+        except Exception:
+            prompt = system + "\n\n" + text + "\n\nTrês respostas:\n"
+        inputs = tok(prompt, return_tensors="pt")
+        gen_kw = dict(max_new_tokens=180, do_sample=True, temperature=0.7)
+        assistant = GEMMA.get("assistant") if kind == "assistant" else None
+        if assistant is not None:
+            gen_kw["assistant_model"] = assistant
+        try:
+            out_ids = model.generate(**inputs, **gen_kw)
+        except TypeError:
+            gen_kw.pop("assistant_model", None)
+            out_ids = model.generate(**inputs, **gen_kw)
+        raw = tok.decode(out_ids[0][inputs["input_ids"].shape[-1]:], skip_special_tokens=True)
+    replies = parse_replies(raw)
+    if len(replies) < 2:
+        replies = [text[:120], "Pode falar mais um pouco?", "Já te retorno."][:3]
+    return replies[:3]
+
+
 def parse_multipart(body: bytes, content_type: str) -> tuple[dict[str, str], dict[str, bytes]]:
     fields: dict[str, str] = {}
     files: dict[str, bytes] = {}
@@ -419,6 +579,12 @@ class Handler(BaseHTTPRequestHandler):
                     "percent": int(STATE.get("percent") or (100 if STATE["ready"] else 0)),
                     "detail": STATE.get("detail") or "",
                     "alive": True,
+                    "gemma": {
+                        "ready": bool(GEMMA.get("ready")),
+                        "loading": bool(GEMMA.get("loading")),
+                        "kind": GEMMA.get("kind") or "it",
+                        "error": GEMMA.get("error") or None,
+                    },
                 },
             )
             return
@@ -428,6 +594,9 @@ class Handler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         if path == "/pair":
             self._pair()
+            return
+        if path == "/v1/suggest":
+            self._suggest()
             return
         if path not in ("/v1/audio/transcriptions", "/inference"):
             self._json(404, {"error": "not found"})
@@ -457,6 +626,31 @@ class Handler(BaseHTTPRequestHandler):
             self._json(403, {"error": "Origem não permitida para parear.", "unpaired": False})
             return
         self._json(200, {"token": TOKEN})
+
+    def _suggest(self) -> None:
+        length = int(self.headers.get("Content-Length") or "0")
+        body = self.rfile.read(length) if length else b""
+        try:
+            payload = json.loads(body.decode("utf-8") or "{}")
+        except Exception:
+            payload = {}
+        if not isinstance(payload, dict):
+            payload = {}
+        if not self._authorized({}):
+            header = self.headers.get("Authorization") or ""
+            if header.strip() != f"Bearer {TOKEN}":
+                self._json(401, {"error": "bad token", "unpaired": False})
+                return
+        text = str(payload.get("text") or "").strip()
+        if not text:
+            self._json(400, {"error": "Envie o texto da mensagem."})
+            return
+        try:
+            replies = suggest_replies(payload)
+        except Exception as exc:
+            self._json(500, {"error": str(exc)})
+            return
+        self._json(200, {"replies": replies, "kind": GEMMA.get("kind") or "it"})
 
 
 def main() -> int:

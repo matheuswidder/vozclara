@@ -105,6 +105,17 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     sendResponse({ ok: true, cancelled: true });
     return true;
   }
+  if (msg?.type === "VOZCLARA_SUGGEST") {
+    suggestReplies(msg.text)
+      .then(sendResponse)
+      .catch((err) =>
+        sendResponse({
+          ok: false,
+          error: err instanceof Error ? err.message : "Não sugeri.",
+        }),
+      );
+    return true;
+  }
   return false;
 });
 
@@ -1229,6 +1240,63 @@ async function motorToken() {
   return pairMotor(undefined);
 }
 
+async function suggestReplies(text) {
+  const stored = await chrome.storage.local.get([
+    "gemmaOn",
+    "gemmaKind",
+    "gemmaWho",
+    "gemmaTone",
+    "gemmaNotes",
+    "localUrl",
+  ]);
+  if (!stored.gemmaOn) return { ok: false, error: "Sugestão desligada." };
+  const raw = String(text || "").trim();
+  if (!raw) return { ok: false, error: "Não há texto para sugerir." };
+  const probe = await probeLocal(stored.localUrl);
+  if (!probe?.ok) {
+    return { ok: false, error: "Ligue o motor na bandeja para o Gemma sugerir." };
+  }
+  const root = localRoot(stored.localUrl) || "http://127.0.0.1:8173";
+  let token = "";
+  try {
+    token = await motorToken();
+  } catch {
+    token = "";
+  }
+  const res = await fetch(`${root}/v1/suggest`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({
+      text: raw,
+      kind: stored.gemmaKind || "it",
+      who: stored.gemmaWho || "",
+      tone: stored.gemmaTone || "cliente",
+      notes: stored.gemmaNotes || "",
+    }),
+  });
+  const json = await res.json().catch(() => null);
+  if (res.status === 404) {
+    return { ok: false, error: "Motor antigo. Rode de novo o instalador para o Gemma." };
+  }
+  if (!res.ok) {
+    return {
+      ok: false,
+      error: (typeof json?.error === "string" && json.error) || "O Gemma não sugeriu.",
+    };
+  }
+  const replies = Array.isArray(json?.replies)
+    ? json.replies.map((s) => String(s || "").trim()).filter(Boolean)
+    : [];
+  if (!replies.length) {
+    return { ok: false, error: "O Gemma não devolveu respostas." };
+  }
+  return { ok: true, replies, kind: json?.kind || stored.gemmaKind };
+}
+
 async function probeLocal(url) {
   const roots = [
     localRoot(url),
@@ -1263,6 +1331,7 @@ async function probeLocal(url) {
           phase: json?.phase || (json?.ready ? "ready" : "load"),
           percent: Number(json?.percent) || (json?.ready ? 100 : 0),
           detail: json?.detail || "",
+          gemma: json?.gemma || null,
         };
       }
       last = {
