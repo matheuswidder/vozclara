@@ -1,25 +1,8 @@
-function normalizeKind(kind) {
-  const k = String(kind || "").toLowerCase();
-  if (k === "v3" || k === "precise" || k === "large" || k === "large-v3") return "v3";
-  if (k === "light" || k === "small") return "light";
-  if (k === "tiny") return "tiny";
-  if (k === "nemotron") return "nemotron";
-  if (k === "custom") return "custom";
-  return "turbo";
-}
-
-function parseHfRepo(raw) {
-  let s = String(raw || "").trim();
-  if (!s) return "";
-  s = s.replace(/^https?:\/\/huggingface\.co\//i, "");
-  s = s.replace(/^hf:\/\//i, "");
-  s = s.split("?")[0].split("#")[0];
-  s = s.replace(/\/(tree|blob|resolve|discussions|commits)\/.*$/i, "");
-  s = s.replace(/\/+$/, "");
-  const parts = s.split("/").filter(Boolean);
-  if (parts.length < 2) return "";
-  return `${parts[0]}/${parts[1]}`;
-}
+// Parte 6: normalizeKind/parseHfRepo vêm de shared.js (VCShared) — carregado
+// antes deste arquivo em popup.html e options.html. Cópias em background.js e
+// offscreen.js ficam com "// SYNC: shared.js" e teste de sync (extension/tests).
+const normalizeKind = (k) => globalThis.VCShared.normalizeKind(k);
+const parseHfRepo = (r) => globalThis.VCShared.parseHfRepo(r);
 
 const $ = (id) => document.getElementById(id);
 
@@ -60,6 +43,19 @@ function paint(extra) {
   status.dataset.kind = "ok";
 }
 
+function showQualityFallback() {
+  const take = globalThis.VCShared?.takeQualityFallback;
+  if (!take) return Promise.resolve();
+  return take().then((entry) => {
+    if (!entry?.label) return;
+    const el = $("local-status") || $("status");
+    if (!el) return;
+    el.textContent = entry.label;
+    el.dataset.kind = "warn";
+    el.className = "status warn";
+  });
+}
+
 function renderLocal(state) {
   const meter = $("meter");
   const bar = $("bar");
@@ -73,13 +69,7 @@ function renderLocal(state) {
   const downloading = Boolean(state?.downloading);
   const percent = Number(state?.percent) || 0;
   const error = state?.error || "";
-  const label =
-    state?.label ||
-    (ready
-      ? `Pronto · ${state.model || "Whisper"}`
-      : downloading
-        ? "Baixando Whisper…"
-        : "Ainda não baixou. Um clique, uma vez.");
+  const label = globalThis.VCShared.stateLabel(state);
 
   if (localStatus) {
     localStatus.textContent = error || label;
@@ -115,9 +105,11 @@ function renderLocal(state) {
   if (download) {
     download.disabled = downloading;
     const motorUp = Boolean(state?.motorUp);
-    const motorInstalled = Boolean(state?.motorInstalled) || motorUp;
+    const motorAlive = Boolean(state?.motorAlive);
+    const motorInstalled = Boolean(state?.motorInstalled) || motorUp || motorAlive;
     download.dataset.wake = selected === "nemotron" && motorInstalled && !motorUp ? "1" : "";
     if (downloading) download.textContent = "Baixando…";
+    else if (selected === "nemotron" && motorAlive && !motorUp) download.textContent = "Carregando…";
     else if (selected === "nemotron" && motorUp) download.textContent = "Na bandeja";
     else if (selected === "nemotron" && motorInstalled) download.textContent = "Ligar motor";
     else if (selected === "nemotron") download.textContent = "Instalar no PC";
@@ -138,6 +130,7 @@ async function queryLocal() {
     });
     if (state && typeof state === "object") {
       renderLocal(state);
+      void showQualityFallback();
       return;
     }
   } catch {
@@ -161,6 +154,7 @@ async function queryLocal() {
       kind: stored.localModelKind,
       device: stored.localModelDevice,
     });
+    void showQualityFallback();
   } catch (err) {
     renderLocal({
       downloading: false,
@@ -212,10 +206,10 @@ async function save() {
 
 async function apply() {
   await save();
-  const hint = $("reload-hint");
-  if (hint) hint.hidden = false;
+  // Parte 7.1: provider é lido do storage a cada transcrição — F5 nunca foi
+  // preciso; hint removido.
   paint({
-    text: "Aplicado. Recarregue o WhatsApp (F5) para valer.",
+    text: "Aplicado — já vale na próxima transcrição.",
     kind: "ok",
   });
   const kind = normalizeKind($("model")?.value);
@@ -288,18 +282,7 @@ async function startDownload(kind) {
     ready: false,
     percent: 1,
     kind: want,
-    label:
-      want === "nemotron"
-        ? "Baixando o instalador do motor…"
-        : want === "custom"
-        ? `Baixando ${parseHfRepo(repo)}…`
-        : want === "tiny"
-          ? "Baixando o tiny…"
-          : want === "light"
-            ? "Baixando a versão leve…"
-            : want === "v3"
-              ? "Baixando o v3…"
-              : "Abrindo o download…",
+    label: globalThis.VCShared.downloadLabel(want, repo),
   });
   await chrome.storage.local.set({
     provider: "local",

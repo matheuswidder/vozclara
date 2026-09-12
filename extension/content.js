@@ -106,6 +106,19 @@
       0%, 100% { height: 4px; }
       50% { height: 14px; }
     }
+    .meter {
+      height: 6px; background: rgba(128,128,128,.25); border-radius: 99px;
+      overflow: hidden; margin-top: 6px;
+    }
+    .meter span {
+      display: block; height: 100%; width: 0;
+      background: var(--vc-accent, #00a884); border-radius: 99px;
+      transition: width .25s ease;
+    }
+    .micro {
+      margin: 4px 0 0; font-size: 11px; font-weight: 400;
+      color: var(--vc-muted, #8696a0);
+    }
   `;
 
   /** @type {Array<{ t: number; mime: string; size: number; buffer: ArrayBuffer; requestId: string }>} */
@@ -177,6 +190,10 @@
 
   const cardByKey = new Map();
   const htmlByKey = new Map();
+  /** @type {Map<string, { root: Element | null; html: string }>} Parte 1.1 */
+  const rootByKey = new Map();
+  /** @type {Map<string, number>} requestId → interval id do cronômetro da fase ① */
+  const timersByRequest = new Map();
 
   function cardOf(root) {
     const key = keyFor(root);
@@ -316,9 +333,16 @@
     });
   }
 
+  // Parte 7.5: preferir a duração do bloco de áudio; excluir citação (reply).
   function durationLabel(root) {
     const card = findAudioCard(root);
-    const text = card ? String(card.innerText || "") : "";
+    if (!card) return "";
+    const quoted = card.querySelector(
+      '[data-testid="quoted-message"], .quoted-message, [class*="quoted"]',
+    );
+    const text = quoted
+      ? String(card.innerText || "").replace(String(quoted.innerText || ""), "")
+      : String(card.innerText || "");
     const bits = [...text.matchAll(/\b(\d{1,2}:\d{2})\b/g)].map((m) => m[1]);
     return bits[0] || "";
   }
@@ -435,6 +459,32 @@
     return cardOf(root)?.shadowRoot?.querySelector(".panel") ?? null;
   }
 
+  // Parte 1.1: resolve o root vivo para uma key mesmo depois do WhatsApp
+  // reciclar o DOM. O rootByKey guarda o root da última passagem de scan.
+  function progressHtml(msg) {
+    const phase = String(msg.phase || "transcribe");
+    if (msg.ready && phase === "download") {
+      return `<div class="box">
+        <div class="label"><span>VozClara</span></div>
+        <p class="busy">Whisper pronto. Clique em Transcrever.</p>
+        <button class="tx" type="button">Transcrever</button>
+      </div>`;
+    }
+    const mark = phase === "download" ? "②" : phase === "decode" ? "①" : "③";
+    const label = escapeHtml(msg.label || "Transcrevendo…");
+    const detail = msg.detail ? ` — ${escapeHtml(msg.detail)}` : "";
+    const pct =
+      phase === "download" && msg.percent != null
+        ? ` — ${Math.max(0, Math.min(100, Number(msg.percent) || 0))}%`
+        : "";
+    const bar =
+      phase === "download" && Number(msg.percent) >= 0
+        ? `<div class="meter"><span style="width:${Math.max(0, Math.min(100, Number(msg.percent) || 0))}%"></span></div>`
+        : "";
+    const clockSlot = phase === "transcribe" ? `<span data-clock></span>` : "";
+    return `<div class="box"><p class="busy">${barsHtml()} ${mark} ${label}${detail}${pct} ${clockSlot}</p>${bar}</div>`;
+  }
+
   function buttonOf(root) {
     return cardOf(root)?.shadowRoot?.querySelector("button.tx") ?? null;
   }
@@ -512,15 +562,41 @@
     true,
   );
 
+  /** @type {Map<string, string>} requestId → key (Parte 1.1) */
+  const jobs = new Map();
+  /** @type {Map<string, { cancel: boolean }>} requestId → flag de cancelamento (Parte 7.4) */
+  const cancelled = new Map();
+
   chrome.runtime.onMessage.addListener((msg) => {
     if (msg?.type === "VOZCLARA_PROGRESS") {
-      const root = lastVoice;
-      if (!root || !document.contains(root)) return;
-      const label = msg.label || "Transcrevendo…";
-      setPanel(
-        root,
-        `<div class="box"><p class="busy">${escapeHtml(label)}</p></div>`,
-      );
+      // Parte 1.1: roteamento por key/requestId — nunca por lastVoice.
+      const key = msg.key || (msg.requestId ? jobs.get(msg.requestId) : "");
+      const root = (key ? rootByKey.get(key)?.root : null) || lastVoice;
+      if (msg.requestId && cancelled.get(msg.requestId)?.cancel) return;
+      if (msg.requestId && timersByRequest.has(msg.requestId)) {
+        window.clearInterval(timersByRequest.get(msg.requestId));
+        timersByRequest.delete(msg.requestId);
+      }
+      const html = progressHtml(msg);
+      if (!root || !document.contains(root)) {
+        if (key) htmlByKey.set(key, html);
+        return;
+      }
+      setPanel(root, html);
+      return;
+    }
+    if (msg?.type === "VOZCLARA_STT_CANCELLED") {
+      // Parte 7.4: SW confirmou o cancelamento (ou o card cancelou sozinho no caminho nuvem).
+      const key = msg.key || (msg.requestId ? jobs.get(msg.requestId) : "");
+      cancelled.set(msg.requestId, { cancel: true });
+      const root = (key ? rootByKey.get(key)?.root : null) || lastVoice;
+      if (root) {
+        setPanel(
+          root,
+          `<div class="box"><p class="busy">Cancelado — a leitura em curso termina em segundo plano.</p>
+           <button class="tx" type="button">Transcrever</button></div>`,
+        );
+      }
       return;
     }
     if (msg?.type !== "VOZCLARA_CONTEXT") return;
@@ -590,50 +666,54 @@
 
   const mediaSnap = new WeakMap();
 
-  function snapshotMedia() {
-    document.querySelectorAll("audio, video").forEach((m) => {
-      if (mediaSnap.has(m)) return;
-      mediaSnap.set(m, {
-        muted: m.muted,
-        volume: m.volume,
-        defaultMuted: m.defaultMuted,
-        rate: m.playbackRate,
+  // Parte 4.1: snapshot/mute/restore restritos ao elemento da mensagem alvo —
+  // nunca toda a página (vídeo/áudio em outra conversa não é afetado).
+  function snapshotMedia(media) {
+    if (!media || mediaSnap.has(media)) return;
+    mediaSnap.set(media, {
+      muted: media.muted,
+      volume: media.volume,
+      defaultMuted: media.defaultMuted,
+      rate: media.playbackRate,
+    });
+  }
+
+  function muteForCapture(media) {
+    if (!media) return;
+    snapshotMedia(media);
+    try {
+      media.muted = true;
+      media.defaultMuted = true;
+      media.volume = 0;
+      media.playbackRate = 16;
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function restoreMedia(media) {
+    if (!media) {
+      // restore de emergência: só os elementos com snapshot pendente
+      document.querySelectorAll("audio, video").forEach((m) => {
+        if (mediaSnap.has(m)) restoreMedia(m);
       });
-    });
-  }
-
-  function muteForCapture() {
-    snapshotMedia();
-    document.querySelectorAll("audio, video").forEach((m) => {
-      try {
-        m.muted = true;
-        m.defaultMuted = true;
-        m.volume = 0;
-        m.playbackRate = 16;
-      } catch {
-        /* ignore */
-      }
-    });
-  }
-
-  function restoreMedia() {
-    document.querySelectorAll("audio, video").forEach((m) => {
-      const s = mediaSnap.get(m);
-      try {
-        m.pause();
-      } catch {
-        /* ignore */
-      }
-      try {
-        m.muted = s ? s.muted : false;
-        m.defaultMuted = s ? s.defaultMuted : false;
-        m.volume = s && s.volume > 0 ? s.volume : 1;
-        m.playbackRate = s?.rate || 1;
-      } catch {
-        /* ignore */
-      }
-      mediaSnap.delete(m);
-    });
+      return;
+    }
+    const s = mediaSnap.get(media);
+    try {
+      media.pause();
+    } catch {
+      /* ignore */
+    }
+    try {
+      media.muted = s ? s.muted : false;
+      media.defaultMuted = s ? s.defaultMuted : false;
+      media.volume = s && s.volume > 0 ? s.volume : 1;
+      media.playbackRate = s?.rate || 1;
+    } catch {
+      /* ignore */
+    }
+    mediaSnap.delete(media);
     window.postMessage({ source: "vozclara", type: "restore" }, "*");
   }
 
@@ -680,7 +760,9 @@
     });
   }
 
-  function waitForCapture(since, ms = 14000) {
+  // Parte 4.1b: amarrado ao root da mensagem alvo — lastVoice muda no
+  // contextmenu e desviaria o blob nos 14 s da rota forçada.
+  function waitForCapture(root, since, ms = 14000) {
     return new Promise((resolve, reject) => {
       const start = Date.now();
       const tick = async () => {
@@ -689,7 +771,7 @@
           resolve(captured);
           return;
         }
-        const audio = findAudioEl(lastVoice);
+        const audio = findAudioEl(root);
         if (audio?.src) {
           const blob = await requestPageBlob(audio.src, 2500);
           if (blob && blob.size >= 512) {
@@ -697,7 +779,7 @@
             return;
           }
         }
-        const k = lastVoice ? keyFor(lastVoice) : "";
+        const k = root ? keyFor(root) : "";
         const remembered = k ? srcByRoot.get(k) : "";
         if (remembered) {
           const blob = await requestPageBlob(remembered, 2500);
@@ -759,15 +841,16 @@
     if (got) return got;
     const since = Date.now();
     setSilent(true);
-    muteForCapture();
+    const alvo = findAudioEl(root);
+    muteForCapture(alvo);
     try {
       clickPlay(root);
-      muteForCapture();
+      muteForCapture(findAudioEl(root) || alvo);
       await new Promise((r) => setTimeout(r, 450));
       const again = findAudioEl(root);
       got = await trySrc(again?.src || again?.currentSrc);
       if (got) return got;
-      const blob = await waitForCapture(since);
+      const blob = await waitForCapture(root, since);
       if (!blob || blob.size < 512) {
         throw new Error(
           "O WhatsApp ainda não entregou o arquivo. Clique de novo em Transcrever.",
@@ -796,31 +879,110 @@
     ensureUi(root);
     const btn = buttonOf(root);
     if (btn) btn.disabled = true;
+    const key = keyFor(root);
+    const requestId =
+      typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `vc${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+    jobs.set(requestId, key);
+    rootByKey.set(key, { root, html: "" });
+    cancelled.delete(requestId);
     const dur = durationLabel(root);
-    const busy = (msg) =>
+
+    // Fase ① com cronômetro que só atualiza o relógio — nunca pinta por cima
+    // da ②/③ (o listener de VOZCLARA_PROGRESS derruba este timer no 1º tick).
+    let ticks = 0;
+    const clock = () =>
+      `${Math.floor(ticks / 60)}:${String(ticks % 60).padStart(2, "0")}`;
+    const phaseHtml = (extra) =>
+      `<div class="box">
+         <div class="label"><span>VozClara</span>
+           <button class="copy" type="button" data-cancel="${requestId}" aria-label="Cancelar">Cancelar</button>
+         </div>
+         <p class="busy">${barsHtml()} ① ${dur ? `Lendo áudio de ${escapeHtml(dur)}` : "Lendo o áudio"}… <span data-clock>${clock()}</span></p>
+         <p class="micro">${escapeHtml(extra)}</p>
+       </div>`;
+    setPanel(root, phaseHtml("o áudio toca silenciosamente para leitura"));
+    const timer = window.setInterval(() => {
+      ticks += 1;
+      const span = panelOf(root)?.querySelector("[data-clock]");
+      if (span) span.textContent = clock();
+    }, 1000);
+    timersByRequest.set(requestId, timer);
+    let cancelledHere = false;
+
+    // Bind do botão Cancelar (Parte 7.4 — só na fase ①; a ③ também aceita via mesmo id).
+    panelOf(root)?.addEventListener("click", (e) => {
+      const el = e.target instanceof Element ? e.target : null;
+      const id = el?.dataset?.cancel;
+      if (!id) return;
+      cancelledHere = true;
+      cancelled.set(requestId, { cancel: true });
+      chrome.runtime.sendMessage({ type: "VOZCLARA_STT_CANCEL", requestId }).catch(() => {});
+      window.clearInterval(timersByRequest.get(requestId));
+      timersByRequest.delete(requestId);
+      setPanel(
+        root,
+        `<div class="box"><p class="busy">Cancelado — a leitura em curso termina em segundo plano.</p>
+         <button class="tx" type="button">Transcrever</button></div>`,
+      );
+    });
+
+    // Parte 1.4: oferta de download no próprio card quando o modelo não está pronto.
+    let status = null;
+    try {
+      status = await chrome.runtime.sendMessage({ type: "VOZCLARA_MODEL_STATUS" });
+    } catch {
+      status = null;
+    }
+    if (status && status.ok && !status.ready && !status.downloading && !cancelledHere) {
+      window.clearInterval(timersByRequest.get(requestId));
+      timersByRequest.delete(requestId);
+      const modelKind = status.kind || "turbo";
+      const sizeHint =
+        modelKind === "v3"
+          ? "~1,5 GB"
+          : modelKind === "light"
+            ? "~120 MB"
+            : modelKind === "tiny"
+              ? "~40 MB"
+              : "~560 MB";
       setPanel(
         root,
         `<div class="box">
            <div class="label"><span>VozClara</span></div>
-           <p class="busy">${barsHtml()}${escapeHtml(msg)}</p>
+           <p class="busy">Whisper ainda não foi baixado (${sizeHint}, só uma vez).</p>
+           <button class="tx" type="button" data-download="${requestId}" style="margin-top:8px">Baixar agora</button>
          </div>`,
       );
-    busy(dur ? `Lendo áudio de ${dur}…` : "Lendo o áudio…");
-    let ticks = 0;
-    const timer = window.setInterval(() => {
-      ticks += 1;
-      const clock = `${Math.floor(ticks / 60)}:${String(ticks % 60).padStart(2, "0")}`;
-      const extra = dur ? ` · ${dur}` : "";
-      busy(`Transcrevendo${extra}… ${clock}`);
-    }, 1000);
+      panelOf(root)?.querySelector("[data-download]")?.addEventListener("click", () => {
+        chrome.runtime.sendMessage({
+          type: "VOZCLARA_MODEL_DOWNLOAD",
+          kind: modelKind,
+          requestId,
+          key,
+        }).catch(() => {});
+        setPanel(root, progressHtml({ phase: "download", percent: 1, label: "Preparando Whisper" }));
+      });
+      if (btn) btn.disabled = false;
+      return;
+    }
+    if (status && status.ok && status.downloading && !cancelledHere) {
+      // ② em andamento: mostra % real atual, sem erro.
+      setPanel(
+        root,
+        `<div class="box"><p class="busy">${barsHtml()} ② Preparando Whisper — ${escapeHtml(String(status.percent || 0))}%</p></div>`,
+      );
+    }
+
     try {
+      if (cancelledHere) return;
       const blob = await extractBlob(root);
       if (!blob || blob.size < 512) {
         throw new Error(
           "O WhatsApp ainda não entregou o arquivo. Clique de novo em Transcrever.",
         );
       }
-      busy(dur ? `Transcrevendo áudio de ${dur}…` : "Transcrevendo…");
       const audioBuffer = await blob.arrayBuffer();
       if (!audioBuffer || audioBuffer.byteLength < 64) {
         throw new Error(
@@ -830,11 +992,14 @@
       const audioBase64 = bufferToBase64(audioBuffer);
       const result = await chrome.runtime.sendMessage({
         type: "VOZCLARA_STT",
+        requestId,
+        key,
         audioBase64,
         mimeType: blob.type || "audio/ogg",
         fileName: "voice.ogg",
         byteLength: audioBuffer.byteLength,
       });
+      if (cancelledHere || cancelled.get(requestId)?.cancel) return;
       if (!result?.ok) {
         setPanel(
           root,
@@ -846,6 +1011,9 @@
         );
         return;
       }
+      const spent = clock();
+      const device = result.device ? ` · ${escapeHtml(result.device)}` : "";
+      const model = result.model ? ` · ${escapeHtml(result.model)}` : "";
       const safe = escapeHtml(result.text);
       setPanel(
         root,
@@ -854,6 +1022,7 @@
              <button class="copy" type="button" data-copy="1" aria-label="Copiar">Copiar</button>
            </div>
            <p class="text">${safe}</p>
+           <p class="micro">✓ Pronto${model}${device} · ${spent}</p>
          </div>`,
       );
       const copyBtn = panelOf(root)?.querySelector("[data-copy]");
@@ -866,6 +1035,7 @@
         }
       });
     } catch (err) {
+      if (cancelledHere || cancelled.get(requestId)?.cancel) return;
       const raw = err instanceof Error ? err.message : "Falha ao transcrever.";
       const motor = /motor|bandeja|relógio|Nemotron não está ligado/i.test(raw);
       setPanel(
@@ -877,7 +1047,9 @@
          </div>`,
       );
     } finally {
-      window.clearInterval(timer);
+      window.clearInterval(timersByRequest.get(requestId));
+      timersByRequest.delete(requestId);
+      jobs.delete(requestId);
       if (btn) btn.disabled = false;
     }
   }
@@ -901,6 +1073,25 @@
     }, 400);
   }
 
+  // Parte 7.3: interval de 2,5 s só com a aba visível; o Observer segue sempre.
+  let idleScan = null;
+  function startIdleScan() {
+    if (idleScan) return;
+    idleScan = window.setInterval(() => scan(document), 2500);
+  }
+  function stopIdleScan() {
+    if (!idleScan) return;
+    window.clearInterval(idleScan);
+    idleScan = null;
+  }
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) stopIdleScan();
+    else {
+      scan(document);
+      startIdleScan();
+    }
+  });
+
   function start() {
     scan(document);
     obs.observe(document.documentElement, {
@@ -909,7 +1100,7 @@
     });
     document.addEventListener("scroll", positionAll, true);
     window.addEventListener("resize", positionAll);
-    window.setInterval(() => scan(document), 2500);
+    if (!document.hidden) startIdleScan();
   }
 
   if (document.readyState === "loading") {
