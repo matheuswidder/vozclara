@@ -878,7 +878,11 @@ async function transcribeInBrowser(msg, tabId) {
   activeTabId = tabId || null;
   try {
     await verifyModel({ silent: true });
-    const stored = await chrome.storage.local.get(["localModelKind", "customModelRepo"]);
+    const stored = await chrome.storage.local.get([
+      "localModelKind",
+      "preferredKind",
+      "customModelRepo",
+    ]);
     await ensureOffscreen();
     // Parte 1.3: requestId/key viajam para o offscreen, que emite fases ①/③
     // com o id; o SW reencaminha ao card certo.
@@ -898,7 +902,7 @@ async function transcribeInBrowser(msg, tabId) {
         audioBase64: msg.audioBase64,
         mimeType: msg.mimeType,
         language: msg.language,
-        kind: normalizeKind(msg.kind || stored.localModelKind),
+        kind: normalizeKind(msg.kind || stored.preferredKind || stored.localModelKind),
         repo: msg.repo || stored.customModelRepo || "",
         byteLength: msg.byteLength,
       },
@@ -1489,7 +1493,7 @@ async function transcribe(msg, tabId) {
     }
   } else if (provider === "local") {
     try {
-      const result = await transcribeInBrowser({ ...msg, language }, tabId);
+      const result = await transcribeInBrowser({ ...msg, language, kind }, tabId);
       if (result?.cancelled) return { ok: false, cancelled: true };
       text = result?.text || "";
       model = result?.model || "";

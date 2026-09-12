@@ -289,7 +289,20 @@ async function ensureModel(kind, repo) {
   ) {
     return loaded;
   }
-  if (loading) return loading;
+  if (loading) {
+    try {
+      await loading;
+    } catch {
+      /* o download anterior falhou */
+    }
+    if (
+      loaded &&
+      loaded.kind === want &&
+      (want !== "custom" || loaded.repo === parsed || candidateRepos(parsed).includes(loaded.repo))
+    ) {
+      return loaded;
+    }
+  }
   fileProgress.clear();
   loading = (async () => {
     try {
