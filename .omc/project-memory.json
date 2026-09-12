@@ -1,0 +1,256 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1789169743026,
+  "projectRoot": "C:\\Projects\\vozclara-whatsapp",
+  "techStack": {
+    "languages": [
+      {
+        "name": "JavaScript/TypeScript",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "package.json"
+        ]
+      },
+      {
+        "name": "TypeScript",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "tsconfig.json"
+        ]
+      }
+    ],
+    "frameworks": [
+      {
+        "name": "react",
+        "version": "19.2.0",
+        "category": "frontend"
+      },
+      {
+        "name": "react-dom",
+        "version": "19.2.0",
+        "category": "frontend"
+      },
+      {
+        "name": "playwright",
+        "version": "1.62.0",
+        "category": "testing"
+      },
+      {
+        "name": "vite",
+        "version": "8.2.0",
+        "category": "build"
+      }
+    ],
+    "packageManager": "npm",
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": "npm run build",
+    "testCommand": "npm test",
+    "lintCommand": "npm run lint",
+    "devCommand": "npm run dev",
+    "scripts": {
+      "dev": "node scripts/with-app-env.mjs vite dev --host 0.0.0.0 --port 8080",
+      "build": "node scripts/with-app-env.mjs vite build && npm run db:migrate",
+      "db:migrate": "node scripts/migrate.mjs",
+      "build:dev": "node scripts/with-app-env.mjs vite build --mode development",
+      "preview": "node scripts/with-app-env.mjs vite preview",
+      "preview:restart": "node scripts/preview.mjs restart",
+      "preview:stop": "node scripts/preview.mjs stop",
+      "typecheck": "tsc --noEmit",
+      "check:auth": "node scripts/check-auth-invariant.mjs",
+      "test": "node --test 'scripts/**/*.test.mjs' && node --experimental-strip-types --test src/lib/app-data/app-data.test.ts src/lib/app-data/readiness-schedule.test.ts src/lib/auth/gate-identity.test.ts src/lib/auth/sign-in-gate.test.ts",
+      "lint": "eslint .",
+      "format": "prettier --write ."
+    }
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": "type-based"
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "public",
+      "scripts",
+      "src"
+    ],
+    "gitBranches": {
+      "defaultBranch": "main",
+      "branchingStrategy": null
+    }
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "artifacts": {
+      "path": "artifacts",
+      "purpose": null,
+      "fileCount": 0,
+      "lastAccessed": 1789169742919,
+      "keyFiles": []
+    },
+    "attachments": {
+      "path": "attachments",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1789169742920,
+      "keyFiles": [
+        "image.png"
+      ]
+    },
+    "extension": {
+      "path": "extension",
+      "purpose": null,
+      "fileCount": 12,
+      "lastAccessed": 1789169742927,
+      "keyFiles": [
+        "background.js",
+        "chrome.css",
+        "content.js",
+        "dock.js",
+        "inject.js"
+      ]
+    },
+    "migrations": {
+      "path": "migrations",
+      "purpose": "Database migrations",
+      "fileCount": 0,
+      "lastAccessed": 1789169742927,
+      "keyFiles": []
+    },
+    "public": {
+      "path": "public",
+      "purpose": "Public files",
+      "fileCount": 5,
+      "lastAccessed": 1789169742928,
+      "keyFiles": [
+        "app-icon.png",
+        "favicon.svg",
+        "og.jpg",
+        "VozClara-Motor.zip",
+        "vozclara.zip"
+      ]
+    },
+    "screenshots": {
+      "path": "screenshots",
+      "purpose": null,
+      "fileCount": 20,
+      "lastAccessed": 1789169742928,
+      "keyFiles": [
+        "app-builder-built-mobile.png",
+        "app-builder-built.json",
+        "app-builder-built.png",
+        "app-builder-preview-mobile.png",
+        "app-builder-preview.json"
+      ]
+    },
+    "scripts": {
+      "path": "scripts",
+      "purpose": "Build/utility scripts",
+      "fileCount": 28,
+      "lastAccessed": 1789169742928,
+      "keyFiles": [
+        "app-env-plugin.mjs",
+        "brand-check.mjs",
+        "brand-check.test.mjs",
+        "browser-guard.mjs",
+        "browser-smoke-verdict.mjs"
+      ]
+    },
+    "server": {
+      "path": "server",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1789169742928,
+      "keyFiles": [
+        "virtual-grok-og-identity.d.ts"
+      ]
+    },
+    "src": {
+      "path": "src",
+      "purpose": "Source code",
+      "fileCount": 3,
+      "lastAccessed": 1789169742929,
+      "keyFiles": [
+        "router.tsx",
+        "routeTree.gen.ts",
+        "styles.css"
+      ]
+    },
+    "tools": {
+      "path": "tools",
+      "purpose": null,
+      "fileCount": 0,
+      "lastAccessed": 1789169742929,
+      "keyFiles": []
+    },
+    "vozclara-local": {
+      "path": "vozclara-local",
+      "purpose": null,
+      "fileCount": 14,
+      "lastAccessed": 1789169742929,
+      "keyFiles": [
+        "Iniciar-Motor.bat",
+        "Iniciar-Motor.command",
+        "Instalar-Motor.bat",
+        "Instalar-Motor.command",
+        "LEIA-ME.txt"
+      ]
+    },
+    "server\\middleware": {
+      "path": "server\\middleware",
+      "purpose": "Middleware",
+      "fileCount": 1,
+      "lastAccessed": 1789169742932,
+      "keyFiles": [
+        "grok-pwa.ts"
+      ]
+    },
+    "src\\components": {
+      "path": "src\\components",
+      "purpose": "UI components",
+      "fileCount": 8,
+      "lastAccessed": 1789169742932,
+      "keyFiles": [
+        "install-guide.tsx",
+        "live-transcribe.tsx",
+        "local-engine.tsx"
+      ]
+    },
+    "src\\lib": {
+      "path": "src\\lib",
+      "purpose": "Library code",
+      "fileCount": 11,
+      "lastAccessed": 1789169742933,
+      "keyFiles": [
+        "db.ts",
+        "demo-chat.ts",
+        "env.server.ts"
+      ]
+    },
+    "src\\routes": {
+      "path": "src\\routes",
+      "purpose": "Route handlers",
+      "fileCount": 2,
+      "lastAccessed": 1789169742933,
+      "keyFiles": [
+        "index.tsx",
+        "__root.tsx"
+      ]
+    }
+  },
+  "hotPaths": [
+    {
+      "path": "AGENTS.md",
+      "accessCount": 1,
+      "lastAccessed": 1789169922354,
+      "type": "file"
+    }
+  ],
+  "userDirectives": []
+}

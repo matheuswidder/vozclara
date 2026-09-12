@@ -1,0 +1,269 @@
+{
+  "version": 1,
+  "jobId": "cc7eb148-f5af-4ccc-8aa6-5879a8116cce",
+  "sessionId": "dd4a4347-ab40-45e5-9c48-bb993bf30d37",
+  "scopeKey": "d34aa40e3d70badfe4e184f67618d358c8f8f0e74b2793f5104445cb799d6f7c",
+  "revision": 2,
+  "createdAt": "2026-09-11T23:44:35.144Z",
+  "updatedAt": "2026-09-11T23:44:35.191Z",
+  "producerGraceExpiresAt": "2026-09-11T23:45:05.145Z",
+  "bestEffortDeadlineAt": "2026-09-11T23:45:56.145Z",
+  "producers": {
+    "core": {
+      "state": "sealed",
+      "intentKey": "86d893abc3f943db4acf54775fc045a84c33f58e02f8c46788733c821383d353",
+      "payloadDigest": "86d893abc3f943db4acf54775fc045a84c33f58e02f8c46788733c821383d353",
+      "sealedAt": "2026-09-11T23:44:35.191Z",
+      "sealedBy": "foreground"
+    },
+    "wiki": {
+      "state": "no-op",
+      "sealedAt": "2026-09-11T23:44:35.144Z",
+      "sealedBy": "wiki-producer"
+    }
+  },
+  "actions": {
+    "foreground-cleanup": {
+      "class": "required",
+      "phase": "deferred-required",
+      "status": "completed",
+      "attempts": 0,
+      "idempotencyKey": "febf6dba2f2536433960a07f7cedce72e946b43ced0896570df80f017b8914d2",
+      "payload": {
+        "transcriptPath": "C:\\Users\\teco_\\.claude\\projects\\C--Projects-vozclara-whatsapp\\dd4a4347-ab40-45e5-9c48-bb993bf30d37.jsonl",
+        "cwd": "C:\\Projects\\vozclara-whatsapp",
+        "reason": "prompt_input_exit",
+        "input": {
+          "session_id": "dd4a4347-ab40-45e5-9c48-bb993bf30d37",
+          "transcript_path": "C:\\Users\\teco_\\.claude\\projects\\C--Projects-vozclara-whatsapp\\dd4a4347-ab40-45e5-9c48-bb993bf30d37.jsonl",
+          "cwd": "C:\\Projects\\vozclara-whatsapp",
+          "prompt_id": "4948ccd7-5e65-44ce-89ba-09068bf4c1e6",
+          "hook_event_name": "SessionEnd",
+          "reason": "prompt_input_exit"
+        },
+        "metrics": {
+          "session_id": "dd4a4347-ab40-45e5-9c48-bb993bf30d37",
+          "ended_at": "2026-09-11T23:44:35.141Z",
+          "reason": "prompt_input_exit",
+          "agents_spawned": 0,
+          "agents_completed": 0,
+          "modes_used": []
+        },
+        "initialTeamNames": [],
+        "openClawEnabled": false,
+        "openClawRouting": {},
+        "foregroundResult": {
+          "removedTransientFiles": 2,
+          "completedAt": "2026-09-11T23:44:35.189Z"
+        }
+      },
+      "budgetMs": 9000,
+      "completedAt": "2026-09-11T23:44:35.191Z",
+      "lastOutcomeCode": "completed"
+    },
+    "wiki-capture": {
+      "class": "required",
+      "phase": "deferred-required",
+      "status": "completed",
+      "attempts": 0,
+      "idempotencyKey": "1719cd1ef5b51e0269b78c4cb8c9308c9c1f7b82fd1c067fc034c060f23863f5",
+      "payload": {},
+      "budgetMs": 9000,
+      "completedAt": "2026-09-11T23:44:35.144Z"
+    },
+    "team-cleanup": {
+      "class": "required",
+      "phase": "deferred-required",
+      "status": "pending",
+      "attempts": 0,
+      "idempotencyKey": "cee6ac31df545408e1e822247ac249b3f8182a98a5fe8e448ae3b251e55bdee1",
+      "payload": {
+        "transcriptPath": "C:\\Users\\teco_\\.claude\\projects\\C--Projects-vozclara-whatsapp\\dd4a4347-ab40-45e5-9c48-bb993bf30d37.jsonl",
+        "cwd": "C:\\Projects\\vozclara-whatsapp",
+        "reason": "prompt_input_exit",
+        "input": {
+          "session_id": "dd4a4347-ab40-45e5-9c48-bb993bf30d37",
+          "transcript_path": "C:\\Users\\teco_\\.claude\\projects\\C--Projects-vozclara-whatsapp\\dd4a4347-ab40-45e5-9c48-bb993bf30d37.jsonl",
+          "cwd": "C:\\Projects\\vozclara-whatsapp",
+          "prompt_id": "4948ccd7-5e65-44ce-89ba-09068bf4c1e6",
+          "hook_event_name": "SessionEnd",
+          "reason": "prompt_input_exit"
+        },
+        "metrics": {
+          "session_id": "dd4a4347-ab40-45e5-9c48-bb993bf30d37",
+          "ended_at": "2026-09-11T23:44:35.141Z",
+          "reason": "prompt_input_exit",
+          "agents_spawned": 0,
+          "agents_completed": 0,
+          "modes_used": []
+        },
+        "initialTeamNames": [],
+        "openClawEnabled": false,
+        "openClawRouting": {}
+      },
+      "budgetMs": 9000
+    },
+    "python-cleanup": {
+      "class": "required",
+      "phase": "deferred-required",
+      "status": "pending",
+      "attempts": 0,
+      "idempotencyKey": "1f1370c4ac056606059d517e2f106b602d8cbcb04587b3fcc5f3b9f89e649cd0",
+      "payload": {
+        "transcriptPath": "C:\\Users\\teco_\\.claude\\projects\\C--Projects-vozclara-whatsapp\\dd4a4347-ab40-45e5-9c48-bb993bf30d37.jsonl",
+        "cwd": "C:\\Projects\\vozclara-whatsapp",
+        "reason": "prompt_input_exit",
+        "input": {
+          "session_id": "dd4a4347-ab40-45e5-9c48-bb993bf30d37",
+          "transcript_path": "C:\\Users\\teco_\\.claude\\projects\\C--Projects-vozclara-whatsapp\\dd4a4347-ab40-45e5-9c48-bb993bf30d37.jsonl",
+          "cwd": "C:\\Projects\\vozclara-whatsapp",
+          "prompt_id": "4948ccd7-5e65-44ce-89ba-09068bf4c1e6",
+          "hook_event_name": "SessionEnd",
+          "reason": "prompt_input_exit"
+        },
+        "metrics": {
+          "session_id": "dd4a4347-ab40-45e5-9c48-bb993bf30d37",
+          "ended_at": "2026-09-11T23:44:35.141Z",
+          "reason": "prompt_input_exit",
+          "agents_spawned": 0,
+          "agents_completed": 0,
+          "modes_used": []
+        },
+        "initialTeamNames": [],
+        "openClawEnabled": false,
+        "openClawRouting": {}
+      },
+      "budgetMs": 9000
+    },
+    "reply-cleanup": {
+      "class": "required",
+      "phase": "deferred-required",
+      "status": "pending",
+      "attempts": 0,
+      "idempotencyKey": "0b3a8b47c28b26d56aca004d4f572b96c118f16819c0d35162418816f9a5420a",
+      "payload": {
+        "transcriptPath": "C:\\Users\\teco_\\.claude\\projects\\C--Projects-vozclara-whatsapp\\dd4a4347-ab40-45e5-9c48-bb993bf30d37.jsonl",
+        "cwd": "C:\\Projects\\vozclara-whatsapp",
+        "reason": "prompt_input_exit",
+        "input": {
+          "session_id": "dd4a4347-ab40-45e5-9c48-bb993bf30d37",
+          "transcript_path": "C:\\Users\\teco_\\.claude\\projects\\C--Projects-vozclara-whatsapp\\dd4a4347-ab40-45e5-9c48-bb993bf30d37.jsonl",
+          "cwd": "C:\\Projects\\vozclara-whatsapp",
+          "prompt_id": "4948ccd7-5e65-44ce-89ba-09068bf4c1e6",
+          "hook_event_name": "SessionEnd",
+          "reason": "prompt_input_exit"
+        },
+        "metrics": {
+          "session_id": "dd4a4347-ab40-45e5-9c48-bb993bf30d37",
+          "ended_at": "2026-09-11T23:44:35.141Z",
+          "reason": "prompt_input_exit",
+          "agents_spawned": 0,
+          "agents_completed": 0,
+          "modes_used": []
+        },
+        "initialTeamNames": [],
+        "openClawEnabled": false,
+        "openClawRouting": {}
+      },
+      "budgetMs": 9000
+    },
+    "callback": {
+      "class": "best-effort",
+      "phase": "deferred-best-effort",
+      "status": "pending",
+      "attempts": 0,
+      "idempotencyKey": "d068ede2655bf89e0c0950e087d0603d7dcf45538e94f20a654d08c6f4841895",
+      "payload": {
+        "transcriptPath": "C:\\Users\\teco_\\.claude\\projects\\C--Projects-vozclara-whatsapp\\dd4a4347-ab40-45e5-9c48-bb993bf30d37.jsonl",
+        "cwd": "C:\\Projects\\vozclara-whatsapp",
+        "reason": "prompt_input_exit",
+        "input": {
+          "session_id": "dd4a4347-ab40-45e5-9c48-bb993bf30d37",
+          "transcript_path": "C:\\Users\\teco_\\.claude\\projects\\C--Projects-vozclara-whatsapp\\dd4a4347-ab40-45e5-9c48-bb993bf30d37.jsonl",
+          "cwd": "C:\\Projects\\vozclara-whatsapp",
+          "prompt_id": "4948ccd7-5e65-44ce-89ba-09068bf4c1e6",
+          "hook_event_name": "SessionEnd",
+          "reason": "prompt_input_exit"
+        },
+        "metrics": {
+          "session_id": "dd4a4347-ab40-45e5-9c48-bb993bf30d37",
+          "ended_at": "2026-09-11T23:44:35.141Z",
+          "reason": "prompt_input_exit",
+          "agents_spawned": 0,
+          "agents_completed": 0,
+          "modes_used": []
+        },
+        "initialTeamNames": [],
+        "openClawEnabled": false,
+        "openClawRouting": {}
+      },
+      "budgetMs": 2000
+    },
+    "notification": {
+      "class": "best-effort",
+      "phase": "deferred-best-effort",
+      "status": "pending",
+      "attempts": 0,
+      "idempotencyKey": "89c0438ff63097ce04beb60efb87292ff68a7af350a0ee331f3de9dbf42d62fc",
+      "payload": {
+        "transcriptPath": "C:\\Users\\teco_\\.claude\\projects\\C--Projects-vozclara-whatsapp\\dd4a4347-ab40-45e5-9c48-bb993bf30d37.jsonl",
+        "cwd": "C:\\Projects\\vozclara-whatsapp",
+        "reason": "prompt_input_exit",
+        "input": {
+          "session_id": "dd4a4347-ab40-45e5-9c48-bb993bf30d37",
+          "transcript_path": "C:\\Users\\teco_\\.claude\\projects\\C--Projects-vozclara-whatsapp\\dd4a4347-ab40-45e5-9c48-bb993bf30d37.jsonl",
+          "cwd": "C:\\Projects\\vozclara-whatsapp",
+          "prompt_id": "4948ccd7-5e65-44ce-89ba-09068bf4c1e6",
+          "hook_event_name": "SessionEnd",
+          "reason": "prompt_input_exit"
+        },
+        "metrics": {
+          "session_id": "dd4a4347-ab40-45e5-9c48-bb993bf30d37",
+          "ended_at": "2026-09-11T23:44:35.141Z",
+          "reason": "prompt_input_exit",
+          "agents_spawned": 0,
+          "agents_completed": 0,
+          "modes_used": []
+        },
+        "initialTeamNames": [],
+        "openClawEnabled": false,
+        "openClawRouting": {}
+      },
+      "budgetMs": 2000
+    },
+    "openclaw": {
+      "class": "best-effort",
+      "phase": "deferred-best-effort",
+      "status": "pending",
+      "attempts": 0,
+      "idempotencyKey": "31fe8f6e1cf204e27006de511df257326fdd98655122ca437013e8779ffc735b",
+      "payload": {
+        "transcriptPath": "C:\\Users\\teco_\\.claude\\projects\\C--Projects-vozclara-whatsapp\\dd4a4347-ab40-45e5-9c48-bb993bf30d37.jsonl",
+        "cwd": "C:\\Projects\\vozclara-whatsapp",
+        "reason": "prompt_input_exit",
+        "input": {
+          "session_id": "dd4a4347-ab40-45e5-9c48-bb993bf30d37",
+          "transcript_path": "C:\\Users\\teco_\\.claude\\projects\\C--Projects-vozclara-whatsapp\\dd4a4347-ab40-45e5-9c48-bb993bf30d37.jsonl",
+          "cwd": "C:\\Projects\\vozclara-whatsapp",
+          "prompt_id": "4948ccd7-5e65-44ce-89ba-09068bf4c1e6",
+          "hook_event_name": "SessionEnd",
+          "reason": "prompt_input_exit"
+        },
+        "metrics": {
+          "session_id": "dd4a4347-ab40-45e5-9c48-bb993bf30d37",
+          "ended_at": "2026-09-11T23:44:35.141Z",
+          "reason": "prompt_input_exit",
+          "agents_spawned": 0,
+          "agents_completed": 0,
+          "modes_used": []
+        },
+        "initialTeamNames": [],
+        "openClawEnabled": false,
+        "openClawRouting": {}
+      },
+      "budgetMs": 2000
+    }
+  },
+  "owner": null,
+  "phase": "ready"
+}
