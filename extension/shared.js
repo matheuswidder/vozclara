@@ -81,19 +81,18 @@
     if (g.stale || state?.gemmaStale) {
       return {
         id: "update",
-        label: "Atualizar o motor",
+        label: "Atualizar motor",
         disabled: false,
-        status:
-          "O motor transcreve, mas ainda não baixa o Gemma. Clique: baixamos o instalador. Feche o ícone da bandeja, rode o Setup, depois volte aqui.",
+        status: "Motor antigo",
         kind: "warn",
       };
     }
     if (!motorUp) {
       return {
         id: "wake",
-        label: "Ligar o motor e baixar",
+        label: "Ligar o motor",
         disabled: false,
-        status: "O Gemma não fica neste Chrome. Ele baixa no motor do Windows (~4 GB).",
+        status: "Bandeja desligada",
         kind: "warn",
       };
     }
@@ -101,9 +100,9 @@
       const pct = Number(g.percent) || 0;
       return {
         id: "wait",
-        label: pct ? `Baixando… ${pct}%` : "Baixando o Gemma…",
+        label: pct ? `${pct}%` : "Baixando…",
         disabled: true,
-        status: g.detail || "Deixe o motor ligado. Primeira vez pesa ~4 GB.",
+        status: g.detail || "Baixando…",
         kind: "warn",
         percent: pct,
       };
@@ -111,7 +110,7 @@
     if (g.ready && readyKind === want) {
       return {
         id: "ready",
-        label: "Gemma pronto",
+        label: "Pronto",
         disabled: true,
         status: `Pronto · ${meta.name}`,
         kind: "ok",
@@ -122,7 +121,7 @@
         id: "switch",
         label: `Usar ${meta.name}`,
         disabled: false,
-        status: `Trocando para ${meta.name}.`,
+        status: meta.name,
         kind: "warn",
       };
     }
@@ -130,7 +129,7 @@
       id: "download",
       label: `Baixar ${meta.name}`,
       disabled: false,
-      status: `${meta.name} ainda não está no PC (~4 GB).`,
+      status: "Não baixou",
       kind: "warn",
     };
   }
@@ -157,12 +156,12 @@
     const ready = Boolean(state?.ready);
     const downloading = Boolean(state?.downloading);
     if (state?.error) return state.error;
-    if (downloading) return state?.label || "Baixando… deixe a aba aberta.";
+    if (downloading) return state?.label || "Baixando…";
     if (state?.label && !/ainda não baixou|um clique/i.test(state.label)) {
       return state.label;
     }
     if (ready) return `Pronto · ${state.model || "Whisper"}`;
-    return "Escolha o modelo. Se já estiver aqui, entra na hora.";
+    return "";
   }
 
   function stateKind(state) {
@@ -221,8 +220,8 @@
     const detail = String(state?.detail || "").trim();
     const error = String(state?.error || "").trim();
     let motor = { kind: "off", text: "Não instalado" };
-    if (up || alive) motor = { kind: "ok", text: "Ligado na bandeja" };
-    else if (installed) motor = { kind: "warn", text: "Instalado, mas desligado" };
+    if (up || alive) motor = { kind: "ok", text: "Ligado" };
+    else if (installed) motor = { kind: "warn", text: "Desligado" };
     let model = {
       kind: "",
       text: "Aguardando o motor",
@@ -230,7 +229,7 @@
       indeterminate: false,
     };
     if (up) {
-      model = { kind: "ok", text: "Pronto para transcrever", percent: 100, indeterminate: false };
+      model = { kind: "ok", text: "Pronto", percent: 100, indeterminate: false };
     } else if (error && alive) {
       model = { kind: "warn", text: error, percent: 0, indeterminate: false };
     } else if (

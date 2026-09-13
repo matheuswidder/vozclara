@@ -48,10 +48,10 @@ test("parseHfRepo aceita link, hf:// e org/name", () => {
 
 test("stateLabel cobre ready/downloading/error/label", () => {
   assert.equal(VC.stateLabel({ ready: true, model: "large-v3-turbo" }), "Pronto · large-v3-turbo");
-  assert.equal(VC.stateLabel({ downloading: true }), "Baixando… deixe a aba aberta.");
+  assert.equal(VC.stateLabel({ downloading: true }), "Baixando…");
   assert.equal(VC.stateLabel({ error: "boom" }), "boom");
   assert.equal(VC.stateLabel({ label: "custom" }), "custom");
-  assert.equal(VC.stateLabel({}), "Escolha o modelo. Se já estiver aqui, entra na hora.");
+  assert.equal(VC.stateLabel({}), "");
 });
 
 test("modelMeta e troca rápida", () => {
@@ -102,11 +102,11 @@ test("Nemotron não mistura motor com download", () => {
     percent: 32,
     detail: "Baixando model.safetensors · 32%",
   });
-  assert.equal(view.motor.text, "Ligado na bandeja");
+  assert.equal(view.motor.text, "Ligado");
   assert.match(view.model.text, /32%/);
   assert.equal(view.model.kind, "warn");
   const ready = VC.motorView({ motorAlive: true, motorUp: true });
-  assert.equal(ready.model.text, "Pronto para transcrever");
+  assert.equal(ready.model.text, "Pronto");
 });
 
 test("collapseRepeats corta loop do tiny", () => {

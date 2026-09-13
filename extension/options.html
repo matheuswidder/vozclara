@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>VozClara · chaves</title>
+    <title>VozClara</title>
     <link rel="stylesheet" href="chrome.css" />
   </head>
   <body class="options">
@@ -12,24 +12,24 @@
         <div class="mark" aria-hidden="true"></div>
         <div>
           <h1>VozClara</h1>
-          <p>Um botão no áudio do WhatsApp. O Whisper fica neste navegador.</p>
+          <p id="local-status">—</p>
         </div>
       </header>
 
       <label>
         Provedor
         <select id="provider">
-          <option value="local">Whisper neste Chrome — offline</option>
-          <option value="openai">OpenAI — gpt-4o-mini-transcribe / Whisper</option>
-          <option value="gemini">Google Gemini — 2.5 Flash</option>
-          <option value="groq">Groq — whisper-large-v3 na nuvem</option>
-          <option value="xai">xAI — Speech to text</option>
+          <option value="local">Neste Chrome</option>
+          <option value="openai">OpenAI</option>
+          <option value="gemini">Gemini</option>
+          <option value="groq">Groq</option>
+          <option value="xai">xAI</option>
         </select>
       </label>
 
       <div id="cloud-fields" hidden>
         <label>
-          Chave de API
+          Chave
           <input id="apiKey" type="password" spellcheck="false" autocomplete="off" />
         </label>
       </div>
@@ -38,49 +38,35 @@
         <label>
           Modelo
           <select id="model">
-            <option value="turbo">Turbo — recomendado (~560 MB)</option>
-            <option value="tiny">Tiny — mais leve (~40 MB)</option>
-            <option value="light">Small — intermediário (~120 MB)</option>
-            <option value="v3">v3 — mais preciso (~1,5 GB)</option>
-            <option value="nemotron">Nemotron — programa no Windows</option>
-            <option value="custom">Outro Whisper — colar um link</option>
+            <option value="turbo">Turbo · 560 MB</option>
+            <option value="tiny">Tiny · 40 MB</option>
+            <option value="light">Small · 120 MB</option>
+            <option value="v3">v3 · 1,5 GB</option>
+            <option value="nemotron">Nemotron · Windows</option>
+            <option value="custom">Outro Whisper</option>
           </select>
         </label>
         <div id="custom-fields" hidden>
           <label>
-            Link do modelo
-            <input id="hf-repo" type="text" spellcheck="false" autocomplete="off" placeholder="https://huggingface.co/openai/whisper-tiny" />
+            Link
+            <input id="hf-repo" type="text" spellcheck="false" autocomplete="off" placeholder="huggingface.co/…/whisper-tiny" />
           </label>
-          <p class="hint">Cole o link de um Whisper ONNX. Nemotron é o item do seletor, não um link.</p>
         </div>
         <div id="motor-panel" hidden>
           <div class="split">
             <div class="pill">
-              <span class="k">Motor</span>
               <i id="motor-dot" class="dot" aria-hidden="true"></i>
-              <span id="motor-text">—</span>
+              <span id="motor-text">Bandeja</span>
             </div>
             <div class="pill">
-              <span class="k">Modelo</span>
               <i id="model-dot" class="dot" aria-hidden="true"></i>
-              <span id="model-text">—</span>
+              <span id="model-text">Modelo</span>
             </div>
           </div>
           <div class="meter" id="motor-meter" hidden><span id="motor-bar"></span></div>
         </div>
-        <div id="nemo-help" class="nemo-help" hidden>
-          <p><strong>Como o Nemotron entra no Windows</strong></p>
-          <ol>
-            <li>Clique em <strong>Instalar no Windows</strong>. O arquivo vai para Downloads.</li>
-            <li>Abra <strong>VozClara-Motor-Setup</strong>. Se aparecer tela azul: <strong>Mais informações → Executar assim mesmo</strong>. É o nosso programa, não um vírus.</li>
-            <li>Clique em <strong>Instalar</strong> e espere. Um ícone aparece <strong>perto do relógio</strong> (pode estar no ^).</li>
-            <li>Volte aqui: tem que dizer <strong>Ligado na bandeja</strong> e <strong>Pronto para transcrever</strong>.</li>
-          </ol>
-          <p>O áudio não sai deste PC. Depois de transcrever, o play do WhatsApp volta a tocar — pode conferir.</p>
-        </div>
         <div class="meter" id="meter" hidden><span id="bar"></span></div>
-        <p id="local-status" class="status"></p>
-        <p id="local-path" class="hint" hidden></p>
+        <p id="local-path" hidden></p>
         <div id="confirm" class="confirm" hidden>
           <p id="confirm-text"></p>
           <div class="actions">
@@ -89,83 +75,65 @@
           </div>
         </div>
         <div class="actions">
-          <button id="download" type="button">Baixar e usar</button>
+          <button id="download" type="button">Baixar</button>
           <button id="reveal" type="button" class="ghost">Pasta</button>
         </div>
       </div>
 
       <label>
-        Idioma do áudio
+        Idioma
         <select id="language">
           <option value="pt">Português</option>
           <option value="en">English</option>
           <option value="es">Español</option>
-          <option value="auto">Detectar automaticamente</option>
+          <option value="auto">Detectar</option>
         </select>
       </label>
 
-      <p id="status" class="status"></p>
+      <div class="hr"></div>
 
-      <section class="gemma" id="gemma-box">
-        <div class="gemma-head">
-          <strong>Sugestão de resposta</strong>
-          <label class="toggle">
-            <input type="checkbox" id="gemma-on" />
-            Ligar
-          </label>
-        </div>
-        <p class="hint">O Whisper transcreve. O Gemma sugere 3 respostas. Ele baixa no motor do Windows (~4 GB). Passe o mouse no ?</p>
-        <div class="picks">
-          <label class="pick">
-            <input type="radio" name="gemma-kind" value="e2b" />
-            <span><b>E2B</b><small>base · não conversa</small></span>
-            <i class="help" tabindex="0">?</i>
-            <span class="bubble"><strong>E2B — modelo cru</strong>Aprendeu a língua, mas não foi treinado para atender. Completa frase; não sugere resposta de WhatsApp. Deixe para pesquisa.</span>
-          </label>
-          <label class="pick">
-            <input type="radio" name="gemma-kind" value="it" checked />
-            <span><b>E2B-it</b><small>recomendado · conversa</small></span>
-            <i class="help" tabindex="0">?</i>
-            <span class="bubble"><strong>E2B-it — o que responde</strong>O mesmo E2B, treinado para seguir instruções. Lê a transcrição, o tom e o texto da empresa, e propõe 3 respostas prontas.</span>
-          </label>
-          <label class="pick">
-            <input type="radio" name="gemma-kind" value="assistant" />
-            <span><b>E2B-it + acelerador</b><small>mais rápido · 78 MB extra</small></span>
-            <i class="help" tabindex="0">?</i>
-            <span class="bubble"><strong>Acelerador, não o cérebro</strong>O -assistant sozinho não entende a conversa. É um rascunho de 78 MB que adivinha tokens na frente do E2B-it (~2–3×). O VozClara liga os dois juntos.</span>
-          </label>
-        </div>
-        <p id="gemma-status" class="status">O Gemma ainda não foi baixado.</p>
-        <div class="meter" id="gemma-meter" hidden><span id="gemma-bar"></span></div>
-        <div class="actions">
-          <button id="gemma-download" type="button">Baixar E2B-it</button>
-        </div>
-        <div id="gemma-extra" hidden>
-          <label>Quem você é
-            <input id="gemma-who" type="text" maxlength="240" placeholder="Atendimento da loja X…" />
-          </label>
-          <label>Tom
-            <select id="gemma-tone">
-              <option value="cliente">No clima de quem falou</option>
-              <option value="curto">Curto</option>
-              <option value="formal">Formal</option>
-              <option value="comercial">Comercial, sem enrolação</option>
-            </select>
-          </label>
-          <label>O que consultar
-            <textarea id="gemma-notes" maxlength="4000" placeholder="Preço, horário, FAQ… ele lê isto antes de sugerir."></textarea>
-          </label>
-        </div>
-      </section>
+      <div class="row-head">
+        <strong>Sugestões</strong>
+        <label class="switch">
+          <input type="checkbox" id="gemma-on" />
+          <i></i>
+        </label>
+      </div>
+      <div class="seg">
+        <label title="Base. Não conversa."><input type="radio" name="gemma-kind" value="e2b" />E2B</label>
+        <label title="Responde no tom da conversa."><input type="radio" name="gemma-kind" value="it" checked />E2B-it</label>
+        <label title="Mesmo E2B-it, mais rápido."><input type="radio" name="gemma-kind" value="assistant" />+rápido</label>
+      </div>
+      <p id="gemma-status" class="status"></p>
+      <div class="meter" id="gemma-meter" hidden><span id="gemma-bar"></span></div>
+      <div class="actions">
+        <button id="gemma-download" type="button">Baixar</button>
+      </div>
+      <div id="gemma-extra" hidden>
+        <label>Quem você é
+          <input id="gemma-who" type="text" maxlength="240" placeholder="Atendimento da loja…" />
+        </label>
+        <label>Tom
+          <select id="gemma-tone">
+            <option value="cliente">No clima de quem falou</option>
+            <option value="curto">Curto</option>
+            <option value="formal">Formal</option>
+            <option value="comercial">Comercial</option>
+          </select>
+        </label>
+        <label>Consultar
+          <textarea id="gemma-notes" maxlength="4000" placeholder="Preço, horário, FAQ…"></textarea>
+        </label>
+      </div>
 
-      <section>
-        <h2>Como usar</h2>
-        <ol>
-          <li>Escolha o modelo e clique em <strong>Baixar e usar</strong>.</li>
-          <li>Deixe a aba aberta até aparecer Pronto.</li>
-          <li>No WhatsApp Web, clique em Transcrever no áudio.</li>
-        </ol>
-      </section>
+      <div class="test">
+        <p>Testar</p>
+        <p class="drop">Solte um áudio ou escolha um arquivo.</p>
+        <input id="file" type="file" accept="audio/*,.ogg,.opus,.mp3,.wav,.m4a,.webm" />
+        <p class="status" id="test-status"></p>
+        <div class="out" id="test-out" hidden></div>
+      </div>
+      <p id="status" class="status" hidden></p>
     </main>
     <script src="shared.js"></script>
     <script src="popup.js"></script>

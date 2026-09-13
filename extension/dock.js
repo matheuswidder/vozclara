@@ -13,47 +13,35 @@
   const CSS = `
     :host { all: initial; }
     * { box-sizing: border-box; font-family: Segoe UI, Helvetica, Arial, sans-serif; }
-    .layer {
-      position: fixed; inset: 0; z-index: 2147483000;
-      display: none;
-    }
+    .layer { position: fixed; inset: 0; z-index: 2147483000; display: none; }
     .layer.open { display: block; }
-    .back {
-      position: absolute; inset: 0;
-      background: rgba(11, 20, 26, .32);
-    }
+    .back { position: absolute; inset: 0; background: rgba(11, 20, 26, .4); }
     .sheet {
-      position: absolute;
-      top: 10px; bottom: 10px;
-      left: 68px;
-      width: min(380px, calc(100vw - 84px));
-      background: var(--bg);
-      color: var(--fg);
-      border-radius: 16px;
-      box-shadow: 0 16px 48px rgba(0,0,0,.28);
-      display: flex; flex-direction: column;
-      overflow: hidden;
+      position: absolute; top: 10px; bottom: 10px; left: 68px;
+      width: min(360px, calc(100vw - 84px));
+      background: var(--bg); color: var(--fg);
+      border-radius: 12px; box-shadow: 0 16px 48px rgba(0,0,0,.28);
+      display: flex; flex-direction: column; overflow: hidden;
     }
     header {
       display: flex; align-items: center; gap: 10px;
-      padding: 14px 14px 12px;
-      border-bottom: 1px solid var(--line);
+      padding: 12px 14px; border-bottom: 1px solid var(--line);
     }
     .mark {
-      width: 34px; height: 34px; border-radius: 10px;
+      width: 32px; height: 32px; border-radius: 9px; flex: 0 0 auto;
       background: #0b3d32;
       background-image:
-        linear-gradient(#5dcaa0,#5dcaa0),
-        linear-gradient(#5dcaa0,#5dcaa0),
-        linear-gradient(#5dcaa0,#5dcaa0),
-        linear-gradient(#5dcaa0,#5dcaa0),
-        linear-gradient(#5dcaa0,#5dcaa0);
-      background-size: 3px 10px, 3px 16px, 3px 20px, 3px 12px, 3px 8px;
-      background-position: 7px 12px, 12px 9px, 17px 7px, 22px 11px, 27px 13px;
-      background-repeat: no-repeat; flex: 0 0 auto;
+        linear-gradient(#00a884,#00a884), linear-gradient(#00a884,#00a884),
+        linear-gradient(#00a884,#00a884), linear-gradient(#00a884,#00a884),
+        linear-gradient(#00a884,#00a884);
+      background-size: 2.5px 8px, 2.5px 14px, 2.5px 18px, 2.5px 11px, 2.5px 7px;
+      background-position: 7px 12px, 11px 9px, 15px 7px, 19px 10px, 23px 13px;
+      background-repeat: no-repeat;
     }
-    header strong { display: block; font-size: 16px; }
-    header p { margin: 2px 0 0; font-size: 12px; color: var(--muted); }
+    header strong { display: block; font-size: 16px; font-weight: 600; }
+    header p { margin: 1px 0 0; font-size: 12px; color: var(--muted); }
+    header p.ok { color: #00a884; }
+    header p.warn { color: #e9c46a; }
     .x {
       margin-left: auto; border: 0; background: transparent;
       color: var(--muted); width: 32px; height: 32px; border-radius: 50%;
@@ -61,133 +49,80 @@
     }
     .x:hover { background: var(--hover); color: var(--fg); }
     .body { padding: 14px; overflow: auto; flex: 1; }
-    label { display: flex; flex-direction: column; gap: 6px; margin: 0 0 12px;
-      font-size: 12px; font-weight: 600; }
-    select, input[type="password"], input[type="text"] {
+    label {
+      display: flex; flex-direction: column; gap: 5px; margin: 0 0 10px;
+      font-size: 11px; font-weight: 600; color: var(--muted);
+    }
+    select, input[type="password"], input[type="text"], textarea {
       appearance: none; border: 1px solid var(--line); background: var(--field);
-      color: var(--fg); border-radius: 10px; padding: 9px 10px; font-size: 13px;
+      color: var(--fg); border-radius: 8px; padding: 8px 10px; font-size: 13.5px;
+      font-weight: 400;
     }
-    .row { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0 12px; }
-    .actions {
-      display: flex; gap: 8px; margin: 8px 0 14px;
-    }
-    .actions button { min-width: 0; }
-    .actions button.act { flex: 2; }
-    .actions button.ghost { flex: 1; }
+    textarea { min-height: 64px; resize: vertical; }
+    .actions { display: flex; gap: 8px; margin: 0 0 10px; }
+    .actions button { min-width: 0; flex: 1; }
     button.act {
-      border: 0; background: #00a884; color: #062016;
-      font-weight: 700; border-radius: 10px; padding: 9px 10px; cursor: pointer;
-      font-size: 12.5px;
-      transition: opacity .18s ease, transform .15s ease;
+      border: 0; background: #00a884; color: #111b21;
+      font-weight: 600; border-radius: 8px; padding: 9px 10px; cursor: pointer;
+      font-size: 13px;
     }
-    button.act:active:not(:disabled) { transform: scale(.98); }
     button.act:disabled { opacity: .55; cursor: default; }
     button.ghost {
       border: 1px solid var(--line); background: transparent; color: var(--fg);
-      border-radius: 10px; padding: 9px 12px; cursor: pointer; font-size: 13px;
+      border-radius: 8px; padding: 9px 12px; cursor: pointer; font-size: 13px;
     }
-    .meter { height: 6px; background: var(--line); border-radius: 99px; overflow: hidden; margin: 0 0 8px; }
-    .meter.indeterminate span {
-      width: 38% !important;
-      animation: vc-slide 1.15s ease-in-out infinite;
-    }
-    @keyframes vc-slide {
-      0% { transform: translateX(-120%); }
-      100% { transform: translateX(280%); }
-    }
-    .split { display: grid; gap: 8px; margin: 0 0 10px; }
+    .meter { height: 4px; background: var(--line); border-radius: 99px; overflow: hidden; margin: 0 0 10px; }
+    .meter[hidden], #motor-panel[hidden], #custom-fields[hidden], #cloud-fields[hidden],
+    #local-fields[hidden], #confirm[hidden], #gemma-extra[hidden] { display: none; }
+    .meter.indeterminate span { width: 38% !important; animation: vc-slide 1.15s ease-in-out infinite; }
+    .meter span { display: block; height: 100%; width: 0; background: #00a884; }
+    @keyframes vc-slide { 0% { transform: translateX(-120%); } 100% { transform: translateX(280%); } }
+    .split { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 0 10px; }
     .pill {
-      display: flex; align-items: center; gap: 8px;
-      padding: 8px 10px; border: 1px solid var(--line);
-      border-radius: 10px; background: var(--field);
-      font-size: 12.5px; font-weight: 500;
+      display: flex; align-items: center; gap: 8px; min-height: 36px;
+      padding: 6px 10px; border-radius: 8px; background: var(--field);
+      font-size: 12px; font-weight: 500;
     }
-    .pill .k {
-      width: 52px; flex: 0 0 auto; color: var(--muted);
-      font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
-    }
-    .dot { width: 8px; height: 8px; border-radius: 50%; background: #8696a0; flex: 0 0 auto; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: #667781; flex: 0 0 auto; }
     .dot.ok { background: #00a884; }
-    .dot.warn { background: #c47f17; animation: vc-pulse 1.2s ease-in-out infinite; }
-    .dot.off { background: #8696a0; }
+    .dot.warn { background: #e9c46a; animation: vc-pulse 1.2s ease-in-out infinite; }
+    .dot.off { background: #667781; }
     @keyframes vc-pulse { 50% { opacity: .35; } }
-    .status { margin: 0 0 10px; font-size: 12.5px; color: var(--muted); transition: color .2s ease, opacity .18s ease; }
-    .status.ok { color: #1fa855; }
-    .status.warn { color: #c47f17; }
-    .status.flash, .confirm.flash { animation: vc-in .22s ease; }
-    .hint { font-size: 12px; color: var(--muted); margin: 0 0 12px; font-weight: 400; }
-    .confirm {
-      margin: 0 0 12px; padding: 12px; border: 1px solid var(--line);
-      border-radius: 12px; background: var(--field);
-    }
-    .confirm p { margin: 0 0 10px; font-size: 13px; font-weight: 400; }
+    .status { margin: 0 0 8px; font-size: 12px; color: var(--muted); }
+    .status.ok { color: #00a884; }
+    .status.warn { color: #e9c46a; }
+    .confirm { margin: 0 0 10px; padding: 10px; border-radius: 8px; background: var(--field); }
+    .confirm p { margin: 0 0 8px; font-size: 13px; font-weight: 400; }
     .confirm .actions { margin: 0; }
-    @keyframes vc-in {
-      from { opacity: 0; transform: translateY(6px); }
-      to { opacity: 1; transform: none; }
+    .hr { height: 1px; margin: 12px 0; background: var(--line); }
+    .row-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 8px; }
+    .row-head strong { font-size: 12px; font-weight: 600; color: var(--muted); }
+    .switch { position: relative; width: 36px; height: 20px; flex: 0 0 auto; margin: 0; }
+    .switch input { position: absolute; inset: 0; opacity: 0; width: 36px; height: 20px; margin: 0; cursor: pointer; }
+    .switch i { display: block; height: 20px; border-radius: 99px; background: #3b4a54; pointer-events: none; }
+    .switch i::after {
+      content: ""; position: absolute; top: 2px; left: 2px;
+      width: 16px; height: 16px; border-radius: 50%; background: #fff;
+      transition: transform .16s ease;
     }
-    @media (prefers-reduced-motion: reduce) {
-      * { animation: none !important; transition: none !important; }
+    .switch input:checked + i { background: #00a884; }
+    .switch input:checked + i::after { transform: translateX(16px); }
+    .seg {
+      display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px;
+      margin: 0 0 10px; padding: 3px; border-radius: 8px; background: var(--field);
     }
-    .test {
-      border: 1px dashed var(--line); border-radius: 12px; padding: 12px;
-      background: var(--field);
+    .seg label {
+      margin: 0; display: grid; place-items: center; height: 30px;
+      border-radius: 6px; font-size: 11.5px; font-weight: 600; color: var(--muted);
+      letter-spacing: 0; cursor: pointer;
     }
-    .test p { margin: 0 0 8px; font-size: 13px; font-weight: 600; }
-    .test .drop {
-      font-size: 12px; color: var(--muted); margin: 0 0 8px; font-weight: 400;
-    }
-    .out {
-      margin: 10px 0 0; padding: 10px; border-radius: 10px;
-      background: var(--bg); font-size: 13px; line-height: 1.4; white-space: pre-wrap;
-    }
-    textarea {
-      width: 100%; min-height: 72px; resize: vertical;
-      border: 1px solid var(--line); background: var(--field);
-      color: var(--fg); border-radius: 10px; padding: 8px 10px;
-      font: inherit; font-weight: 400;
-    }
-    .gemma {
-      margin: 8px 0 16px; padding: 12px 10px 10px;
-      border: 1px solid var(--line); border-left: 3px solid #00a884;
-      border-radius: 12px; background: var(--field);
-    }
-    .gemma-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 6px; }
-    .gemma-head strong { font-size: 12.5px; }
-    .toggle { display: flex; flex-direction: row; align-items: center; gap: 6px; margin: 0; font-size: 12px; color: var(--muted); }
-    .picks { display: grid; gap: 6px; margin: 10px 0; }
-    .pick {
-      position: relative; display: grid; grid-template-columns: auto 1fr auto;
-      align-items: center; gap: 8px; margin: 0; padding: 8px 10px;
-      border: 1px solid var(--line); border-radius: 10px; background: var(--bg);
-      font-weight: 500; cursor: pointer;
-    }
-    .pick:hover, .pick:has(input:checked) { border-color: #00a884; }
-    .pick b { display: block; font-size: 12.5px; }
-    .pick small { display: block; color: var(--muted); font-size: 11px; font-weight: 400; }
-    .help {
-      width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--line);
-      color: var(--muted); font-size: 11px; font-style: normal;
-      display: grid; place-items: center;
-    }
-    .bubble {
-      display: none; position: absolute; left: 8px; right: 8px; top: calc(100% - 4px);
-      z-index: 30; padding: 10px 12px; background: #111b21; border: 1px solid var(--line);
-      border-radius: 10px; box-shadow: 0 10px 28px rgba(0,0,0,.4);
-      font-size: 12px; font-weight: 400; line-height: 1.4;
-    }
-    .bubble strong { display: block; margin: 0 0 4px; font-size: 12px; color: #00a884; }
-    .pick:hover .bubble, .help:hover + .bubble, .help:focus + .bubble { display: block; }
-    #gemma-extra[hidden] { display: none; }
-    .nemo-help {
-      margin: 0 0 12px; padding: 10px 12px;
-      border: 1px solid var(--line); border-left: 3px solid #00a884;
-      border-radius: 10px; background: var(--field);
-    }
-    .nemo-help p { margin: 0 0 8px; font-size: 12.5px; font-weight: 400; line-height: 1.45; }
-    .nemo-help p:last-child { margin: 0; color: var(--muted); font-size: 12px; }
-    .nemo-help ol { margin: 0 0 8px; padding-left: 18px; }
-    .nemo-help li { margin: 5px 0; font-size: 12.5px; font-weight: 400; line-height: 1.4; }
+    .seg input { display: none; }
+    .seg label:has(input:checked) { background: var(--bg); color: var(--fg); }
+    .test { padding: 10px; border-radius: 8px; background: var(--field); }
+    .test p { margin: 0 0 6px; font-size: 12px; font-weight: 600; color: var(--muted); }
+    .test .drop { font-weight: 400; }
+    .out { margin: 8px 0 0; padding: 8px 10px; border-radius: 8px; background: var(--bg); font-size: 13px; line-height: 1.4; white-space: pre-wrap; }
+    @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
     .light { --bg:#fff; --fg:#111b21; --muted:#667781; --line:#e9edef; --field:#f0f2f5; --hover:#f0f2f5; }
     .dark { --bg:#202c33; --fg:#e9edef; --muted:#8696a0; --line:#3b4a54; --field:#111b21; --hover:#2a3942; }
   `;
@@ -364,69 +299,54 @@
             <div class="mark"></div>
             <div>
               <strong>VozClara</strong>
-              <p>Áudio do WhatsApp em texto</p>
+              <p id="local-status">—</p>
             </div>
             <button class="x" id="close" type="button" aria-label="Fechar">×</button>
           </header>
           <div class="body">
-            <p class="status" id="local-status">Checando o Whisper…</p>
             <div id="motor-panel" hidden>
               <div class="split">
                 <div class="pill">
-                  <span class="k">Motor</span>
                   <i id="motor-dot" class="dot"></i>
-                  <span id="motor-text">—</span>
+                  <span id="motor-text">Bandeja</span>
                 </div>
                 <div class="pill">
-                  <span class="k">Modelo</span>
                   <i id="model-dot" class="dot"></i>
-                  <span id="model-text">—</span>
+                  <span id="model-text">Modelo</span>
                 </div>
               </div>
               <div class="meter" id="motor-meter" hidden><span id="motor-bar"></span></div>
             </div>
-            <div id="nemo-help" class="nemo-help" hidden>
-              <p><strong>Como o Nemotron entra no Windows</strong></p>
-              <ol>
-                <li>Clique em <strong>Instalar no Windows</strong>. O arquivo vai para Downloads.</li>
-                <li>Abra <strong>VozClara-Motor-Setup</strong>. Tela azul? <strong>Mais informações → Executar assim mesmo</strong>. É o nosso programa.</li>
-                <li>Clique em <strong>Instalar</strong>. O ícone aparece <strong>perto do relógio</strong> (às vezes no ^).</li>
-                <li>Aqui em cima tem que dizer <strong>Ligado na bandeja</strong>.</li>
-              </ol>
-              <p>O áudio não sai deste PC. Depois de transcrever, o play do WhatsApp volta a tocar.</p>
-            </div>
             <div class="meter" id="meter" hidden><span id="bar"></span></div>
             <label>Provedor
               <select id="provider">
-                <option value="local">Whisper neste Chrome (offline)</option>
-                <option value="openai">OpenAI (Whisper)</option>
-                <option value="gemini">Google Gemini</option>
-                <option value="groq">Groq (Whisper)</option>
-                <option value="xai">xAI (Grok STT)</option>
+                <option value="local">Neste Chrome</option>
+                <option value="openai">OpenAI</option>
+                <option value="gemini">Gemini</option>
+                <option value="groq">Groq</option>
+                <option value="xai">xAI</option>
               </select>
             </label>
             <div id="cloud-fields">
-              <label>Chave de API
+              <label>Chave
                 <input id="apiKey" type="password" spellcheck="false" autocomplete="off" placeholder="Cole a chave" />
               </label>
             </div>
             <div id="local-fields">
-              <p class="hint">Trocar de modelo: se já baixou, aplica na hora. Se não, pergunta.</p>
               <label>Modelo
                 <select id="model">
-                  <option value="turbo">Turbo — recomendado (~560 MB)</option>
-                  <option value="tiny">Tiny — mais leve (~40 MB)</option>
-                  <option value="light">Small — intermediário (~120 MB)</option>
-                  <option value="v3">v3 — mais preciso (~1,5 GB)</option>
-                  <option value="nemotron">Nemotron — programa no Windows</option>
-                  <option value="custom">Outro Whisper — colar um link</option>
+                  <option value="turbo">Turbo · 560 MB</option>
+                  <option value="tiny">Tiny · 40 MB</option>
+                  <option value="light">Small · 120 MB</option>
+                  <option value="v3">v3 · 1,5 GB</option>
+                  <option value="nemotron">Nemotron · Windows</option>
+                  <option value="custom">Outro Whisper</option>
                 </select>
               </label>
               <div id="custom-fields" hidden>
-                <label>Link do modelo
-                  <input id="hf-repo" type="text" spellcheck="false" autocomplete="off" placeholder="https://huggingface.co/onnx-community/whisper-tiny" />
+                <label>Link
+                  <input id="hf-repo" type="text" spellcheck="false" autocomplete="off" placeholder="huggingface.co/…/whisper-tiny" />
                 </label>
-                <p class="hint">Cole o link de um Whisper ONNX. Nemotron é o item do seletor.</p>
               </div>
               <div id="confirm" class="confirm" hidden>
                 <p id="confirm-text"></p>
@@ -436,7 +356,7 @@
                 </div>
               </div>
               <div class="actions">
-                <button class="act" id="download" type="button">Baixar e usar</button>
+                <button class="act" id="download" type="button">Baixar</button>
                 <button class="ghost" id="reveal" type="button">Pasta</button>
               </div>
             </div>
@@ -448,58 +368,41 @@
                 <option value="auto">Detectar</option>
               </select>
             </label>
-            <section class="gemma" id="gemma-box">
-              <div class="gemma-head">
-                <strong>Sugestão de resposta</strong>
-                <label class="toggle"><input type="checkbox" id="gemma-on" /> Ligar</label>
-              </div>
-              <p class="hint">O Whisper transcreve. O Gemma sugere 3 respostas no WhatsApp. Baixa no motor do Windows (~4 GB), não neste Chrome. Passe o mouse no ?</p>
-              <div class="picks">
-                <label class="pick">
-                  <input type="radio" name="gemma-kind" value="e2b" />
-                  <span><b>E2B</b><small>base · não conversa</small></span>
-                  <i class="help" tabindex="0">?</i>
-                  <span class="bubble"><strong>E2B — modelo cru</strong>Aprendeu a língua, mas não foi treinado para atender. Completa frase; não sugere resposta de WhatsApp.</span>
-                </label>
-                <label class="pick">
-                  <input type="radio" name="gemma-kind" value="it" checked />
-                  <span><b>E2B-it</b><small>recomendado · conversa</small></span>
-                  <i class="help" tabindex="0">?</i>
-                  <span class="bubble"><strong>E2B-it — o que responde</strong>Treinado para seguir instruções. Lê a transcrição, o tom e o texto da empresa, e propõe 3 respostas prontas.</span>
-                </label>
-                <label class="pick">
-                  <input type="radio" name="gemma-kind" value="assistant" />
-                  <span><b>E2B-it + acelerador</b><small>mais rápido · 78 MB extra</small></span>
-                  <i class="help" tabindex="0">?</i>
-                  <span class="bubble"><strong>Acelerador, não o cérebro</strong>O -assistant sozinho não entende a conversa. É um rascunho de 78 MB junto do E2B-it (~2–3× mais rápido).</span>
-                </label>
-              </div>
-              <p class="status" id="gemma-status">O Gemma ainda não foi baixado.</p>
-              <div class="meter" id="gemma-meter" hidden><span id="gemma-bar"></span></div>
-              <div class="actions">
-                <button class="act" id="gemma-download" type="button">Baixar E2B-it</button>
-              </div>
-              <div id="gemma-extra" hidden>
-                <label>Quem você é
-                  <input id="gemma-who" type="text" maxlength="240" placeholder="Atendimento da loja X…" />
-                </label>
-                <label>Tom
-                  <select id="gemma-tone">
-                    <option value="cliente">No clima de quem falou</option>
-                    <option value="curto">Curto</option>
-                    <option value="formal">Formal</option>
-                    <option value="comercial">Comercial, sem enrolação</option>
-                  </select>
-                </label>
-                <label>O que consultar
-                  <textarea id="gemma-notes" maxlength="4000" placeholder="Preço, horário, FAQ…"></textarea>
-                </label>
-              </div>
-            </section>
+            <div class="hr"></div>
+            <div class="row-head">
+              <strong>Sugestões</strong>
+              <label class="switch"><input type="checkbox" id="gemma-on" /><i></i></label>
+            </div>
+            <div class="seg">
+              <label title="Base. Não conversa."><input type="radio" name="gemma-kind" value="e2b" />E2B</label>
+              <label title="Responde no tom da conversa."><input type="radio" name="gemma-kind" value="it" checked />E2B-it</label>
+              <label title="Mesmo E2B-it, mais rápido."><input type="radio" name="gemma-kind" value="assistant" />+rápido</label>
+            </div>
+            <p class="status" id="gemma-status"></p>
+            <div class="meter" id="gemma-meter" hidden><span id="gemma-bar"></span></div>
+            <div class="actions">
+              <button class="act" id="gemma-download" type="button">Baixar</button>
+            </div>
+            <div id="gemma-extra" hidden>
+              <label>Quem você é
+                <input id="gemma-who" type="text" maxlength="240" placeholder="Atendimento da loja…" />
+              </label>
+              <label>Tom
+                <select id="gemma-tone">
+                  <option value="cliente">No clima de quem falou</option>
+                  <option value="curto">Curto</option>
+                  <option value="formal">Formal</option>
+                  <option value="comercial">Comercial</option>
+                </select>
+              </label>
+              <label>Consultar
+                <textarea id="gemma-notes" maxlength="4000" placeholder="Preço, horário, FAQ…"></textarea>
+              </label>
+            </div>
             <p class="status" id="save-status"></p>
             <div class="test">
               <p>Testar</p>
-              <p class="drop">Solte um áudio aqui ou escolha um arquivo. Não usa o WhatsApp — só para ver se o Whisper está ok.</p>
+              <p class="drop">Solte um áudio ou escolha um arquivo.</p>
               <input id="file" type="file" accept="audio/*,.ogg,.opus,.mp3,.wav,.m4a,.webm" />
               <p class="status" id="test-status"></p>
               <div class="out" id="test-out" hidden></div>
@@ -507,6 +410,7 @@
           </div>
         </aside>
       </div>`;
+
     document.documentElement.appendChild(host);
     bindPanel();
     return host;
@@ -631,7 +535,7 @@
     const yes = $p("confirm-yes");
     const meta = metaOf(kind);
     if (!box || !text) return;
-    text.textContent = `${meta.name} ainda não está neste Chrome (${meta.size}). Baixar agora?`;
+    text.textContent = `Baixar ${meta.name} (${meta.size})?`;
     if (yes) yes.textContent = `Baixar ${meta.name}`;
     box.hidden = false;
     flashEl(box);
@@ -761,8 +665,6 @@
     const isNemo = selected === "nemotron";
     const motorPanel = $p("motor-panel");
     if (motorPanel) motorPanel.hidden = !isNemo;
-    const nemoHelp = $p("nemo-help");
-    if (nemoHelp) nemoHelp.hidden = !isNemo;
     if (isNemo) {
       const view = globalThis.VCShared.motorView(state);
       const motorText = $p("motor-text");
@@ -786,15 +688,13 @@
       }
       if (status) {
         status.textContent = error || view.model.text;
-        status.className = "status " + (error ? "warn" : state?.motorUp ? "ok" : "warn");
+        status.className = error ? "warn" : state?.motorUp ? "ok" : "warn";
       }
       if (meter) meter.hidden = true;
     } else if (status) {
       status.textContent = error || label;
       status.className =
-        "status " +
-        (error ? "warn" : action.id === "ready" ? "ok" : downloading ? "warn" : "");
-      flashEl(status);
+        error ? "warn" : action.id === "ready" ? "ok" : downloading ? "warn" : "";
     }
     if (meter && bar && !isNemo) {
       const show = downloading || (percent > 0 && percent < 100 && !ready);
