@@ -29,6 +29,13 @@ def walk(src, prefix, files):
             files.append((abs_path, rel.replace(os.sep, "/")))
 
 files = []
+motor_dir = os.path.join(root, "vozclara-local")
+setup = os.path.join(motor_dir, "VozClara-Motor-Setup.exe")
+engine_dir = os.path.join(root, "extension", "engine")
+os.makedirs(engine_dir, exist_ok=True)
+if os.path.isfile(setup):
+    import shutil
+    shutil.copy2(setup, os.path.join(engine_dir, "VozClara-Motor-Setup.exe"))
 walk(os.path.join(root, "extension"), "", files)
 walk(os.path.join(root, "vozclara-local"), "vozclara-local", files)
 
@@ -52,9 +59,6 @@ with zipfile.ZipFile(motor_zip, "w", zipfile.ZIP_DEFLATED) as mz:
         if os.path.isfile(abs_path):
             mz.write(abs_path, name)
 files.append((motor_zip, "engine/VozClara-Motor.zip"))
-setup = os.path.join(motor_dir, "VozClara-Motor-Setup.exe")
-if os.path.isfile(setup):
-    files.append((setup, "engine/VozClara-Motor-Setup.exe"))
 
 names = [rel for _, rel in files]
 if "manifest.json" not in names:

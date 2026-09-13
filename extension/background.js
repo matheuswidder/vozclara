@@ -740,22 +740,27 @@ async function existingExport() {
 
 function waitDownload(id) {
   return new Promise((resolve) => {
-    const timer = setTimeout(() => resolve(false), 10 * 60 * 1000);
+    let settled = false;
+    const finish = (ok) => {
+      if (settled) return;
+      settled = true;
+      chrome.downloads.onChanged.removeListener(onChange);
+      clearTimeout(timer);
+      resolve(ok);
+    };
     const onChange = (delta) => {
       if (delta.id !== id) return;
       const state = delta.state?.current;
-      if (state === "complete") {
-        chrome.downloads.onChanged.removeListener(onChange);
-        clearTimeout(timer);
-        resolve(true);
-      }
-      if (state === "interrupted") {
-        chrome.downloads.onChanged.removeListener(onChange);
-        clearTimeout(timer);
-        resolve(false);
-      }
+      if (state === "complete") finish(true);
+      if (state === "interrupted") finish(false);
     };
+    const timer = setTimeout(() => finish(false), 2 * 60 * 1000);
     chrome.downloads.onChanged.addListener(onChange);
+    chrome.downloads.search({ id }).then((items) => {
+      const state = items[0]?.state;
+      if (state === "complete") finish(true);
+      if (state === "interrupted") finish(false);
+    }).catch(() => {});
   });
 }
 
@@ -1257,6 +1262,8 @@ async function withGemma(status) {
     "gemmaKind",
     "gemmaOn",
     "gemmaWaitingMotor",
+    "gemmaError",
+    "gemmaSetupOk",
   ]);
   let probe = { ok: false };
   if (extra.gemmaOn || extra.gemmaWaitingMotor || status.motorAlive) {
@@ -1288,13 +1295,14 @@ async function withGemma(status) {
     motorUp: Boolean(probe?.ok && probe.ready) || Boolean(status.motorUp),
     gemmaStale: stale,
     gemmaWaiting: Boolean(extra.gemmaWaitingMotor) && stale,
+    gemmaSetupOk: Boolean(extra.gemmaSetupOk),
     gemma: {
       ready: Boolean(g.ready),
       loading: Boolean(g.loading),
       kind: g.kind || extra.gemmaKind || "it",
       percent: Number(g.percent) || 0,
       detail: g.detail || "",
-      error: g.error || "",
+      error: g.error || extra.gemmaError || "",
       stale,
     },
   };
@@ -1359,17 +1367,28 @@ async function loadGemmaMotor(kind) {
     throw new Error("Ligue o motor na bandeja.");
   }
   if (probe.gemma == null) {
-    const recent = Number(extra.gemmaSetupAt) || 0;
-    if (!recent || Date.now() - recent > 12 * 60 * 60 * 1000) {
+    try {
       await downloadMotorZip();
-      await chrome.storage.local.set({ gemmaSetupAt: Date.now() });
+      await chrome.storage.local.set({
+        gemmaSetupAt: Date.now(),
+        gemmaSetupOk: true,
+        gemmaError: "",
+        gemmaWaitingMotor: true,
+        gemmaStale: true,
+        gemmaLoading: false,
+      });
+      return { ok: true, waiting: true };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Instalador não baixou";
+      await chrome.storage.local.set({
+        gemmaSetupOk: false,
+        gemmaWaitingMotor: false,
+        gemmaStale: true,
+        gemmaLoading: false,
+        gemmaError: msg,
+      });
+      throw new Error(msg);
     }
-    await chrome.storage.local.set({
-      gemmaWaitingMotor: true,
-      gemmaStale: true,
-      gemmaLoading: false,
-    });
-    return { ok: true, waiting: true };
   }
   const posted = await postGemmaLoad(want);
   if (posted.missing) {
@@ -1573,30 +1592,55 @@ async function wakeMotor() {
 }
 
 async function downloadMotorZip() {
-  const url = chrome.runtime.getURL("engine/VozClara-Motor-Setup.exe");
-  try {
+  const bundled = chrome.runtime.getURL("engine/VozClara-Motor-Setup.exe");
+  let objectUrl = "";
+  const start = async (url) => {
     const id = await chrome.downloads.download({
       url,
       filename: "VozClara-Motor-Setup.exe",
       saveAs: false,
       conflictAction: "uniquify",
     });
-    await chrome.storage.local.set({ motorInstalled: true });
-    if (typeof id === "number") {
+    if (typeof id !== "number") return false;
+    const ok = await waitDownload(id);
+    if (ok) {
       try {
         chrome.downloads.show(id);
       } catch {
         /* ignore */
       }
     }
+    return ok;
+  };
+  try {
+    const res = await fetch(bundled);
+    if (!res.ok) throw new Error("missing");
+    const blob = await res.blob();
+    if (blob.size < 50_000) throw new Error("short");
+    objectUrl = URL.createObjectURL(blob);
+    if (await start(objectUrl)) {
+      await chrome.storage.local.set({ motorInstalled: true });
+      return true;
+    }
+  } catch {
+    /* tenta o endereço interno */
+  } finally {
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+  }
+  try {
+    if (await start(bundled)) {
+      await chrome.storage.local.set({ motorInstalled: true });
+      return true;
+    }
+  } catch {
+    /* último: abre o arquivo numa aba */
+  }
+  try {
+    await chrome.tabs.create({ url: bundled });
+    await chrome.storage.local.set({ motorInstalled: true });
     return true;
   } catch {
-    try {
-      await chrome.tabs.create({ url });
-      return true;
-    } catch {
-      return false;
-    }
+    throw new Error("Instalador não baixou");
   }
 }
 
