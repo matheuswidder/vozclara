@@ -172,7 +172,7 @@ func addTray(hwnd syscall.Handle) {
 	d := nidBase(hwnd)
 	d.uFlags |= nifInfo
 	utf16Copy(d.szInfoTitle[:], "VozClara Motor")
-	utf16Copy(d.szInfo[:], "Ligado ao lado do relógio. O WhatsApp Web usa este motor.")
+	utf16Copy(d.szInfo[:], "Ligado perto do relógio. O WhatsApp usa este motor. Áudio não sai do PC.")
 	d.dwInfoFlags = niifInfo
 	procShellNotifyIcon.Call(nimAdd, uintptr(unsafe.Pointer(&d)))
 }

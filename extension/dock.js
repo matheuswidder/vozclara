@@ -179,6 +179,15 @@
     .bubble strong { display: block; margin: 0 0 4px; font-size: 12px; color: #00a884; }
     .pick:hover .bubble, .help:hover + .bubble, .help:focus + .bubble { display: block; }
     #gemma-extra[hidden] { display: none; }
+    .nemo-help {
+      margin: 0 0 12px; padding: 10px 12px;
+      border: 1px solid var(--line); border-left: 3px solid #00a884;
+      border-radius: 10px; background: var(--field);
+    }
+    .nemo-help p { margin: 0 0 8px; font-size: 12.5px; font-weight: 400; line-height: 1.45; }
+    .nemo-help p:last-child { margin: 0; color: var(--muted); font-size: 12px; }
+    .nemo-help ol { margin: 0 0 8px; padding-left: 18px; }
+    .nemo-help li { margin: 5px 0; font-size: 12.5px; font-weight: 400; line-height: 1.4; }
     .light { --bg:#fff; --fg:#111b21; --muted:#667781; --line:#e9edef; --field:#f0f2f5; --hover:#f0f2f5; }
     .dark { --bg:#202c33; --fg:#e9edef; --muted:#8696a0; --line:#3b4a54; --field:#111b21; --hover:#2a3942; }
   `;
@@ -375,6 +384,16 @@
                 </div>
               </div>
               <div class="meter" id="motor-meter" hidden><span id="motor-bar"></span></div>
+            </div>
+            <div id="nemo-help" class="nemo-help" hidden>
+              <p><strong>Como o Nemotron entra no Windows</strong></p>
+              <ol>
+                <li>Clique em <strong>Instalar no Windows</strong>. O arquivo vai para Downloads.</li>
+                <li>Abra <strong>VozClara-Motor-Setup</strong>. Tela azul? <strong>Mais informações → Executar assim mesmo</strong>. É o nosso programa.</li>
+                <li>Clique em <strong>Instalar</strong>. O ícone aparece <strong>perto do relógio</strong> (às vezes no ^).</li>
+                <li>Aqui em cima tem que dizer <strong>Ligado na bandeja</strong>.</li>
+              </ol>
+              <p>O áudio não sai deste PC. Depois de transcrever, o play do WhatsApp volta a tocar.</p>
             </div>
             <div class="meter" id="meter" hidden><span id="bar"></span></div>
             <label>Provedor
@@ -742,6 +761,8 @@
     const isNemo = selected === "nemotron";
     const motorPanel = $p("motor-panel");
     if (motorPanel) motorPanel.hidden = !isNemo;
+    const nemoHelp = $p("nemo-help");
+    if (nemoHelp) nemoHelp.hidden = !isNemo;
     if (isNemo) {
       const view = globalThis.VCShared.motorView(state);
       const motorText = $p("motor-text");

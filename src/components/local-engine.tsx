@@ -69,6 +69,25 @@ export function LocalEngine() {
         ))}
       </ol>
 
+      <div className="mt-5 rounded-lg border border-border bg-bg px-4 py-4">
+        <p className="text-sm font-medium text-fg">Nemotron no Windows</p>
+        <ol className="mt-2 list-decimal space-y-1 pl-4 text-sm leading-relaxed text-fg-muted">
+          <li>Na extensão, escolha Nemotron e clique em Instalar no Windows.</li>
+          <li>
+            Abra VozClara-Motor-Setup. Tela azul? Mais informações → Executar
+            assim mesmo. É o nosso programa.
+          </li>
+          <li>
+            O ícone aparece perto do relógio. Volte na extensão: Ligado na
+            bandeja.
+          </li>
+        </ol>
+        <p className="mt-2 text-xs text-fg-muted">
+          O áudio não sai deste computador. Depois de transcrever, o play do
+          WhatsApp volta a tocar.
+        </p>
+      </div>
+
       <div className="mt-5 flex gap-3 rounded-lg border border-border bg-bg px-4 py-4">
         <HardDrive className="mt-0.5 size-4 shrink-0 text-accent" />
         <div>

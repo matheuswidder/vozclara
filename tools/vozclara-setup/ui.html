@@ -118,23 +118,26 @@
       <div class="mark" aria-hidden="true"><i></i></div>
       <h1>VozClara Motor</h1>
       <p class="lead" id="lead">
-        Instala o Nemotron neste computador e deixa o motor ao lado do
-        relógio, em segundo plano. O Chrome só conversa com ele.
+        Um programa pequeno no seu Windows. Ele transcreve os áudios
+        do WhatsApp sem enviar nada para a internet. Fica escondido
+        ao lado do relógio, como o antivírus.
       </p>
       <ol class="steps" id="steps">
-        <li data-k="copy"><span class="dot"></span> Copiar os arquivos</li>
-        <li data-k="python"><span class="dot"></span> Encontrar o Python</li>
-        <li data-k="libs"><span class="dot"></span> Instalar as bibliotecas</li>
-        <li data-k="shortcut"><span class="dot"></span> Criar o atalho</li>
-        <li data-k="start"><span class="dot"></span> Ligar na bandeja do Windows</li>
+        <li data-k="copy"><span class="dot"></span> Copiar o programa nesta pasta</li>
+        <li data-k="python"><span class="dot"></span> Preparar o Python</li>
+        <li data-k="libs"><span class="dot"></span> Instalar o que o Nemotron precisa</li>
+        <li data-k="shortcut"><span class="dot"></span> Criar atalho na área de trabalho</li>
+        <li data-k="start"><span class="dot"></span> Ligar o ícone ao lado do relógio</li>
       </ol>
       <pre class="log" id="log"></pre>
       <p class="err" id="err" hidden></p>
       <p class="fine" id="fine" hidden></p>
-      <button type="button" id="go">Instalar</button>
+      <button type="button" id="go">Instalar neste computador</button>
       <p class="note">
-        Se o Windows mostrar um aviso azul, clique em Mais informações e
-        Executar assim mesmo. Só nesta primeira vez.
+        O Windows pode mostrar um aviso azul na primeira vez — o arquivo
+        ainda não tem certificado pago. Clique em <strong>Mais informações</strong>
+        e <strong>Executar assim mesmo</strong>. O áudio não sai deste PC.
+        Para desligar depois: clique com o botão direito no ícone da bandeja → Sair.
       </p>
     </main>
     <script>
@@ -179,9 +182,9 @@
               if (ev === "log") line(data);
               if (ev === "done") {
                 document.querySelectorAll(".steps li").forEach((li) => (li.className = "ok"));
-                lead.textContent = "Motor instalado. Deixe a janela do VozClara Motor aberta e volte no WhatsApp.";
+                lead.textContent = "Pronto. Olhe o canto inferior direito, perto do relógio. O ícone da VozClara fica lá (às vezes escondido no ^). Volte no WhatsApp e transcreva.";
                 fine.hidden = false;
-                fine.textContent = "Pronto. Pode fechar esta página.";
+                fine.textContent = "Pode fechar esta página. O motor continua ligado.";
                 go.textContent = "Concluído";
               }
               if (ev === "error") throw new Error(data);
