@@ -214,7 +214,7 @@ async function startGemma() {
   syncGemma();
   await save();
   const btn = $("gemma-download");
-  if (btn?.dataset.action === "wait" || btn?.dataset.action === "wait-motor") return;
+  if (btn?.dataset.action === "wait") return;
   if (btn) {
     btn.disabled = true;
     btn.textContent = "…";

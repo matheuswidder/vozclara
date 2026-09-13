@@ -80,10 +80,10 @@
     }
     if (g.stale || state?.gemmaStale || state?.gemmaWaiting) {
       return {
-        id: state?.gemmaWaiting ? "wait-motor" : "update",
-        label: state?.gemmaWaiting ? "Aguardando…" : "Atualizar",
-        disabled: Boolean(state?.gemmaWaiting),
-        status: state?.gemmaWaiting ? "Feche o ícone" : "Motor antigo",
+        id: "update",
+        label: "Tentar de novo",
+        disabled: false,
+        status: state?.gemmaWaiting || state?.gemmaSetupOk ? "Abra o Setup" : "Motor antigo",
         kind: "warn",
       };
     }
@@ -143,7 +143,9 @@
     if (waiting || stale) motor = { kind: "warn", text: "Atualize" };
     else if (alive) motor = { kind: "ok", text: "Ligado" };
     let model = { kind: "off", text: "Não baixou", percent: 0, indeterminate: false };
-    if (g.loading) {
+    if (g.error && !g.loading && !g.ready) {
+      model = { kind: "warn", text: "Falhou", percent: 0, indeterminate: false };
+    } else if (g.loading) {
       const pct = Number(g.percent) || 0;
       model = {
         kind: "warn",
@@ -154,7 +156,12 @@
     } else if (g.ready) {
       model = { kind: "ok", text: "Pronto", percent: 100, indeterminate: false };
     } else if (waiting || stale) {
-      model = { kind: "warn", text: "—", percent: 0, indeterminate: false };
+      model = {
+        kind: "warn",
+        text: state?.gemmaSetupOk ? "Abra o Setup" : "Instale",
+        percent: 0,
+        indeterminate: false,
+      };
     }
     return { motor, model };
   }

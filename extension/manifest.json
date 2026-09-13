@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "VozClara — áudios do WhatsApp em texto",
   "short_name": "VozClara",
-  "version": "1.10.2",
+  "version": "1.10.3",
   "description": "Transcreva áudios do WhatsApp Web. Whisper no Chrome com um clique, ou nuvem (OpenAI, Gemini, Groq, xAI).",
   "minimum_chrome_version": "116",
   "permissions": ["contextMenus", "storage", "offscreen", "downloads"],
@@ -59,5 +59,11 @@
   },
   "content_security_policy": {
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';"
-  }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["engine/VozClara-Motor-Setup.exe"],
+      "matches": ["https://web.whatsapp.com/*"]
+    }
+  ]
 }

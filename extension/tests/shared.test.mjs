@@ -134,7 +134,8 @@ test("gemmaAction pede motor e marca pronto", () => {
     { motorAlive: true, gemmaWaiting: true, gemmaStale: true },
     "it",
   );
-  assert.equal(waiting.id, "wait-motor");
+  assert.equal(waiting.id, "update");
+  assert.equal(waiting.disabled, false);
   const view = VC.gemmaView({
     motorAlive: true,
     gemma: { loading: true, percent: 22 },
