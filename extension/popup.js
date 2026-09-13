@@ -48,7 +48,7 @@ function syncFields() {
 }
 
 function paint(extra) {
-  const status = $("status");
+  const status = $("local-status") || $("status");
   if (!status) return;
   if (extra) {
     status.textContent = extra.text;
@@ -102,8 +102,6 @@ function renderLocal(state) {
   const motorPanel = $("motor-panel");
   const isNemo = selected === "nemotron";
   if (motorPanel) motorPanel.hidden = !isNemo;
-  const nemoHelp = $("nemo-help");
-  if (nemoHelp) nemoHelp.hidden = !isNemo;
 
   if (isNemo) {
     const view = globalThis.VCShared.motorView(state);
@@ -145,19 +143,9 @@ function renderLocal(state) {
         : downloading
           ? "warn"
           : "";
-    flashEl(localStatus);
   }
 
-  if (!isNemo && pathEl) {
-    if (ready && action.id === "ready" && !error) {
-      pathEl.hidden = false;
-      pathEl.textContent = state.folder
-        ? `Pasta: Downloads/VozClara/${state.model || "Whisper"}`
-        : "Fica neste navegador. Pasta copia para Downloads/VozClara.";
-    } else {
-      pathEl.hidden = true;
-    }
-  }
+  if (pathEl) pathEl.hidden = true;
 
   if (meter && bar) {
     const showBar =
@@ -387,7 +375,7 @@ function showConfirm(kind) {
   const yes = $("confirm-yes");
   const meta = metaOf(kind);
   if (!box || !text) return;
-  text.textContent = `${meta.name} ainda não está neste Chrome (${meta.size}). Baixar agora?`;
+  text.textContent = `Baixar ${meta.name}${meta.size ? ` · ${meta.size}` : ""}?`;
   if (yes) yes.textContent = `Baixar ${meta.name}`;
   box.hidden = false;
   flashEl(box);

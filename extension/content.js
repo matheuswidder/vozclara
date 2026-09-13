@@ -50,18 +50,17 @@
       overflow-anchor: none;
     }
     .box {
-      margin: 0;
-      padding: 8px 12px 10px;
+      margin: 2px 0 4px;
+      padding: 6px 10px 8px;
       background: var(--vc-panel, #1d282f);
-      border-radius: 8px;
-      border-left: 2px solid var(--vc-accent, #00a884);
+      border-radius: 7.5px;
       color: var(--vc-fg, #e9edef);
       box-sizing: border-box;
     }
     .label {
       display: flex; justify-content: space-between; align-items: center;
-      font-size: 10px; letter-spacing: .08em; text-transform: uppercase;
-      color: var(--vc-accent, #00a884); font-weight: 600; margin-bottom: 6px;
+      font-size: 10px; letter-spacing: .04em;
+      color: var(--vc-accent, #00a884); font-weight: 600; margin-bottom: 4px;
     }
     button.tx {
       appearance: none; border: 0; cursor: pointer;
