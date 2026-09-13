@@ -66,7 +66,7 @@ test("modelMeta e troca rápida", () => {
 });
 
 test("downloadLabel cobre todos os kinds", () => {
-  assert.equal(VC.downloadLabel("nemotron"), "Baixando o instalador do Windows…");
+  assert.equal(VC.downloadLabel("nemotron"), "Verificando o motor no PC…");
   assert.equal(
     VC.downloadLabel("custom", "onnx-community/whisper-tiny"),
     "Baixando onnx-community/whisper-tiny…",
@@ -84,7 +84,11 @@ test("primaryAction: um botão, ação óbvia", () => {
   assert.equal(VC.primaryAction({ ready: true, kind: "turbo" }, "tiny").id, "download");
   assert.equal(VC.primaryAction({ motorUp: true }, "nemotron").id, "ready");
   assert.equal(VC.primaryAction({ motorInstalled: true }, "nemotron").id, "wake");
+  assert.equal(VC.primaryAction({ downloading: true }, "nemotron").id, "wait");
+  assert.equal(VC.primaryAction({ downloading: true }, "nemotron").label, "Verificando…");
   assert.equal(VC.primaryAction({}, "nemotron").id, "install");
+  assert.equal(VC.primaryAction({}, "nemotron").label, "Verificar o motor");
+  assert.match(VC.MOTOR_SETUP_HINT, /zip/);
   assert.match(VC.primaryAction({}, "tiny").label, /40 MB/);
 });
 
@@ -130,6 +134,7 @@ test("gemmaAction pede motor e marca pronto", () => {
     "it",
   );
   assert.equal(stale.id, "update");
+  assert.match(stale.label, /Setup/i);
   const waiting = VC.gemmaAction(
     { motorAlive: true, gemmaWaiting: true, gemmaStale: true },
     "it",

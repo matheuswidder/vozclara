@@ -43,7 +43,7 @@ export function SettingsPanel() {
           </p>
         </div>
         {saved ? (
-          <span className="inline-flex items-center gap-1 text-xs text-accent">
+          <span className="inline-flex items-center gap-1 text-xs text-accent motion-safe:animate-[vozclara-rise_0.25s_ease]">
             <Check className="size-3.5" /> Guardado
           </span>
         ) : null}
@@ -73,8 +73,9 @@ export function SettingsPanel() {
           <div className="space-y-2">
             <p className="text-sm font-medium text-fg">Whisper neste Chrome</p>
             <p className="text-sm leading-relaxed text-fg-muted">
-              Sem chave. O botão Baixar Whisper fica no ícone da extensão — o
-              modelo não baixa nesta página.
+              Sem chave. Whisper baixa no ícone da extensão. O motor Windows
+              já veio no zip — rode o Setup em engine/ uma vez e depois
+              Verifique.
             </p>
             <a
               href="#local"

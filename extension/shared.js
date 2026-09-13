@@ -81,9 +81,9 @@
     if (g.stale || state?.gemmaStale || state?.gemmaWaiting) {
       return {
         id: "update",
-        label: "Tentar de novo",
+        label: "Rodar o Setup do zip",
         disabled: false,
-        status: state?.gemmaWaiting || state?.gemmaSetupOk ? "Abra o Setup" : "Motor antigo",
+        status: "Motor antigo — o Setup já está em engine/",
         kind: "warn",
       };
     }
@@ -158,7 +158,7 @@
     } else if (waiting || stale) {
       model = {
         kind: "warn",
-        text: state?.gemmaSetupOk ? "Abra o Setup" : "Instale",
+        text: "Rode o Setup do zip",
         percent: 0,
         indeterminate: false,
       };
@@ -203,10 +203,13 @@
     return "";
   }
 
+  const MOTOR_SETUP_HINT =
+    "O instalador já veio no zip do site. Na pasta extraída, abra engine/VozClara-Motor-Setup.exe. Depois clique em Verificar.";
+
   function downloadLabel(kind, repo) {
     const want = normalizeKind(kind);
     const meta = modelMeta(want);
-    if (want === "nemotron") return "Baixando o instalador do Windows…";
+    if (want === "nemotron") return "Verificando o motor no PC…";
     if (want === "custom") return `Baixando ${parseHfRepo(repo) || "modelo"}…`;
     return `Baixando ${meta.name} (${meta.size})…`;
   }
@@ -224,8 +227,9 @@
     if (want === "nemotron") {
       if (motorUp) return { id: "ready", label: "Motor ligado", disabled: true };
       if (motorAlive) return { id: "ready", label: "Motor ligado", disabled: true };
+      if (downloading) return { id: "wait", label: "Verificando…", disabled: true };
       if (motorInstalled) return { id: "wake", label: "Ligar o motor", disabled: false };
-      return { id: "install", label: "Instalar no Windows", disabled: false };
+      return { id: "install", label: "Verificar o motor", disabled: false };
     }
     if (downloading) {
       return { id: "wait", label: "Baixando…", disabled: true };
@@ -368,6 +372,7 @@
     normalizeGemma,
     stateLabel,
     stateKind,
+    MOTOR_SETUP_HINT,
     downloadLabel,
     primaryAction,
     motorView,

@@ -23,7 +23,8 @@ function flashEl(el) {
 function watchMotor(state) {
   const selected = normalizeKind($("model")?.value);
   const busy =
-    selected === "nemotron" && Boolean(state?.motorAlive) && !state?.motorUp;
+    selected === "nemotron" &&
+    (Boolean(state?.downloading) || (Boolean(state?.motorAlive) && !state?.motorUp));
   const gBusy = Boolean(state?.gemma?.loading || state?.gemmaWaiting);
   if ((busy || gBusy) && !motorPoll) {
     motorPoll = setInterval(() => void queryLocal(), 1500);
@@ -102,6 +103,8 @@ function renderLocal(state) {
   const motorPanel = $("motor-panel");
   const isNemo = selected === "nemotron";
   if (motorPanel) motorPanel.hidden = !isNemo;
+  const motorHint = $("motor-hint");
+  if (motorHint) motorHint.hidden = !isNemo;
 
   if (isNemo) {
     const view = globalThis.VCShared.motorView(state);
@@ -342,8 +345,11 @@ function gemmaPayload() {
 }
 
 function syncGemma() {
+  const on = Boolean($("gemma-on")?.checked);
   const extra = $("gemma-extra");
-  if (extra) extra.hidden = !$("gemma-on")?.checked;
+  const panel = $("gemma-panel");
+  if (extra) extra.hidden = !on;
+  if (panel) panel.hidden = !on;
 }
 
 function loadGemma(stored) {
@@ -473,7 +479,7 @@ async function startDownload(kind, opts = {}) {
   const meta = metaOf(want);
   if (want === "custom" && /nemotron|parakeet|fastconformer|canary|nemo[-_]?asr/i.test(parsed)) {
     paint({
-      text: "Escolha Nemotron no seletor. A extensão baixa o instalador do PC.",
+      text: "Escolha Nemotron no seletor. O Setup já veio no zip — não baixa de novo.",
       kind: "warn",
     });
     return;
@@ -515,8 +521,10 @@ async function startDownload(kind, opts = {}) {
     paint({
       text: opts.switching
         ? `${meta.name} já estava aqui. Aplicando…`
-        : "Deixe a aba aberta até Pronto. Pode fechar este painel.",
-      kind: "ok",
+        : want === "nemotron"
+          ? "Se o motor não responder, rode o Setup do zip e clique de novo em Verificar."
+          : "Deixe a aba aberta até Pronto. Pode fechar este painel.",
+      kind: want === "nemotron" && !opts.switching ? "warn" : "ok",
     });
   } catch (err) {
     renderLocal({

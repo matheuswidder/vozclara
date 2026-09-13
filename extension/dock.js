@@ -64,16 +64,30 @@
     button.act {
       border: 0; background: #00a884; color: #111b21;
       font-weight: 600; border-radius: 8px; padding: 9px 10px; cursor: pointer;
-      font-size: 13px;
+      font-size: 13px; transition: transform .12s ease, filter .12s ease;
     }
-    button.act:disabled { opacity: .55; cursor: default; }
+    button.act:hover { filter: brightness(1.06); }
+    button.act:active:not(:disabled) { transform: translateY(1px); }
+    button.act:disabled { opacity: .55; cursor: default; filter: none; transform: none; }
     button.ghost {
       border: 1px solid var(--line); background: transparent; color: var(--fg);
       border-radius: 8px; padding: 9px 12px; cursor: pointer; font-size: 13px;
     }
     .meter { height: 4px; background: var(--line); border-radius: 99px; overflow: hidden; margin: 0 0 10px; }
     .meter[hidden], #motor-panel[hidden], #custom-fields[hidden], #cloud-fields[hidden],
-    #local-fields[hidden], #confirm[hidden], #gemma-extra[hidden] { display: none; }
+    #local-fields[hidden], #confirm[hidden], #gemma-extra[hidden], #gemma-panel[hidden], #motor-hint[hidden] { display: none; }
+    .hint {
+      margin: 0 0 10px; padding: 8px 10px; border-radius: 8px;
+      background: color-mix(in srgb, #00a884 10%, var(--field));
+      border: 1px solid color-mix(in srgb, #00a884 28%, var(--line));
+      font-size: 12px; line-height: 1.45; color: var(--muted);
+    }
+    .flash { animation: vc-flash .65s ease; border-radius: 6px; }
+    @keyframes vc-flash {
+      from { background: color-mix(in srgb, #00a884 22%, transparent); }
+      to { background: transparent; }
+    }
+    .hint .mono { color: var(--fg); font-family: ui-monospace, Consolas, monospace; font-size: 11px; }
     .meter.indeterminate span { width: 38% !important; animation: vc-slide 1.15s ease-in-out infinite; }
     .meter span { display: block; height: 100%; width: 0; background: #00a884; }
     @keyframes vc-slide { 0% { transform: translateX(-120%); } 100% { transform: translateX(280%); } }
@@ -316,6 +330,9 @@
                 </div>
               </div>
               <div class="meter" id="motor-meter" hidden><span id="motor-bar"></span></div>
+              <p class="hint" id="motor-hint" hidden>
+                O Setup já veio no zip. Na pasta extraída: <span class="mono">engine/VozClara-Motor-Setup.exe</span>
+              </p>
             </div>
             <div class="meter" id="meter" hidden><span id="bar"></span></div>
             <label>Provedor
@@ -373,6 +390,7 @@
               <strong>Sugestões</strong>
               <label class="switch"><input type="checkbox" id="gemma-on" /><i></i></label>
             </div>
+            <div id="gemma-panel" hidden>
             <div class="seg">
               <label title="Base. Não conversa."><input type="radio" name="gemma-kind" value="e2b" />E2B</label>
               <label title="Responde no tom da conversa."><input type="radio" name="gemma-kind" value="it" checked />E2B-it</label>
@@ -409,6 +427,7 @@
                 <textarea id="gemma-notes" maxlength="4000" placeholder="Preço, horário, FAQ…"></textarea>
               </label>
             </div>
+            </div>
             <p class="status" id="save-status"></p>
             <div class="test">
               <p>Testar</p>
@@ -430,6 +449,14 @@
     return shadow?.getElementById(id) || null;
   }
 
+  function syncGemmaPanel() {
+    const on = Boolean($p("gemma-on")?.checked);
+    const extra = $p("gemma-extra");
+    const panel = $p("gemma-panel");
+    if (extra) extra.hidden = !on;
+    if (panel) panel.hidden = !on;
+  }
+
   function bindPanel() {
     $p("back")?.addEventListener("click", close);
     $p("close")?.addEventListener("click", close);
@@ -443,15 +470,13 @@
     $p("model")?.addEventListener("change", () => void onModelChange());
     $p("hf-repo")?.addEventListener("change", () => void save());
     $p("gemma-on")?.addEventListener("change", () => {
-      const extra = $p("gemma-extra");
-      if (extra) extra.hidden = !$p("gemma-on")?.checked;
+      syncGemmaPanel();
       void save();
     });
     shadow.querySelectorAll('input[name="gemma-kind"]').forEach((el) => {
       el.addEventListener("change", () => {
         if ($p("gemma-on")) $p("gemma-on").checked = true;
-        const extra = $p("gemma-extra");
-        if (extra) extra.hidden = false;
+        syncGemmaPanel();
         void save();
         void refreshLocal();
       });
@@ -631,6 +656,7 @@
     if ($p("gemma-notes")) $p("gemma-notes").value = stored.gemmaNotes || "";
     const extra = $p("gemma-extra");
     if (extra) extra.hidden = !$p("gemma-on")?.checked;
+    syncGemmaPanel();
     syncFields();
     await refreshLocal();
   }
@@ -649,7 +675,9 @@
 
   function watchMotor(state) {
     const selected = normalizeKind($p("model")?.value);
-    const busy = selected === "nemotron" && Boolean(state?.motorAlive) && !state?.motorUp;
+    const busy =
+      selected === "nemotron" &&
+      (Boolean(state?.downloading) || (Boolean(state?.motorAlive) && !state?.motorUp));
     const gBusy = Boolean(state?.gemma?.loading || state?.gemmaWaiting);
     if ((busy || gBusy) && !motorPoll) {
       motorPoll = setInterval(() => void refreshLocal(), 1500);
@@ -675,6 +703,8 @@
     const isNemo = selected === "nemotron";
     const motorPanel = $p("motor-panel");
     if (motorPanel) motorPanel.hidden = !isNemo;
+    const motorHint = $p("motor-hint");
+    if (motorHint) motorHint.hidden = !isNemo;
     if (isNemo) {
       const view = globalThis.VCShared.motorView(state);
       const motorText = $p("motor-text");
@@ -857,7 +887,7 @@
       const s = $p("save-status");
       if (s) {
         s.textContent =
-          "Escolha Nemotron no seletor. A extensão baixa o instalador do PC.";
+          "Escolha Nemotron no seletor. O Setup já veio no zip — não baixa de novo.";
         s.className = "status warn";
       }
       return;
@@ -890,8 +920,10 @@
       if (s) {
         s.textContent = opts.switching
           ? `${meta.name} já estava aqui. Aplicando…`
-          : "Deixe a aba aberta até Pronto.";
-        s.className = "status ok";
+          : want === "nemotron"
+            ? "Se o motor não responder, rode o Setup do zip e clique de novo em Verificar."
+            : "Deixe a aba aberta até Pronto.";
+        s.className = want === "nemotron" && !opts.switching ? "status warn" : "status ok";
         flashEl(s);
       }
     } catch (err) {

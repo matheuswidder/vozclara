@@ -15,7 +15,7 @@ export const Route = createRootRoute({
       {
         name: "description",
         content:
-          "Transcreva áudios do WhatsApp Web com a sua chave da OpenAI, Gemini, Groq ou xAI.",
+          "Transcreva áudios do WhatsApp Web. Um zip: extensão e motor. Whisper no Chrome ou chave da nuvem.",
       },
       { name: "theme-color", content: "#0c1210" },
     ],

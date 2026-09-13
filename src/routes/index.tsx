@@ -12,7 +12,11 @@ export const Route = createFileRoute("/")({ component: Home });
 
 function Home() {
   return (
-    <div id="topo" className="min-h-dvh bg-bg text-fg">
+    <div id="topo" className="relative min-h-dvh overflow-x-clip bg-bg text-fg">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 top-0 h-[28rem] bg-[radial-gradient(900px_280px_at_20%_-10%,color-mix(in_oklab,var(--color-accent)_18%,transparent),transparent_70%)]"
+      />
       <SiteHeader />
 
       <main>
@@ -26,14 +30,14 @@ function Home() {
               <span className="block italic text-fg-muted">vira texto no chat.</span>
             </h1>
             <p className="mt-5 max-w-md text-base leading-relaxed text-fg-muted">
-              Instale, clique em Baixar e usar e depois em Transcrever no áudio.
-              O arquivo não sai do computador.
+              Um zip: extensão e motor juntos. Instale o Setup uma vez,
+              verifique, transcreva. O arquivo não sai do computador.
             </p>
             <div className="mt-7 flex flex-wrap gap-3">
               <Button asChild>
                 <a href="/vozclara.zip" download="vozclara.zip">
                   <Download className="size-4" />
-                  Baixar extensão
+                  Baixar o zip
                 </a>
               </Button>
               <Button asChild variant="secondary">
@@ -51,7 +55,7 @@ function Home() {
               </li>
               <li className="flex gap-2">
                 <HardDrive className="mt-0.5 size-4 shrink-0 text-accent" />
-                Ou chave da nuvem
+                Motor no zip, uma vez
               </li>
             </ul>
           </div>
