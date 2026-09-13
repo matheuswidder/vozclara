@@ -130,6 +130,17 @@ test("gemmaAction pede motor e marca pronto", () => {
     "it",
   );
   assert.equal(stale.id, "update");
+  const waiting = VC.gemmaAction(
+    { motorAlive: true, gemmaWaiting: true, gemmaStale: true },
+    "it",
+  );
+  assert.equal(waiting.id, "wait-motor");
+  const view = VC.gemmaView({
+    motorAlive: true,
+    gemma: { loading: true, percent: 22 },
+  });
+  assert.equal(view.motor.text, "Ligado");
+  assert.match(view.model.text, /22/);
   const wait = VC.gemmaAction(
     { motorAlive: true, gemma: { loading: true, percent: 40 } },
     "it",

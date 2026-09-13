@@ -78,12 +78,12 @@
         kind: "warn",
       };
     }
-    if (g.stale || state?.gemmaStale) {
+    if (g.stale || state?.gemmaStale || state?.gemmaWaiting) {
       return {
-        id: "update",
-        label: "Atualizar motor",
-        disabled: false,
-        status: "Motor antigo",
+        id: state?.gemmaWaiting ? "wait-motor" : "update",
+        label: state?.gemmaWaiting ? "Aguardando…" : "Atualizar",
+        disabled: Boolean(state?.gemmaWaiting),
+        status: state?.gemmaWaiting ? "Feche o ícone" : "Motor antigo",
         kind: "warn",
       };
     }
@@ -132,6 +132,31 @@
       status: "Não baixou",
       kind: "warn",
     };
+  }
+
+  function gemmaView(state) {
+    const g = state?.gemma && typeof state.gemma === "object" ? state.gemma : {};
+    const alive = Boolean(state?.motorAlive || state?.motorUp);
+    const stale = Boolean(state?.gemmaStale || g.stale);
+    const waiting = Boolean(state?.gemmaWaiting);
+    let motor = { kind: "off", text: "Desligado" };
+    if (waiting || stale) motor = { kind: "warn", text: "Atualize" };
+    else if (alive) motor = { kind: "ok", text: "Ligado" };
+    let model = { kind: "off", text: "Não baixou", percent: 0, indeterminate: false };
+    if (g.loading) {
+      const pct = Number(g.percent) || 0;
+      model = {
+        kind: "warn",
+        text: pct ? `${pct}%` : "Baixando",
+        percent: pct,
+        indeterminate: pct < 2,
+      };
+    } else if (g.ready) {
+      model = { kind: "ok", text: "Pronto", percent: 100, indeterminate: false };
+    } else if (waiting || stale) {
+      model = { kind: "warn", text: "—", percent: 0, indeterminate: false };
+    }
+    return { motor, model };
   }
 
   function gemmaMeta(kind) {
@@ -331,6 +356,7 @@
     parseHfRepo,
     modelMeta,
     gemmaMeta,
+    gemmaView,
     gemmaAction,
     normalizeGemma,
     stateLabel,
