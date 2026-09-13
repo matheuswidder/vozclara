@@ -43,7 +43,9 @@
 - `curl -X POST http://127.0.0.1:8173/pair -H "Origin: https://evil.example"` → 403.
 - `curl -X POST http://127.0.0.1:8173/pair` sem Origin → 200 + token; Bearer transcreve.
 - Extensão transcreve após `/pair` (usuário não cola token).
-- Motor desinstalado + `motorInstalled` apagado → “Instalar no PC”.
+- Motor desinstalado + `motorInstalled` apagado → “Verificar o motor” + hint do zip.
+- A extensão **não** dispara download do `.exe`. Rode `engine/VozClara-Motor-Setup.exe` do zip.
+- Depois do Setup: Verificar → bandeja verde.
 - `/health` sem campo `paired` → tratar como motor desatualizado.
 
 ### Parte 1 (estados)

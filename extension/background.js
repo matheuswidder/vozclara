@@ -1,4 +1,6 @@
 const MENU_ID = "vozclara-transcribe";
+const MOTOR_SETUP_HINT =
+  "O instalador já veio no zip do site. Na pasta extraída, abra engine/VozClara-Motor-Setup.exe. Depois clique em Verificar.";
 
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({
@@ -815,9 +817,9 @@ async function verifyModel(opts = {}) {
         ? `Pronto · ${probe.model || "Nemotron"} — ao lado do relógio`
         : alive
           ? loadingLabel
-          : extra.motorInstalled
+            : extra.motorInstalled
             ? "Não alcanço o motor. Clique em Ligar o motor."
-            : "Instale o motor Windows. Ele fica em segundo plano, na bandeja.",
+            : MOTOR_SETUP_HINT,
       error: up ? "" : alive ? probe?.error || "" : extra.motorInstalled ? "Não alcanço o motor neste PC." : "",
     });
   }
@@ -1367,28 +1369,14 @@ async function loadGemmaMotor(kind) {
     throw new Error("Ligue o motor na bandeja.");
   }
   if (probe.gemma == null) {
-    try {
-      await downloadMotorZip();
-      await chrome.storage.local.set({
-        gemmaSetupAt: Date.now(),
-        gemmaSetupOk: true,
-        gemmaError: "",
-        gemmaWaitingMotor: true,
-        gemmaStale: true,
-        gemmaLoading: false,
-      });
-      return { ok: true, waiting: true };
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Instalador não baixou";
-      await chrome.storage.local.set({
-        gemmaSetupOk: false,
-        gemmaWaitingMotor: false,
-        gemmaStale: true,
-        gemmaLoading: false,
-        gemmaError: msg,
-      });
-      throw new Error(msg);
-    }
+    await chrome.storage.local.set({
+      gemmaSetupOk: true,
+      gemmaError: MOTOR_SETUP_HINT,
+      gemmaWaitingMotor: true,
+      gemmaStale: true,
+      gemmaLoading: false,
+    });
+    throw new Error(MOTOR_SETUP_HINT);
   }
   const posted = await postGemmaLoad(want);
   if (posted.missing) {
@@ -1522,7 +1510,8 @@ async function probeLocal(url) {
         ok: false,
         alive: false,
         ready: false,
-        error: "Não alcanço o motor. Clique em Ligar motor.",
+        error:
+          "Não alcanço o motor. Rode engine/VozClara-Motor-Setup.exe do zip e clique em Verificar.",
       };
     } finally {
       clearTimeout(timer);
@@ -1587,61 +1576,48 @@ async function wakeMotor() {
     ready: false,
     motorUp: false,
     error:
-      "Não alcanço o motor. Clique de novo em Ligar motor.",
+      "Não alcanço o motor. Rode engine/VozClara-Motor-Setup.exe do zip e clique em Verificar.",
   };
 }
 
-async function downloadMotorZip() {
-  const bundled = chrome.runtime.getURL("engine/VozClara-Motor-Setup.exe");
-  let objectUrl = "";
-  const start = async (url) => {
-    const id = await chrome.downloads.download({
-      url,
-      filename: "VozClara-Motor-Setup.exe",
-      saveAs: false,
-      conflictAction: "uniquify",
+async function findExistingSetup() {
+  if (!chrome.downloads?.search) return null;
+  try {
+    const items = await chrome.downloads.search({
+      filenameRegex: "VozClara-Motor-Setup",
+      exists: true,
+      limit: 20,
+      orderBy: ["-startTime"],
     });
-    if (typeof id !== "number") return false;
-    const ok = await waitDownload(id);
-    if (ok) {
-      try {
-        chrome.downloads.show(id);
-      } catch {
-        /* ignore */
-      }
-    }
-    return ok;
-  };
-  try {
-    const res = await fetch(bundled);
-    if (!res.ok) throw new Error("missing");
-    const blob = await res.blob();
-    if (blob.size < 50_000) throw new Error("short");
-    objectUrl = URL.createObjectURL(blob);
-    if (await start(objectUrl)) {
-      await chrome.storage.local.set({ motorInstalled: true });
-      return true;
-    }
+    return (
+      items.find(
+        (row) =>
+          row.state === "complete" &&
+          row.exists !== false &&
+          /VozClara-Motor-Setup/i.test(row.filename || ""),
+      ) || null
+    );
   } catch {
-    /* tenta o endereço interno */
-  } finally {
-    if (objectUrl) URL.revokeObjectURL(objectUrl);
+    return null;
   }
+}
+
+async function showSetup(id) {
+  if (typeof id !== "number") return;
   try {
-    if (await start(bundled)) {
-      await chrome.storage.local.set({ motorInstalled: true });
-      return true;
-    }
+    chrome.downloads.show(id);
   } catch {
-    /* último: abre o arquivo numa aba */
+    /* ignore */
   }
-  try {
-    await chrome.tabs.create({ url: bundled });
-    await chrome.storage.local.set({ motorInstalled: true });
-    return true;
-  } catch {
-    throw new Error("Instalador não baixou");
+}
+
+async function offerSetup() {
+  const existing = await findExistingSetup();
+  if (existing) {
+    await showSetup(existing.id);
+    return { ok: true, reused: true };
   }
+  return { ok: false, reused: false };
 }
 
 async function waitForMotor(ms = 8 * 60 * 1000) {
@@ -1657,7 +1633,7 @@ async function waitForMotor(ms = 8 * 60 * 1000) {
       localProgress: {
         downloading: true,
         percent,
-        label: "Esperando o instalador… abra VozClara-Motor-Setup em Downloads.",
+        label: "Esperando o motor na bandeja… rode o Setup do zip se ainda não rodou.",
         error: "",
       },
     });
@@ -1667,8 +1643,6 @@ async function waitForMotor(ms = 8 * 60 * 1000) {
 }
 
 async function beginNemotron() {
-  const hint =
-    "Baixei o instalador em Downloads. Dê dois cliques em VozClara-Motor-Setup. Se o Windows avisar, Mais informações → Executar assim mesmo.";
   await chrome.storage.local.set({
     provider: "local",
     preferredKind: "nemotron",
@@ -1676,12 +1650,11 @@ async function beginNemotron() {
     localProgress: {
       downloading: true,
       percent: 8,
-      label: "Procurando o motor no PC…",
+      label: "Verificando o motor neste PC…",
       error: "",
     },
   });
   updateBadge({ downloading: true, percent: 8 });
-  openProgressTab();
   try {
     const stored = await chrome.storage.local.get(["localUrl"]);
     let probe = await probeLocal(stored.localUrl);
@@ -1690,6 +1663,7 @@ async function beginNemotron() {
         localModelReady: true,
         localModelId: probe.model || "nemotron-3.5-asr",
         localModelKind: "nemotron",
+        motorInstalled: true,
         localProgress: {
           downloading: false,
           percent: 100,
@@ -1700,42 +1674,50 @@ async function beginNemotron() {
       updateBadge({ ready: true, downloading: false });
       return;
     }
-    await chrome.storage.local.set({
-      localProgress: {
-        downloading: true,
-        percent: 15,
-        label: "Baixando o instalador do motor…",
-        error: "",
-      },
-    });
-    await downloadMotorZip();
-    await chrome.storage.local.set({
-      localProgress: {
-        downloading: true,
-        percent: 25,
-        label: hint,
-        error: "",
-      },
-    });
-    probe = await waitForMotor();
-    if (probe?.ok && probe.ready) {
+    if (probe?.ok && !probe.ready) {
       await chrome.storage.local.set({
-        localModelReady: true,
-        localModelId: probe.model || "nemotron-3.5-asr",
-        localModelKind: "nemotron",
+        motorInstalled: true,
         localProgress: {
-          downloading: false,
-          percent: 100,
-          label: `Pronto · ${probe.model || "Nemotron"} no PC`,
+          downloading: true,
+          percent: Number(probe.percent) || 20,
+          label: probe.detail || "Motor ligado. Carregando o modelo…",
           error: "",
         },
       });
-      updateBadge({ ready: true, downloading: false });
-      return;
+      probe = await waitForMotor();
+      if (probe?.ok && probe.ready) {
+        await chrome.storage.local.set({
+          localModelReady: true,
+          localModelId: probe.model || "nemotron-3.5-asr",
+          localModelKind: "nemotron",
+          motorInstalled: true,
+          localProgress: {
+            downloading: false,
+            percent: 100,
+            label: `Pronto · ${probe.model || "Nemotron"} no PC`,
+            error: "",
+          },
+        });
+        updateBadge({ ready: true, downloading: false });
+        return;
+      }
+      throw new Error(MOTOR_SETUP_HINT);
     }
-    throw new Error(hint);
+    const offered = await offerSetup();
+    const label = offered.reused
+      ? "Setup já estava em Downloads. Dê dois cliques nele, depois Verificar."
+      : MOTOR_SETUP_HINT;
+    await chrome.storage.local.set({
+      localProgress: {
+        downloading: false,
+        percent: 0,
+        label,
+        error: label,
+      },
+    });
+    updateBadge({ error: label });
   } catch (err) {
-    const error = err instanceof Error ? err.message : hint;
+    const error = err instanceof Error ? err.message : MOTOR_SETUP_HINT;
     await chrome.storage.local.set({
       localModelReady: false,
       localModelKind: "nemotron",
@@ -1837,7 +1819,7 @@ async function transcribe(msg, tabId) {
           ok: false,
           error:
             woke?.error ||
-            "Não alcanço o motor. O ícone da bandeja pode estar ligado sem responder. Clique em Ligar motor.",
+            "Não alcanço o motor. Se a bandeja estiver desligada, rode o Setup do zip e clique em Verificar.",
         };
       }
       if (!probe.ready) {

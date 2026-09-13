@@ -63,8 +63,11 @@
               <span id="model-text">Modelo</span>
             </div>
           </div>
-          <div class="meter" id="motor-meter" hidden><span id="motor-bar"></span></div>
-        </div>
+        <div class="meter" id="motor-meter" hidden><span id="motor-bar"></span></div>
+        <p class="hint" id="motor-hint" hidden>
+          O Setup já veio no zip. Na pasta extraída: <span class="mono">engine/VozClara-Motor-Setup.exe</span>
+        </p>
+      </div>
         <div class="meter" id="meter" hidden><span id="bar"></span></div>
         <p id="local-path" hidden></p>
         <div id="confirm" class="confirm" hidden>
@@ -99,6 +102,7 @@
           <i></i>
         </label>
       </div>
+      <div id="gemma-panel" hidden>
       <div class="seg">
         <label title="Base. Não conversa."><input type="radio" name="gemma-kind" value="e2b" />E2B</label>
         <label title="Responde no tom da conversa."><input type="radio" name="gemma-kind" value="it" checked />E2B-it</label>
@@ -114,7 +118,7 @@
           <span id="g-model-text">Gemma</span>
         </div>
       </div>
-      <p id="gemma-status" class="status"></p>
+      <p id="gemma-status" class="status" aria-live="polite"></p>
       <div class="meter" id="gemma-meter" hidden><span id="gemma-bar"></span></div>
       <div class="actions">
         <button id="gemma-download" type="button">Baixar</button>
@@ -134,6 +138,7 @@
         <label>Consultar
           <textarea id="gemma-notes" maxlength="4000" placeholder="Preço, horário, FAQ…"></textarea>
         </label>
+      </div>
       </div>
 
       <div class="test">

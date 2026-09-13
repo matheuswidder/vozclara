@@ -1,5 +1,15 @@
 # WORKLOG
 
+## 2026-09-13 — Motor no zip + UI (auditoria de fluxo)
+
+- Chrome recusava o Setup porque a extensão baixava o `.exe` (às vezes duas vezes).
+  Agora: um zip no site, Setup em `engine/`, **verificar** se o motor responde.
+  A extensão **não** dispara `chrome.downloads.download` do `.exe`.
+- Popup/dock: hint, botão “Verificar o motor”, Gemma recolhida até ligar, flash/meter.
+- Landing: um zip, quatro passos, copy honesta, CTA no header.
+- Setup: spinner + barra + botão com feedback. Rebuild do `.exe`.
+- `npm test` + pack. Checklist WhatsApp Web continua manual.
+
 ## 2026-09-11 — Correção das falhas da verificação
 
 - Cancelar: handler em `onMessage`; `pending.requestId`; card `rootByKey.get`.

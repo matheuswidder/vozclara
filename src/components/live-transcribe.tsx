@@ -139,7 +139,7 @@ export function LiveTranscribe() {
           Enviar áudio
         </Button>
         {status === "recording" ? (
-          <Button type="button" className="flex-1" onClick={stopRec}>
+          <Button type="button" className="flex-1 motion-safe:animate-pulse" onClick={stopRec}>
             <Square className="size-4 fill-current" />
             Parar {seconds}s
           </Button>
@@ -163,7 +163,12 @@ export function LiveTranscribe() {
         )}
       >
         {status === "busy" ? (
-          <p className="vozclara-shimmer text-sm font-medium">Transcrevendo…</p>
+          <div>
+            <p className="vozclara-shimmer text-sm font-medium">Transcrevendo…</p>
+            <div className="mt-3 h-1 overflow-hidden rounded-full bg-border">
+              <span className="block h-full w-2/5 rounded-full bg-accent motion-safe:animate-[vozclara-indeterminate_1.15s_ease-in-out_infinite]" />
+            </div>
+          </div>
         ) : text ? (
           <div>
             <div className="mb-2 flex items-center justify-between gap-2">

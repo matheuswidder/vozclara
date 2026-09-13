@@ -30,6 +30,9 @@ agentes em `content.js`, `background.js` ou `offscreen.js`.
 
 Correções da verificação 2026-09-11 aplicadas. Checklist WhatsApp Web ainda é manual (`DEV/VERIFY.md`).
 
+2026-09-13: fluxo do motor passou a **zip no site + Setup uma vez + verificar**.
+A extensão não baixa mais o `.exe` via `chrome.downloads`.
+
 ## Fora de escopo
 
 - Reescrever a técnica de captura (sequestro de APIs MAIN world permanece — é o que

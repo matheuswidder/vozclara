@@ -1,4 +1,6 @@
+import { Download } from "lucide-react";
 import { Wordmark } from "@/components/logo";
+import { Button } from "@/components/ui/button";
 
 const LINKS = [
   { href: "#demo", label: "Demo" },
@@ -19,11 +21,17 @@ export function SiteHeader() {
             <a
               key={l.href}
               href={l.href}
-              className="inline-flex min-h-11 items-center rounded-sm px-2 text-fg-muted transition-colors duration-150 hover:text-fg sm:px-3"
+              className="hidden min-h-11 items-center rounded-sm px-2 text-fg-muted transition-colors duration-150 hover:text-fg sm:inline-flex sm:px-3"
             >
               {l.label}
             </a>
           ))}
+          <Button asChild size="sm" className="ml-1">
+            <a href="/vozclara.zip" download="vozclara.zip">
+              <Download className="size-3.5" />
+              Zip
+            </a>
+          </Button>
         </nav>
       </div>
     </header>

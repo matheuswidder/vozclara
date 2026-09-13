@@ -2,6 +2,16 @@
 
 Data: 2026-09-11 · Escopo: `extension/`, `vozclara-local/`, landing (`src/`)
 
+## Adendo 2026-09-13 — motor no zip
+
+O Chrome recusava `VozClara-Motor-Setup.exe` quando a extensão tentava baixá-lo
+(às vezes duas vezes: blob + URL `chrome-extension://`, e de novo no Gemma).
+Fluxo correto: **um zip no site**, Setup em `engine/`, instalação uma vez,
+depois só **Verificar**. A extensão não chama mais `chrome.downloads.download`
+nesse arquivo.
+
+---
+
 ## Veredito
 
 O produto entrega o essencial do que promete (transcrição local real, privacidade

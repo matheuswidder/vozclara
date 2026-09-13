@@ -49,6 +49,33 @@
         border: 2.5px solid var(--accent-ink);
         border-radius: 50%;
         border-right-color: transparent;
+        animation: spin 0.9s linear infinite;
+        animation-play-state: paused;
+      }
+      body.busy .mark i { animation-play-state: running; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      .bar {
+        display: none;
+        height: 4px;
+        margin: 0 0 16px;
+        overflow: hidden;
+        border-radius: 99px;
+        background: var(--line);
+      }
+      body.busy .bar { display: block; }
+      .bar span {
+        display: block;
+        height: 100%;
+        width: 38%;
+        background: var(--accent);
+        animation: slide 1.15s ease-in-out infinite;
+      }
+      @keyframes slide {
+        0% { transform: translateX(-120%); }
+        100% { transform: translateX(280%); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .mark i, .bar span { animation: none !important; }
       }
       h1 {
         margin: 16px 0 6px;
@@ -74,6 +101,8 @@
         cursor: pointer;
       }
       button:hover { filter: brightness(1.06); }
+      button:active:not(:disabled) { transform: translateY(1px); }
+      button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
       button:disabled { opacity: 0.55; cursor: default; filter: none; }
       .steps { list-style: none; margin: 0 0 18px; padding: 0; }
       .steps li {
@@ -132,6 +161,7 @@
       <pre class="log" id="log"></pre>
       <p class="err" id="err" hidden></p>
       <p class="fine" id="fine" hidden></p>
+      <div class="bar" aria-hidden="true"><span></span></div>
       <button type="button" id="go">Instalar neste computador</button>
       <p class="note">
         O Windows pode mostrar um aviso azul na primeira vez — o arquivo
@@ -160,6 +190,7 @@
       go.addEventListener("click", async () => {
         go.disabled = true;
         go.textContent = "Instalando…";
+        document.body.classList.add("busy");
         err.hidden = true;
         fine.hidden = true;
         try {
@@ -186,6 +217,7 @@
                 fine.hidden = false;
                 fine.textContent = "Pode fechar esta página. O motor continua ligado.";
                 go.textContent = "Concluído";
+                document.body.classList.remove("busy");
               }
               if (ev === "error") throw new Error(data);
             }
@@ -195,6 +227,7 @@
           err.textContent = e.message || String(e);
           go.disabled = false;
           go.textContent = "Tentar de novo";
+          document.body.classList.remove("busy");
         }
       });
     </script>

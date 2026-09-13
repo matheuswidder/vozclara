@@ -99,6 +99,15 @@
   }
 }
 
+@keyframes vozclara-indeterminate {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(280%);
+  }
+}
+
 @keyframes vozclara-rise {
   from {
     opacity: 0;
