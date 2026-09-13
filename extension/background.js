@@ -1252,9 +1252,14 @@ async function motorToken() {
 }
 
 async function withGemma(status) {
-  const extra = await chrome.storage.local.get(["localUrl", "gemmaKind", "gemmaOn"]);
+  const extra = await chrome.storage.local.get([
+    "localUrl",
+    "gemmaKind",
+    "gemmaOn",
+    "gemmaWaitingMotor",
+  ]);
   let probe = { ok: false };
-  if (extra.gemmaOn || status.motorAlive) {
+  if (extra.gemmaOn || extra.gemmaWaitingMotor || status.motorAlive) {
     try {
       probe = await probeLocal(extra.localUrl);
     } catch {
@@ -1263,9 +1268,17 @@ async function withGemma(status) {
   }
   const g = probe?.gemma && typeof probe.gemma === "object" ? probe.gemma : {};
   const stale = Boolean(probe?.ok) && probe.gemma == null;
+  if (extra.gemmaWaitingMotor && probe.gemma != null) {
+    await chrome.storage.local.set({
+      gemmaWaitingMotor: false,
+      gemmaStale: false,
+      gemmaLoading: true,
+    });
+    postGemmaLoad(extra.gemmaKind || "it").catch(() => {});
+  }
   await chrome.storage.local.set({
     gemmaReady: Boolean(g.ready),
-    gemmaLoading: Boolean(g.loading),
+    gemmaLoading: Boolean(g.loading) || Boolean(extra.gemmaWaitingMotor && stale),
     gemmaError: g.error || "",
     gemmaStale: stale,
   });
@@ -1274,6 +1287,7 @@ async function withGemma(status) {
     motorAlive: Boolean(probe?.ok) || Boolean(status.motorAlive),
     motorUp: Boolean(probe?.ok && probe.ready) || Boolean(status.motorUp),
     gemmaStale: stale,
+    gemmaWaiting: Boolean(extra.gemmaWaitingMotor) && stale,
     gemma: {
       ready: Boolean(g.ready),
       loading: Boolean(g.loading),
@@ -1286,10 +1300,52 @@ async function withGemma(status) {
   };
 }
 
+async function postGemmaLoad(kind) {
+  const want = String(kind || "it");
+  const extra = await chrome.storage.local.get(["localUrl"]);
+  const root = localRoot(extra.localUrl) || "http://127.0.0.1:8173";
+  let token = "";
+  try {
+    token = await motorToken();
+  } catch {
+    token = "";
+  }
+  const send = () =>
+    fetch(`${root}/v1/gemma/load`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ kind: want }),
+    });
+  let res = await send();
+  let json = await res.json().catch(() => null);
+  if (res.status === 401) {
+    try {
+      token = await pairMotor(extra.localUrl);
+    } catch {
+      token = "";
+    }
+    res = await send();
+    json = await res.json().catch(() => null);
+  }
+  if (res.status === 404) {
+    return { ok: false, missing: true };
+  }
+  if (!res.ok) {
+    throw new Error(
+      (typeof json?.error === "string" && json.error) || "Não comecei o download do Gemma.",
+    );
+  }
+  return { ok: true, started: true, ready: Boolean(json?.ready), kind: want };
+}
+
 async function loadGemmaMotor(kind) {
   const want = String(kind || "it");
   await chrome.storage.local.set({ gemmaOn: true, gemmaKind: want, gemmaLoading: true });
-  const extra = await chrome.storage.local.get(["localUrl"]);
+  const extra = await chrome.storage.local.get(["localUrl", "gemmaSetupAt"]);
   let probe = await probeLocal(extra.localUrl);
   if (!probe?.ok) {
     try {
@@ -1300,73 +1356,31 @@ async function loadGemmaMotor(kind) {
     probe = await probeLocal(extra.localUrl);
   }
   if (!probe?.ok) {
-    throw new Error("Ligue o motor na bandeja para baixar o Gemma.");
+    throw new Error("Ligue o motor na bandeja.");
   }
   if (probe.gemma == null) {
-    await downloadMotorZip();
-    await chrome.storage.local.set({ gemmaStale: true, gemmaLoading: false });
-    return {
-      ok: false,
-      needUpdate: true,
-      error:
-        "Baixei VozClara-Motor-Setup em Downloads. Feche o ícone da bandeja, rode o instalador, depois clique de novo em Baixar. A transcrição não some.",
-    };
-  }
-  const root = localRoot(extra.localUrl) || "http://127.0.0.1:8173";
-  let token = "";
-  try {
-    token = await motorToken();
-  } catch {
-    token = "";
-  }
-  const res = await fetch(`${root}/v1/gemma/load`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify({ kind: want }),
-  });
-  const json = await res.json().catch(() => null);
-  if (res.status === 404) {
-    await downloadMotorZip();
-    await chrome.storage.local.set({ gemmaStale: true, gemmaLoading: false });
-    return {
-      ok: false,
-      needUpdate: true,
-      error:
-        "Baixei VozClara-Motor-Setup em Downloads. Feche o ícone da bandeja, rode o instalador, depois clique de novo em Baixar. A transcrição não some.",
-    };
-  }
-  if (res.status === 401) {
-    try {
-      token = await pairMotor(extra.localUrl);
-    } catch {
-      token = "";
+    const recent = Number(extra.gemmaSetupAt) || 0;
+    if (!recent || Date.now() - recent > 12 * 60 * 60 * 1000) {
+      await downloadMotorZip();
+      await chrome.storage.local.set({ gemmaSetupAt: Date.now() });
     }
-    const retry = await fetch(`${root}/v1/gemma/load`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({ kind: want }),
+    await chrome.storage.local.set({
+      gemmaWaitingMotor: true,
+      gemmaStale: true,
+      gemmaLoading: false,
     });
-    const retryJson = await retry.json().catch(() => null);
-    if (retry.ok) {
-      return { ok: true, started: true, ready: Boolean(retryJson?.ready), kind: want };
-    }
-    throw new Error(
-      (typeof retryJson?.error === "string" && retryJson.error) ||
-        "O motor recusou o Gemma. Feche a bandeja e rode o instalador de novo.",
-    );
+    return { ok: true, waiting: true };
   }
-  if (!res.ok) {
-    throw new Error((typeof json?.error === "string" && json.error) || "Não comecei o download do Gemma.");
+  const posted = await postGemmaLoad(want);
+  if (posted.missing) {
+    await chrome.storage.local.set({
+      gemmaWaitingMotor: true,
+      gemmaStale: true,
+      gemmaLoading: false,
+    });
+    return { ok: true, waiting: true };
   }
-  return { ok: true, started: true, ready: Boolean(json?.ready), kind: want };
+  return posted;
 }
 
 async function suggestReplies(text) {

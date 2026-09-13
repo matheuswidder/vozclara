@@ -378,6 +378,16 @@
               <label title="Responde no tom da conversa."><input type="radio" name="gemma-kind" value="it" checked />E2B-it</label>
               <label title="Mesmo E2B-it, mais rápido."><input type="radio" name="gemma-kind" value="assistant" />+rápido</label>
             </div>
+            <div class="split">
+              <div class="pill">
+                <i id="g-motor-dot" class="dot"></i>
+                <span id="g-motor-text">Bandeja</span>
+              </div>
+              <div class="pill">
+                <i id="g-model-dot" class="dot"></i>
+                <span id="g-model-text">Gemma</span>
+              </div>
+            </div>
             <p class="status" id="gemma-status"></p>
             <div class="meter" id="gemma-meter" hidden><span id="gemma-bar"></span></div>
             <div class="actions">
@@ -640,7 +650,7 @@
   function watchMotor(state) {
     const selected = normalizeKind($p("model")?.value);
     const busy = selected === "nemotron" && Boolean(state?.motorAlive) && !state?.motorUp;
-    const gBusy = Boolean(state?.gemma?.loading);
+    const gBusy = Boolean(state?.gemma?.loading || state?.gemmaWaiting);
     if ((busy || gBusy) && !motorPoll) {
       motorPoll = setInterval(() => void refreshLocal(), 1500);
     } else if (!busy && !gBusy && motorPoll) {
@@ -731,9 +741,18 @@
     const bar = $p("gemma-bar");
     if (!btn && !status) return;
     const action = globalThis.VCShared.gemmaAction(state, selectedGemma());
+    const view = globalThis.VCShared.gemmaView(state);
+    const motorText = $p("g-motor-text");
+    const modelText = $p("g-model-text");
+    const motorDot = $p("g-motor-dot");
+    const modelDot = $p("g-model-dot");
+    if (motorText) motorText.textContent = view.motor.text;
+    if (modelText) modelText.textContent = view.model.text;
+    if (motorDot) motorDot.className = `dot ${view.motor.kind || "off"}`;
+    if (modelDot) modelDot.className = `dot ${view.model.kind || "off"}`;
     if (status) {
       status.textContent = action.status;
-      status.className = "status " + (action.kind === "ok" ? "ok" : "warn");
+      status.className = action.kind === "ok" ? "ok" : "warn";
     }
     if (btn) {
       btn.disabled = action.disabled;
@@ -741,9 +760,8 @@
       btn.textContent = action.label;
     }
     if (meter && bar) {
-      const show = action.id === "wait";
-      meter.hidden = !show;
-      meter.classList.toggle("indeterminate", show && !(action.percent > 0));
+      meter.hidden = action.id !== "wait";
+      meter.classList.toggle("indeterminate", action.id === "wait" && !(action.percent > 0));
       bar.style.width = `${Math.max(8, Number(action.percent) || 8)}%`;
     }
   }
@@ -755,38 +773,24 @@
     if (extra) extra.hidden = false;
     await save();
     const btn = $p("gemma-download");
-    const status = $p("gemma-status");
-    if (btn?.dataset.action === "wait") return;
-    const updating = btn?.dataset.action === "update";
+    if (btn?.dataset.action === "wait" || btn?.dataset.action === "wait-motor") return;
     if (btn) {
       btn.disabled = true;
-      btn.textContent = updating ? "Baixando o instalador…" : "Falando com o motor…";
-    }
-    if (status) {
-      status.textContent = updating
-        ? "Baixando o instalador novo do motor…"
-        : "Pedindo o Gemma ao motor…";
-      status.className = "status warn";
+      btn.textContent = "…";
     }
     try {
       const result = await chrome.runtime.sendMessage({
         type: "VOZCLARA_GEMMA_LOAD",
         kind,
       });
-      if (result?.needUpdate) {
-        if (status) status.textContent = result.error;
-        if (btn) {
-          btn.disabled = false;
-          btn.textContent = "Atualizar o motor";
-          btn.dataset.action = "update";
-        }
-        return;
+      if (!result?.ok && !result?.waiting) {
+        throw new Error(result?.error || "Não baixei o Gemma.");
       }
-      if (!result?.ok) throw new Error(result?.error || "Não baixei o Gemma.");
     } catch (err) {
+      const status = $p("gemma-status");
       if (status) {
         status.textContent = err instanceof Error ? err.message : "Não baixei o Gemma.";
-        status.className = "status warn";
+        status.className = "warn";
       }
       if (btn) btn.disabled = false;
     }

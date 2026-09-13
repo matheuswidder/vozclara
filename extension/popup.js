@@ -24,7 +24,7 @@ function watchMotor(state) {
   const selected = normalizeKind($("model")?.value);
   const busy =
     selected === "nemotron" && Boolean(state?.motorAlive) && !state?.motorUp;
-  const gBusy = Boolean(state?.gemma?.loading);
+  const gBusy = Boolean(state?.gemma?.loading || state?.gemmaWaiting);
   if ((busy || gBusy) && !motorPoll) {
     motorPoll = setInterval(() => void queryLocal(), 1500);
   } else if (!busy && !gBusy && motorPoll) {
@@ -183,6 +183,15 @@ function renderGemma(state) {
   const bar = $("gemma-bar");
   if (!btn && !status) return;
   const action = globalThis.VCShared.gemmaAction(state, selectedGemma());
+  const view = globalThis.VCShared.gemmaView(state);
+  const motorText = $("g-motor-text");
+  const modelText = $("g-model-text");
+  const motorDot = $("g-motor-dot");
+  const modelDot = $("g-model-dot");
+  if (motorText) motorText.textContent = view.motor.text;
+  if (modelText) modelText.textContent = view.model.text;
+  if (motorDot) motorDot.className = `dot ${view.motor.kind || "off"}`;
+  if (modelDot) modelDot.className = `dot ${view.model.kind || "off"}`;
   if (status) {
     status.textContent = action.status;
     status.dataset.kind = action.kind || "";
@@ -193,9 +202,8 @@ function renderGemma(state) {
     btn.textContent = action.label;
   }
   if (meter && bar) {
-    const show = action.id === "wait";
-    meter.hidden = !show;
-    meter.classList.toggle("indeterminate", show && !(action.percent > 0));
+    meter.hidden = action.id !== "wait";
+    meter.classList.toggle("indeterminate", action.id === "wait" && !(action.percent > 0));
     bar.style.width = `${Math.max(8, Number(action.percent) || 8)}%`;
   }
 }
@@ -206,35 +214,21 @@ async function startGemma() {
   syncGemma();
   await save();
   const btn = $("gemma-download");
-  const status = $("gemma-status");
-  if (btn?.dataset.action === "wait") return;
-  const updating = btn?.dataset.action === "update";
+  if (btn?.dataset.action === "wait" || btn?.dataset.action === "wait-motor") return;
   if (btn) {
     btn.disabled = true;
-    btn.textContent = updating ? "Baixando o instalador…" : "Falando com o motor…";
-  }
-  if (status) {
-    status.textContent = updating
-      ? "Baixando o instalador novo do motor…"
-      : "Pedindo o Gemma ao motor…";
-    status.dataset.kind = "warn";
+    btn.textContent = "…";
   }
   try {
     const result = await chrome.runtime.sendMessage({
       type: "VOZCLARA_GEMMA_LOAD",
       kind,
     });
-    if (result?.needUpdate) {
-      if (status) status.textContent = result.error;
-      if (btn) {
-        btn.disabled = false;
-        btn.textContent = "Atualizar o motor";
-        btn.dataset.action = "update";
-      }
-      return;
+    if (!result?.ok && !result?.waiting) {
+      throw new Error(result?.error || "Não baixei o Gemma.");
     }
-    if (!result?.ok) throw new Error(result?.error || "Não baixei o Gemma.");
   } catch (err) {
+    const status = $("gemma-status");
     if (status) {
       status.textContent = friendly(err);
       status.dataset.kind = "warn";
