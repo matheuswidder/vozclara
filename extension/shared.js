@@ -63,6 +63,68 @@
     return `${parts[0]}/${parts[1]}`;
   }
 
+  function gemmaAction(state, selected) {
+    const want = normalizeGemma(selected);
+    const meta = gemmaMeta(want);
+    const g = state?.gemma && typeof state.gemma === "object" ? state.gemma : {};
+    const motorUp = Boolean(state?.motorUp || state?.motorAlive);
+    const readyKind = normalizeGemma(g.kind);
+    if (g.error && !g.loading && !g.ready) {
+      return {
+        id: "retry",
+        label: "Tentar de novo",
+        disabled: false,
+        status: String(g.error),
+        kind: "warn",
+      };
+    }
+    if (!motorUp) {
+      return {
+        id: "wake",
+        label: "Ligar o motor e baixar",
+        disabled: false,
+        status: "O Gemma não fica neste Chrome. Ele baixa no motor do Windows (~4 GB).",
+        kind: "warn",
+      };
+    }
+    if (g.loading) {
+      const pct = Number(g.percent) || 0;
+      return {
+        id: "wait",
+        label: pct ? `Baixando… ${pct}%` : "Baixando o Gemma…",
+        disabled: true,
+        status: g.detail || "Deixe o motor ligado. Primeira vez pesa ~4 GB.",
+        kind: "warn",
+        percent: pct,
+      };
+    }
+    if (g.ready && readyKind === want) {
+      return {
+        id: "ready",
+        label: "Gemma pronto",
+        disabled: true,
+        status: `Pronto · ${meta.name}`,
+        kind: "ok",
+      };
+    }
+    if (g.ready) {
+      return {
+        id: "switch",
+        label: `Usar ${meta.name}`,
+        disabled: false,
+        status: `Trocando para ${meta.name}.`,
+        kind: "warn",
+      };
+    }
+    return {
+      id: "download",
+      label: `Baixar ${meta.name}`,
+      disabled: false,
+      status: `${meta.name} ainda não está no PC (~4 GB).`,
+      kind: "warn",
+    };
+  }
+
   function gemmaMeta(kind) {
     const k = normalizeGemma(kind);
     return GEMMA_META[k] || GEMMA_META.it;
@@ -260,6 +322,7 @@
     parseHfRepo,
     modelMeta,
     gemmaMeta,
+    gemmaAction,
     normalizeGemma,
     stateLabel,
     stateKind,

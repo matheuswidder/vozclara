@@ -104,7 +104,7 @@
             Ligar
           </label>
         </div>
-        <p class="hint">Whisper transcreve. Gemma propõe 3 respostas. Nas mensagens de texto: Sugerir. Os chips ficam em cima do campo. Passe o mouse no ?</p>
+        <p class="hint">O Whisper transcreve. O Gemma sugere 3 respostas. Ele baixa no motor do Windows (~4 GB). Passe o mouse no ?</p>
         <div class="picks">
           <label class="pick">
             <input type="radio" name="gemma-kind" value="e2b" />
@@ -124,6 +124,11 @@
             <i class="help" tabindex="0">?</i>
             <span class="bubble"><strong>Acelerador, não o cérebro</strong>O -assistant sozinho não entende a conversa. É um rascunho de 78 MB que adivinha tokens na frente do E2B-it (~2–3×). O VozClara liga os dois juntos.</span>
           </label>
+        </div>
+        <p id="gemma-status" class="status">O Gemma ainda não foi baixado.</p>
+        <div class="meter" id="gemma-meter" hidden><span id="gemma-bar"></span></div>
+        <div class="actions">
+          <button id="gemma-download" type="button">Baixar E2B-it</button>
         </div>
         <div id="gemma-extra" hidden>
           <label>Quem você é
