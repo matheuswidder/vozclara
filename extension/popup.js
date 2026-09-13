@@ -24,9 +24,10 @@ function watchMotor(state) {
   const selected = normalizeKind($("model")?.value);
   const busy =
     selected === "nemotron" && Boolean(state?.motorAlive) && !state?.motorUp;
-  if (busy && !motorPoll) {
+  const gBusy = Boolean(state?.gemma?.loading);
+  if ((busy || gBusy) && !motorPoll) {
     motorPoll = setInterval(() => void queryLocal(), 1500);
-  } else if (!busy && motorPoll) {
+  } else if (!busy && !gBusy && motorPoll) {
     clearInterval(motorPoll);
     motorPoll = null;
   }
@@ -176,6 +177,60 @@ function renderLocal(state) {
     chrome.storage.local.set({ preferredKind: selected }).catch(() => {});
   }
   watchMotor(state);
+  renderGemma(state);
+}
+
+function selectedGemma() {
+  return globalThis.VCShared.normalizeGemma(
+    document.querySelector('input[name="gemma-kind"]:checked')?.value || "it",
+  );
+}
+
+function renderGemma(state) {
+  const btn = $("gemma-download");
+  const status = $("gemma-status");
+  const meter = $("gemma-meter");
+  const bar = $("gemma-bar");
+  if (!btn && !status) return;
+  const action = globalThis.VCShared.gemmaAction(state, selectedGemma());
+  if (status) {
+    status.textContent = action.status;
+    status.dataset.kind = action.kind || "";
+  }
+  if (btn) {
+    btn.disabled = action.disabled;
+    btn.dataset.action = action.id;
+    btn.textContent = action.label;
+  }
+  if (meter && bar) {
+    const show = action.id === "wait";
+    meter.hidden = !show;
+    meter.classList.toggle("indeterminate", show && !(action.percent > 0));
+    bar.style.width = `${Math.max(8, Number(action.percent) || 8)}%`;
+  }
+}
+
+async function startGemma() {
+  const kind = selectedGemma();
+  if ($("gemma-on")) $("gemma-on").checked = true;
+  syncGemma();
+  await save();
+  const btn = $("gemma-download");
+  if (btn?.dataset.action === "wait") return;
+  try {
+    const result = await chrome.runtime.sendMessage({
+      type: "VOZCLARA_GEMMA_LOAD",
+      kind,
+    });
+    if (!result?.ok) throw new Error(result?.error || "Não baixei o Gemma.");
+  } catch (err) {
+    const status = $("gemma-status");
+    if (status) {
+      status.textContent = friendly(err);
+      status.dataset.kind = "warn";
+    }
+  }
+  void queryLocal();
 }
 
 async function queryLocal() {
@@ -485,8 +540,14 @@ document.addEventListener("DOMContentLoaded", () => {
     void save();
   });
   document.querySelectorAll('input[name="gemma-kind"]').forEach((el) => {
-    el.addEventListener("change", () => void save());
+    el.addEventListener("change", () => {
+      if ($("gemma-on")) $("gemma-on").checked = true;
+      syncGemma();
+      void save();
+      void queryLocal();
+    });
   });
+  $("gemma-download")?.addEventListener("click", () => void startGemma());
   $("gemma-who")?.addEventListener("change", () => void save());
   $("gemma-tone")?.addEventListener("change", () => void save());
   $("gemma-notes")?.addEventListener("change", () => void save());

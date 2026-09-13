@@ -148,8 +148,9 @@
       font: inherit; font-weight: 400;
     }
     .gemma {
-      margin: 4px 0 14px; padding: 12px 10px 8px;
-      border: 1px solid var(--line); border-radius: 12px; background: var(--field);
+      margin: 8px 0 16px; padding: 12px 10px 10px;
+      border: 1px solid var(--line); border-left: 3px solid #00a884;
+      border-radius: 12px; background: var(--field);
     }
     .gemma-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 6px; }
     .gemma-head strong { font-size: 12.5px; }
@@ -433,7 +434,7 @@
                 <strong>Sugestão de resposta</strong>
                 <label class="toggle"><input type="checkbox" id="gemma-on" /> Ligar</label>
               </div>
-              <p class="hint">Whisper transcreve. Gemma propõe 3 respostas. Texto: Sugerir. Chips em cima do campo. Passe o mouse no ?</p>
+              <p class="hint">O Whisper transcreve. O Gemma sugere 3 respostas no WhatsApp. Baixa no motor do Windows (~4 GB), não neste Chrome. Passe o mouse no ?</p>
               <div class="picks">
                 <label class="pick">
                   <input type="radio" name="gemma-kind" value="e2b" />
@@ -453,6 +454,11 @@
                   <i class="help" tabindex="0">?</i>
                   <span class="bubble"><strong>Acelerador, não o cérebro</strong>O -assistant sozinho não entende a conversa. É um rascunho de 78 MB junto do E2B-it (~2–3× mais rápido).</span>
                 </label>
+              </div>
+              <p class="status" id="gemma-status">O Gemma ainda não foi baixado.</p>
+              <div class="meter" id="gemma-meter" hidden><span id="gemma-bar"></span></div>
+              <div class="actions">
+                <button class="act" id="gemma-download" type="button">Baixar E2B-it</button>
               </div>
               <div id="gemma-extra" hidden>
                 <label>Quem você é
@@ -509,8 +515,15 @@
       void save();
     });
     shadow.querySelectorAll('input[name="gemma-kind"]').forEach((el) => {
-      el.addEventListener("change", () => void save());
+      el.addEventListener("change", () => {
+        if ($p("gemma-on")) $p("gemma-on").checked = true;
+        const extra = $p("gemma-extra");
+        if (extra) extra.hidden = false;
+        void save();
+        void refreshLocal();
+      });
     });
+    $p("gemma-download")?.addEventListener("click", () => void startGemma());
     $p("gemma-who")?.addEventListener("change", () => void save());
     $p("gemma-tone")?.addEventListener("change", () => void save());
     $p("gemma-notes")?.addEventListener("change", () => void save());
@@ -704,9 +717,10 @@
   function watchMotor(state) {
     const selected = normalizeKind($p("model")?.value);
     const busy = selected === "nemotron" && Boolean(state?.motorAlive) && !state?.motorUp;
-    if (busy && !motorPoll) {
+    const gBusy = Boolean(state?.gemma?.loading);
+    if ((busy || gBusy) && !motorPoll) {
       motorPoll = setInterval(() => void refreshLocal(), 1500);
-    } else if (!busy && motorPoll) {
+    } else if (!busy && !gBusy && motorPoll) {
       clearInterval(motorPoll);
       motorPoll = null;
     }
@@ -779,7 +793,62 @@
       chrome.storage.local.set({ preferredKind: selected }).catch(() => {});
     }
     watchMotor(state);
+    paintGemma(state);
     paintDot(document.getElementById(BTN_ID));
+  }
+
+  function selectedGemma() {
+    return globalThis.VCShared.normalizeGemma(
+      shadow.querySelector('input[name="gemma-kind"]:checked')?.value || "it",
+    );
+  }
+
+  function paintGemma(state) {
+    const btn = $p("gemma-download");
+    const status = $p("gemma-status");
+    const meter = $p("gemma-meter");
+    const bar = $p("gemma-bar");
+    if (!btn && !status) return;
+    const action = globalThis.VCShared.gemmaAction(state, selectedGemma());
+    if (status) {
+      status.textContent = action.status;
+      status.className = "status " + (action.kind === "ok" ? "ok" : "warn");
+    }
+    if (btn) {
+      btn.disabled = action.disabled;
+      btn.dataset.action = action.id;
+      btn.textContent = action.label;
+    }
+    if (meter && bar) {
+      const show = action.id === "wait";
+      meter.hidden = !show;
+      meter.classList.toggle("indeterminate", show && !(action.percent > 0));
+      bar.style.width = `${Math.max(8, Number(action.percent) || 8)}%`;
+    }
+  }
+
+  async function startGemma() {
+    const kind = selectedGemma();
+    if ($p("gemma-on")) $p("gemma-on").checked = true;
+    const extra = $p("gemma-extra");
+    if (extra) extra.hidden = false;
+    await save();
+    const btn = $p("gemma-download");
+    if (btn?.dataset.action === "wait") return;
+    try {
+      const result = await chrome.runtime.sendMessage({
+        type: "VOZCLARA_GEMMA_LOAD",
+        kind,
+      });
+      if (!result?.ok) throw new Error(result?.error || "Não baixei o Gemma.");
+    } catch (err) {
+      const status = $p("gemma-status");
+      if (status) {
+        status.textContent = err instanceof Error ? err.message : "Não baixei o Gemma.";
+        status.className = "status warn";
+      }
+    }
+    void refreshLocal();
   }
 
   async function refreshLocal() {

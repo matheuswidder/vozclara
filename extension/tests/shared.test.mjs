@@ -122,6 +122,23 @@ test("collapseRepeats corta loop do tiny", () => {
   assert.equal(VC.collapseRepeats("oi tudo bem"), "oi tudo bem");
 });
 
+test("gemmaAction pede motor e marca pronto", () => {
+  const off = VC.gemmaAction({ motorAlive: false }, "it");
+  assert.equal(off.id, "wake");
+  const wait = VC.gemmaAction(
+    { motorAlive: true, gemma: { loading: true, percent: 40 } },
+    "it",
+  );
+  assert.equal(wait.id, "wait");
+  const ready = VC.gemmaAction(
+    { motorAlive: true, motorUp: true, gemma: { ready: true, kind: "it" } },
+    "it",
+  );
+  assert.equal(ready.id, "ready");
+  const dl = VC.gemmaAction({ motorAlive: true, motorUp: true, gemma: {} }, "it");
+  assert.equal(dl.id, "download");
+});
+
 test("gemmaMeta distingue base, it e assistant", () => {
   assert.equal(VC.normalizeGemma("e2b"), "e2b");
   assert.equal(VC.normalizeGemma("it"), "it");

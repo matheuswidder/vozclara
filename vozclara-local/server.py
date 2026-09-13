@@ -42,6 +42,8 @@ GEMMA = {
     "processor": None,
     "assistant": None,
     "error": "",
+    "percent": 0,
+    "detail": "",
     "lock": threading.Lock(),
 }
 
@@ -157,8 +159,13 @@ def patch_hf_progress() -> None:
                 if total > 0:
                     pct = max(1, min(99, int(now * 100 / total)))
                     set_phase("download", pct, f"Baixando {desc} · {pct}%")
+                    if GEMMA.get("loading"):
+                        GEMMA["percent"] = pct
+                        GEMMA["detail"] = f"Baixando {desc} · {pct}%"
                 else:
                     set_phase("download", STATE.get("percent") or 8, f"Baixando {desc}…")
+                    if GEMMA.get("loading"):
+                        GEMMA["detail"] = f"Baixando {desc}…"
             except Exception:
                 pass
             return out
@@ -329,7 +336,10 @@ def load_gemma(kind: str) -> None:
         GEMMA["loading"] = True
         GEMMA["error"] = ""
         GEMMA["kind"] = want
+        GEMMA["percent"] = 5
+        GEMMA["detail"] = f"Baixando {gemma_repo(want)}…"
     try:
+        patch_hf_progress()
         import torch
         from transformers import AutoModelForCausalLM, AutoTokenizer
 
@@ -361,6 +371,8 @@ def load_gemma(kind: str) -> None:
             GEMMA["loading"] = False
             GEMMA["error"] = ""
             GEMMA["kind"] = want
+            GEMMA["percent"] = 100
+            GEMMA["detail"] = "Pronto"
         log("Gemma pronto para sugerir respostas.")
     except Exception as exc:
         with GEMMA["lock"]:
@@ -369,6 +381,7 @@ def load_gemma(kind: str) -> None:
             GEMMA["error"] = str(exc)
             GEMMA["model"] = None
             GEMMA["assistant"] = None
+            GEMMA["percent"] = 0
         log(f"Falha ao carregar o Gemma: {exc}")
         raise
 
@@ -584,6 +597,8 @@ class Handler(BaseHTTPRequestHandler):
                         "loading": bool(GEMMA.get("loading")),
                         "kind": GEMMA.get("kind") or "it",
                         "error": GEMMA.get("error") or None,
+                        "percent": int(GEMMA.get("percent") or 0),
+                        "detail": GEMMA.get("detail") or "",
                     },
                 },
             )
@@ -597,6 +612,9 @@ class Handler(BaseHTTPRequestHandler):
             return
         if path == "/v1/suggest":
             self._suggest()
+            return
+        if path == "/v1/gemma/load":
+            self._gemma_load()
             return
         if path not in ("/v1/audio/transcriptions", "/inference"):
             self._json(404, {"error": "not found"})
@@ -651,6 +669,29 @@ class Handler(BaseHTTPRequestHandler):
             self._json(500, {"error": str(exc)})
             return
         self._json(200, {"replies": replies, "kind": GEMMA.get("kind") or "it"})
+
+    def _gemma_load(self) -> None:
+        length = int(self.headers.get("Content-Length") or "0")
+        body = self.rfile.read(length) if length else b""
+        try:
+            payload = json.loads(body.decode("utf-8") or "{}")
+        except Exception:
+            payload = {}
+        if not isinstance(payload, dict):
+            payload = {}
+        header = self.headers.get("Authorization") or ""
+        if header.strip() != f"Bearer {TOKEN}" and not self._authorized({}):
+            self._json(401, {"error": "bad token", "unpaired": False})
+            return
+        kind = payload.get("kind") or "it"
+        if kind not in ("e2b", "it", "assistant"):
+            kind = "it"
+        if GEMMA.get("ready") and GEMMA.get("kind") == kind and GEMMA.get("model") is not None:
+            self._json(200, {"ok": True, "ready": True, "kind": kind})
+            return
+        if not GEMMA.get("loading"):
+            threading.Thread(target=load_gemma, args=(kind,), daemon=True).start()
+        self._json(200, {"ok": True, "started": True, "ready": False, "kind": kind})
 
 
 def main() -> int:

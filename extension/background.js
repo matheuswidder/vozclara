@@ -105,6 +105,17 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     sendResponse({ ok: true, cancelled: true });
     return true;
   }
+  if (msg?.type === "VOZCLARA_GEMMA_LOAD") {
+    loadGemmaMotor(msg.kind)
+      .then(sendResponse)
+      .catch((err) =>
+        sendResponse({
+          ok: false,
+          error: err instanceof Error ? err.message : "Não baixei o Gemma.",
+        }),
+      );
+    return true;
+  }
   if (msg?.type === "VOZCLARA_SUGGEST") {
     suggestReplies(msg.text)
       .then(sendResponse)
@@ -782,7 +793,7 @@ async function verifyModel(opts = {}) {
         : Number(probe?.percent) > 0
           ? Number(probe.percent)
           : 0;
-    return {
+    return withGemma({
       ok: true,
       checked: true,
       ready: up,
@@ -803,7 +814,7 @@ async function verifyModel(opts = {}) {
             ? "Não alcanço o motor. Clique em Ligar o motor."
             : "Instale o motor Windows. Ele fica em segundo plano, na bandeja.",
       error: up ? "" : alive ? probe?.error || "" : extra.motorInstalled ? "Não alcanço o motor neste PC." : "",
-    };
+    });
   }
   const disk = await scanModelCache(kind, stored.customRepo || stored.customModelRepo);
   const folder = await existingExport();
@@ -841,7 +852,7 @@ async function verifyModel(opts = {}) {
     });
   }
   const fresh = await storedStatus();
-  return {
+  return withGemma({
     ...fresh,
     ok: true,
     checked: true,
@@ -854,7 +865,7 @@ async function verifyModel(opts = {}) {
       !downloading && !disk.ready && stored.ready
         ? "Download incompleto — baixe de novo."
         : fresh.label,
-  };
+  });
 }
 
 async function revealModel() {
@@ -1240,6 +1251,79 @@ async function motorToken() {
   return pairMotor(undefined);
 }
 
+async function withGemma(status) {
+  const extra = await chrome.storage.local.get(["localUrl", "gemmaKind", "gemmaOn"]);
+  let probe = { ok: false };
+  if (extra.gemmaOn || status.motorAlive) {
+    try {
+      probe = await probeLocal(extra.localUrl);
+    } catch {
+      probe = { ok: false };
+    }
+  }
+  const g = probe?.gemma && typeof probe.gemma === "object" ? probe.gemma : {};
+  await chrome.storage.local.set({
+    gemmaReady: Boolean(g.ready),
+    gemmaLoading: Boolean(g.loading),
+    gemmaError: g.error || "",
+  });
+  return {
+    ...status,
+    motorAlive: Boolean(probe?.ok) || Boolean(status.motorAlive),
+    motorUp: Boolean(probe?.ok && probe.ready) || Boolean(status.motorUp),
+    gemma: {
+      ready: Boolean(g.ready),
+      loading: Boolean(g.loading),
+      kind: g.kind || extra.gemmaKind || "it",
+      percent: Number(g.percent) || 0,
+      detail: g.detail || "",
+      error: g.error || "",
+    },
+  };
+}
+
+async function loadGemmaMotor(kind) {
+  const want = String(kind || "it");
+  await chrome.storage.local.set({ gemmaOn: true, gemmaKind: want, gemmaLoading: true });
+  const extra = await chrome.storage.local.get(["localUrl"]);
+  let probe = await probeLocal(extra.localUrl);
+  if (!probe?.ok) {
+    try {
+      await wakeMotor();
+    } catch {
+      /* still try */
+    }
+    probe = await probeLocal(extra.localUrl);
+  }
+  if (!probe?.ok) {
+    throw new Error("Ligue o motor na bandeja para baixar o Gemma.");
+  }
+  const root = localRoot(extra.localUrl) || "http://127.0.0.1:8173";
+  let token = "";
+  try {
+    token = await motorToken();
+  } catch {
+    token = "";
+  }
+  const res = await fetch(`${root}/v1/gemma/load`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ kind: want }),
+  });
+  const json = await res.json().catch(() => null);
+  if (res.status === 404) {
+    throw new Error("Motor antigo. Rode de novo o instalador para o Gemma.");
+  }
+  if (!res.ok) {
+    throw new Error((typeof json?.error === "string" && json.error) || "Não comecei o download do Gemma.");
+  }
+  return { ok: true, started: true, ready: Boolean(json?.ready), kind: want };
+}
+
 async function suggestReplies(text) {
   const stored = await chrome.storage.local.get([
     "gemmaOn",
@@ -1255,6 +1339,20 @@ async function suggestReplies(text) {
   const probe = await probeLocal(stored.localUrl);
   if (!probe?.ok) {
     return { ok: false, error: "Ligue o motor na bandeja para o Gemma sugerir." };
+  }
+  if (!probe.gemma?.ready) {
+    try {
+      await loadGemmaMotor(stored.gemmaKind || "it");
+    } catch (err) {
+      return {
+        ok: false,
+        error: err instanceof Error ? err.message : "Baixe o Gemma no painel.",
+      };
+    }
+    return {
+      ok: false,
+      error: "Baixando o Gemma no PC. Espere o Pronto no painel (~4 GB).",
+    };
   }
   const root = localRoot(stored.localUrl) || "http://127.0.0.1:8173";
   let token = "";
