@@ -102,6 +102,8 @@ function renderLocal(state) {
   const motorPanel = $("motor-panel");
   const isNemo = selected === "nemotron";
   if (motorPanel) motorPanel.hidden = !isNemo;
+  const nemoHelp = $("nemo-help");
+  if (nemoHelp) nemoHelp.hidden = !isNemo;
 
   if (isNemo) {
     const view = globalThis.VCShared.motorView(state);

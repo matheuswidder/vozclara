@@ -171,10 +171,15 @@
     if (recentMedia.length > 24) recentMedia.shift();
   });
 
+  let silentTimer = 0;
   function setSilent(on) {
+    window.clearTimeout(silentTimer);
     if (on) document.documentElement.setAttribute("data-vozclara-silent", "1");
     else document.documentElement.removeAttribute("data-vozclara-silent");
     window.postMessage({ source: "vozclara", type: "silent", on: Boolean(on) }, "*");
+    if (on) {
+      silentTimer = window.setTimeout(() => setSilent(false), 18000);
+    }
   }
 
   /** @type {Element | null} */
@@ -994,10 +999,10 @@
 
   function restoreMedia(media) {
     if (!media) {
-      // restore de emergência: só os elementos com snapshot pendente
       document.querySelectorAll("audio, video").forEach((m) => {
         if (mediaSnap.has(m)) restoreMedia(m);
       });
+      window.postMessage({ source: "vozclara", type: "restore" }, "*");
       return;
     }
     const s = mediaSnap.get(media);
@@ -1007,10 +1012,14 @@
       /* ignore */
     }
     try {
-      media.muted = s ? s.muted : false;
-      media.defaultMuted = s ? s.defaultMuted : false;
+      media.muted = false;
+      media.defaultMuted = false;
+      media.removeAttribute("muted");
       media.volume = s && s.volume > 0 ? s.volume : 1;
-      media.playbackRate = s?.rate || 1;
+      media.playbackRate = s?.rate > 0 && s.rate <= 2 ? s.rate : 1;
+      if (Number.isFinite(media.duration) && media.duration > 0) {
+        media.currentTime = 0;
+      }
     } catch {
       /* ignore */
     }
@@ -1159,9 +1168,18 @@
       }
       return blob;
     } finally {
+      restoreMedia();
       setSilent(false);
       clickPause(root);
-      restoreMedia();
+      const el = findAudioEl(root);
+      if (el) {
+        try {
+          el.currentTime = 0;
+        } catch {
+          /* ignore */
+        }
+        restoreMedia(el);
+      }
     }
   }
 

@@ -4,6 +4,7 @@
 
   let silent = false;
   const saved = new WeakMap();
+  const touched = new Set();
 
   function isSilent() {
     return (
@@ -22,6 +23,7 @@
         rate: media.playbackRate,
       });
     }
+    touched.add(media);
     try {
       media.muted = true;
       media.defaultMuted = true;
@@ -32,29 +34,31 @@
     }
   }
 
-  function restore(media) {
+  function hear(media) {
     if (!(media instanceof HTMLMediaElement)) return;
     const s = saved.get(media);
     try {
-      if (s) {
-        media.muted = s.muted;
-        media.defaultMuted = s.defaultMuted;
-        media.volume = s.volume > 0 ? s.volume : 1;
-        media.playbackRate = s.rate || 1;
-      } else {
-        media.muted = false;
-        media.defaultMuted = false;
-        if (media.volume === 0) media.volume = 1;
-        media.playbackRate = 1;
-      }
+      media.muted = false;
+      media.defaultMuted = false;
+      media.removeAttribute("muted");
+      const vol = s && s.volume > 0 ? s.volume : 1;
+      media.volume = vol;
+      if (media.playbackRate > 2) media.playbackRate = s?.rate > 0 && s.rate <= 2 ? s.rate : 1;
     } catch {
       /* ignore */
     }
     saved.delete(media);
+    touched.delete(media);
   }
 
   function restoreAll() {
-    document.querySelectorAll("audio, video").forEach((m) => restore(m));
+    for (const m of [...touched]) {
+      if (m instanceof HTMLMediaElement) hear(m);
+      else touched.delete(m);
+    }
+    document.querySelectorAll("audio, video").forEach((m) => {
+      if (m.muted && m.volume === 0) hear(m);
+    });
   }
 
   window.addEventListener("message", (ev) => {
@@ -143,13 +147,19 @@
 
   const origPlay = HTMLMediaElement.prototype.play;
   HTMLMediaElement.prototype.play = function (...args) {
-    if (isSilent()) hush(this);
+    if (isSilent()) {
+      hush(this);
+    } else {
+      hear(this);
+    }
     const result = origPlay.apply(this, args);
     if (isSilent()) {
       hush(this);
       const keepQuiet = () => hush(this);
       queueMicrotask(keepQuiet);
       requestAnimationFrame(keepQuiet);
+    } else {
+      queueMicrotask(() => hear(this));
     }
     return result;
   };

@@ -83,7 +83,7 @@ export const INPAGE_MODELS = [
     id: "nemotron",
     label: "Nemotron",
     size: "Windows",
-    hint: "Programa no PC. A extensão baixa o instalador.",
+    hint: "Programa no Windows, ao lado do relógio. A extensão baixa o instalador. Áudio não sai do PC.",
   },
   {
     id: "custom",
