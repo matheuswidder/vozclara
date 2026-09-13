@@ -834,19 +834,40 @@
     if (extra) extra.hidden = false;
     await save();
     const btn = $p("gemma-download");
+    const status = $p("gemma-status");
     if (btn?.dataset.action === "wait") return;
+    const updating = btn?.dataset.action === "update";
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = updating ? "Baixando o instalador…" : "Falando com o motor…";
+    }
+    if (status) {
+      status.textContent = updating
+        ? "Baixando o instalador novo do motor…"
+        : "Pedindo o Gemma ao motor…";
+      status.className = "status warn";
+    }
     try {
       const result = await chrome.runtime.sendMessage({
         type: "VOZCLARA_GEMMA_LOAD",
         kind,
       });
+      if (result?.needUpdate) {
+        if (status) status.textContent = result.error;
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = "Atualizar o motor";
+          btn.dataset.action = "update";
+        }
+        return;
+      }
       if (!result?.ok) throw new Error(result?.error || "Não baixei o Gemma.");
     } catch (err) {
-      const status = $p("gemma-status");
       if (status) {
         status.textContent = err instanceof Error ? err.message : "Não baixei o Gemma.";
         status.className = "status warn";
       }
+      if (btn) btn.disabled = false;
     }
     void refreshLocal();
   }

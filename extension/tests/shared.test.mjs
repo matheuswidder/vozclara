@@ -125,6 +125,11 @@ test("collapseRepeats corta loop do tiny", () => {
 test("gemmaAction pede motor e marca pronto", () => {
   const off = VC.gemmaAction({ motorAlive: false }, "it");
   assert.equal(off.id, "wake");
+  const stale = VC.gemmaAction(
+    { motorAlive: true, gemmaStale: true, gemma: { stale: true } },
+    "it",
+  );
+  assert.equal(stale.id, "update");
   const wait = VC.gemmaAction(
     { motorAlive: true, gemma: { loading: true, percent: 40 } },
     "it",

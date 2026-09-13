@@ -328,6 +328,17 @@ def gemma_repo(kind: str) -> str:
     return "google/gemma-4-E2B-it"
 
 
+def ensure_gemma_deps() -> None:
+    try:
+        import torch  # noqa: F401
+        import transformers  # noqa: F401
+    except Exception:
+        log("Instalando torch e transformers para o Gemma…")
+        GEMMA["detail"] = "Instalando bibliotecas do Gemma…"
+        GEMMA["percent"] = 8
+        pip_install("transformers", "accelerate", "sentencepiece", "torch")
+
+
 def load_gemma(kind: str) -> None:
     want = kind if kind in ("e2b", "it", "assistant") else "it"
     with GEMMA["lock"]:
@@ -339,6 +350,7 @@ def load_gemma(kind: str) -> None:
         GEMMA["percent"] = 5
         GEMMA["detail"] = f"Baixando {gemma_repo(want)}…"
     try:
+        ensure_gemma_deps()
         patch_hf_progress()
         import torch
         from transformers import AutoModelForCausalLM, AutoTokenizer
