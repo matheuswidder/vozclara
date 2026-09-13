@@ -1316,7 +1316,7 @@ async function loadGemmaMotor(kind) {
   });
   const json = await res.json().catch(() => null);
   if (res.status === 404) {
-    throw new Error("Motor antigo. Rode de novo o instalador para o Gemma.");
+    throw new Error("Motor antigo. A transcrição segue; para o Gemma, rode de novo o instalador.");
   }
   if (!res.ok) {
     throw new Error((typeof json?.error === "string" && json.error) || "Não comecei o download do Gemma.");
@@ -1378,7 +1378,7 @@ async function suggestReplies(text) {
   });
   const json = await res.json().catch(() => null);
   if (res.status === 404) {
-    return { ok: false, error: "Motor antigo. Rode de novo o instalador para o Gemma." };
+    return { ok: false, error: "Motor antigo. A transcrição segue; para sugerir respostas, rode de novo o instalador." };
   }
   if (!res.ok) {
     return {
@@ -1422,7 +1422,8 @@ async function probeLocal(url) {
           ok: true,
           alive: true,
           ready: json?.ready === true,
-          paired: json?.paired === true,
+          paired: json?.paired === true || json?.paired === "true",
+          motorVersion: json?.version || "",
           model: json?.model,
           engine: json?.engine,
           error: json?.error || "",
@@ -1443,7 +1444,7 @@ async function probeLocal(url) {
         ok: false,
         alive: false,
         ready: false,
-        error: "Não alcanço o motor em 127.0.0.1:8173.",
+        error: "Não alcanço o motor. Clique em Ligar motor.",
       };
     } finally {
       clearTimeout(timer);
@@ -1508,7 +1509,7 @@ async function wakeMotor() {
     ready: false,
     motorUp: false,
     error:
-      "Não alcanço o motor em 127.0.0.1:8173. Clique de novo em Ligar motor.",
+      "Não alcanço o motor. Clique de novo em Ligar motor.",
   };
 }
 
@@ -1654,8 +1655,10 @@ async function transcribeLocal(blob, name, language, url, probe) {
   const paths = ["/v1/audio/transcriptions", "/inference"];
   let last = "Motor local não respondeu.";
   let token = "";
-  if (probe?.paired) {
+  try {
     token = await motorToken();
+  } catch {
+    token = "";
   }
   for (const path of paths) {
     const headers = token ? { Authorization: `Bearer ${token}` } : {};
@@ -1723,13 +1726,6 @@ async function transcribe(msg, tabId) {
   let device = "";
   if (provider === "local" && kind === "nemotron") {
     let probe = await probeLocal(stored.localUrl);
-    if (probe?.ok && probe.paired === false) {
-      return {
-        ok: false,
-        error:
-          "Motor desatualizado neste PC. Rode de novo o Instalar-Motor para atualizar o motor no PC.",
-      };
-    }
     if (!probe?.ok || !probe.ready) {
       const woke = await wakeMotor();
       probe = await probeLocal(stored.localUrl);
@@ -1738,7 +1734,7 @@ async function transcribe(msg, tabId) {
           ok: false,
           error:
             woke?.error ||
-            "Não alcanço o motor em 127.0.0.1:8173. O ícone da bandeja pode estar ligado sem o Python responder. Clique em Ligar motor.",
+            "Não alcanço o motor. O ícone da bandeja pode estar ligado sem responder. Clique em Ligar motor.",
         };
       }
       if (!probe.ready) {
