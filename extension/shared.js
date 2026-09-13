@@ -78,6 +78,16 @@
         kind: "warn",
       };
     }
+    if (g.stale || state?.gemmaStale) {
+      return {
+        id: "update",
+        label: "Atualizar o motor",
+        disabled: false,
+        status:
+          "O motor transcreve, mas ainda não baixa o Gemma. Clique: baixamos o instalador. Feche o ícone da bandeja, rode o Setup, depois volte aqui.",
+        kind: "warn",
+      };
+    }
     if (!motorUp) {
       return {
         id: "wake",

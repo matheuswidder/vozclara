@@ -1262,15 +1262,18 @@ async function withGemma(status) {
     }
   }
   const g = probe?.gemma && typeof probe.gemma === "object" ? probe.gemma : {};
+  const stale = Boolean(probe?.ok) && probe.gemma == null;
   await chrome.storage.local.set({
     gemmaReady: Boolean(g.ready),
     gemmaLoading: Boolean(g.loading),
     gemmaError: g.error || "",
+    gemmaStale: stale,
   });
   return {
     ...status,
     motorAlive: Boolean(probe?.ok) || Boolean(status.motorAlive),
     motorUp: Boolean(probe?.ok && probe.ready) || Boolean(status.motorUp),
+    gemmaStale: stale,
     gemma: {
       ready: Boolean(g.ready),
       loading: Boolean(g.loading),
@@ -1278,6 +1281,7 @@ async function withGemma(status) {
       percent: Number(g.percent) || 0,
       detail: g.detail || "",
       error: g.error || "",
+      stale,
     },
   };
 }
@@ -1298,6 +1302,16 @@ async function loadGemmaMotor(kind) {
   if (!probe?.ok) {
     throw new Error("Ligue o motor na bandeja para baixar o Gemma.");
   }
+  if (probe.gemma == null) {
+    await downloadMotorZip();
+    await chrome.storage.local.set({ gemmaStale: true, gemmaLoading: false });
+    return {
+      ok: false,
+      needUpdate: true,
+      error:
+        "Baixei VozClara-Motor-Setup em Downloads. Feche o ícone da bandeja, rode o instalador, depois clique de novo em Baixar. A transcrição não some.",
+    };
+  }
   const root = localRoot(extra.localUrl) || "http://127.0.0.1:8173";
   let token = "";
   try {
@@ -1316,7 +1330,38 @@ async function loadGemmaMotor(kind) {
   });
   const json = await res.json().catch(() => null);
   if (res.status === 404) {
-    throw new Error("Motor antigo. A transcrição segue; para o Gemma, rode de novo o instalador.");
+    await downloadMotorZip();
+    await chrome.storage.local.set({ gemmaStale: true, gemmaLoading: false });
+    return {
+      ok: false,
+      needUpdate: true,
+      error:
+        "Baixei VozClara-Motor-Setup em Downloads. Feche o ícone da bandeja, rode o instalador, depois clique de novo em Baixar. A transcrição não some.",
+    };
+  }
+  if (res.status === 401) {
+    try {
+      token = await pairMotor(extra.localUrl);
+    } catch {
+      token = "";
+    }
+    const retry = await fetch(`${root}/v1/gemma/load`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ kind: want }),
+    });
+    const retryJson = await retry.json().catch(() => null);
+    if (retry.ok) {
+      return { ok: true, started: true, ready: Boolean(retryJson?.ready), kind: want };
+    }
+    throw new Error(
+      (typeof retryJson?.error === "string" && retryJson.error) ||
+        "O motor recusou o Gemma. Feche a bandeja e rode o instalador de novo.",
+    );
   }
   if (!res.ok) {
     throw new Error((typeof json?.error === "string" && json.error) || "Não comecei o download do Gemma.");
