@@ -154,35 +154,53 @@
     button.sug:disabled { opacity: .55; cursor: default; filter: none; }
     .again { margin-top: 8px; }
     .composer { margin-top: 8px; }
-    textarea.ctx {
-      display: block; width: 100%; box-sizing: border-box;
-      min-height: 68px; resize: vertical;
-      margin: 0;
-      border: 1px solid var(--vc-line, #e9edef);
+    iframe.ctx-frame {
+      display: block; width: 100%; height: 72px; box-sizing: border-box;
+      margin: 0; border: 1px solid var(--vc-line, #e9edef); border-radius: 8px;
       background: color-mix(in srgb, var(--vc-fg, #111b21) 4%, var(--vc-panel, #fff));
+    }
+    iframe.ctx-frame:focus-within { outline: 2px solid var(--vc-accent, #00a884); outline-offset: 1px; }
+    .go-row { display: flex; gap: 8px; align-items: stretch; margin-top: 8px; }
+    select.tone-sel {
+      flex: 1; min-width: 0; appearance: none; cursor: pointer;
+      border: 1px solid var(--vc-line, #e9edef);
+      background: var(--vc-panel, #fff) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path fill='%23667781' d='M1 1.5 6 6.5 11 1.5'/></svg>") no-repeat right 10px center;
       color: var(--vc-fg, #111b21);
-      border-radius: 8px; padding: 8px 10px;
-      font: 400 12.5px/1.4 Segoe UI, Helvetica, Arial, sans-serif;
+      font: 600 12.5px/1.2 Segoe UI, Helvetica, Arial, sans-serif;
+      border-radius: 8px; padding: 8px 28px 8px 10px;
     }
-    textarea.ctx:focus { outline: 2px solid var(--vc-accent, #00a884); outline-offset: 1px; }
-    .tones { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-    button.tone {
-      appearance: none; cursor: pointer;
-      border: 1px solid rgba(0,168,132,.45);
-      background: transparent; color: var(--vc-fg, #111b21);
-      font: 600 12px/1 Segoe UI, Helvetica, Arial, sans-serif;
-      border-radius: 16px; padding: 7px 10px;
+    button.go {
+      flex: 0 0 40px; width: 40px; appearance: none; border: 0; cursor: pointer;
+      border-radius: 8px; background: var(--vc-accent, #00a884); color: #062016;
+      display: inline-flex; align-items: center; justify-content: center; padding: 0;
     }
-    button.tone:hover, button.tone.on { background: rgba(0,168,132,.14); }
-    button.tone:disabled { opacity: .55; cursor: default; }
+    button.go:hover { filter: brightness(1.06); }
+    button.go:disabled { opacity: .55; cursor: default; filter: none; }
+    button.go svg { width: 18px; height: 18px; display: block; }
+    .typing {
+      display: flex; align-items: center; gap: 8px; margin-top: 8px;
+      font-size: 12.5px; font-weight: 600; color: var(--vc-muted, #667781);
+    }
+    .typing .dots { display: inline-flex; align-items: center; gap: 3px; height: 12px; }
+    .typing .dots i {
+      display: block; width: 6px; height: 6px; border-radius: 50%;
+      background: var(--vc-accent, #00a884);
+      animation: vcdot 1.1s ease-in-out infinite;
+    }
+    .typing .dots i:nth-child(2) { animation-delay: .15s; }
+    .typing .dots i:nth-child(3) { animation-delay: .3s; }
+    @keyframes vcdot {
+      0%, 80%, 100% { opacity: .35; transform: translateY(0); }
+      40% { opacity: 1; transform: translateY(-3px); }
+    }
   `;
 
   const CHECK_SVG =
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" aria-hidden="true"><path d="M5 12.5 10 17.5 19 7"/></svg>';
   const COPY_SVG =
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="8" y="8" width="12" height="14" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h2"/></svg>';
-  const REFRESH_SVG =
-    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.6-6.3"/><path d="M21 3v6h-6"/></svg>';
+  const ENTER_SVG =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M20 6v5a3 3 0 0 1-3 3H7"/><path d="m10 10-4 4 4 4"/></svg>';
 
   function resultToolsHtml() {
     return `<span class="tools">
@@ -196,9 +214,19 @@
   const recentMedia = [];
 
   window.addEventListener("message", (ev) => {
-    if (ev.source !== window) return;
     const data = ev.data;
-    if (!data || data.source !== "vozclara" || data.type !== "media") return;
+    if (!data || data.source !== "vozclara") return;
+    if (data.type === "ctx" && data.key) {
+      const prev = suggestDraft.get(data.key) || {};
+      suggestDraft.set(data.key, { ...prev, context: String(data.value || "") });
+      return;
+    }
+    if (data.type === "ctx-go" && data.key) {
+      const root = rootByKey.get(data.key)?.root;
+      if (root) void runSuggest(root);
+      return;
+    }
+    if (ev.source !== window || data.type !== "media") return;
     if (!(data.buffer instanceof ArrayBuffer) && !ArrayBuffer.isView(data.buffer)) return;
     const raw =
       data.buffer instanceof ArrayBuffer
@@ -703,25 +731,7 @@
         void openSuggestComposer(root);
       });
     }
-    const ctx = el.shadowRoot?.querySelector("[data-ctx]");
-    if (ctx && !ctx.dataset.bound) {
-      ctx.dataset.bound = "1";
-      ctx.addEventListener("input", () => {
-        const prev = suggestDraft.get(keyFor(root)) || {};
-        suggestDraft.set(keyFor(root), { ...prev, context: ctx.value });
-      });
-      ctx.addEventListener("keydown", (e) => e.stopPropagation());
-    }
-    el.shadowRoot?.querySelectorAll("[data-tone]").forEach((btn) => {
-      if (btn.dataset.bound) return;
-      btn.dataset.bound = "1";
-      btn.addEventListener("click", (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        btn.blur();
-        void runSuggest(root, btn.dataset.tone || "cliente");
-      });
-    });
+    bindComposer(root, el);
     el.shadowRoot?.querySelectorAll("button.reply").forEach((btn) => {
       if (btn.dataset.bound) return;
       btn.dataset.bound = "1";
@@ -762,20 +772,25 @@
   }
 
   function placeCard(audio, cardEl, root) {
-    const bubble = audio || root;
+    const bubble =
+      audio && audio !== root && root?.contains(audio)
+        ? audio
+        : findAudioCard(root) || audio || root;
     const row = root || bubble.closest("[data-id]") || bubble;
     const br = bubble.getBoundingClientRect();
     const rr = row.getBoundingClientRect();
     if (br.width < 40) return;
-    const outgoing =
-      isOutgoing(root) || br.left - rr.left > rr.right - br.right;
+    const outgoing = isOutgoing(root);
+    const sibling =
+      cardEl.previousElementSibling === bubble ||
+      bubble.nextElementSibling === cardEl;
     const left = Math.max(0, Math.round(br.left - rr.left));
     const right = Math.max(0, Math.round(rr.right - br.right));
     const width = Math.round(br.width);
     const compact = cardEl.classList.contains("vozclara-mini");
     const top = compact ? "2px" : "6px";
     const bot = compact ? "8px" : "12px";
-    const place = outgoing ? `out:${width}:${right}` : `in:${width}:${left}`;
+    const place = `${outgoing ? "out" : "in"}:${sibling ? "sib" : "row"}:${width}:${left}:${right}`;
     if (cardEl.dataset.vcPlace === place) return;
     cardEl.dataset.vcPlace = place;
     cardEl.style.display = "block";
@@ -785,7 +800,10 @@
     cardEl.style.maxWidth = "100%";
     cardEl.style.marginTop = top;
     cardEl.style.marginBottom = bot;
-    if (outgoing) {
+    if (sibling) {
+      cardEl.style.marginLeft = outgoing ? "auto" : "0";
+      cardEl.style.marginRight = outgoing ? "0" : "auto";
+    } else if (outgoing) {
       cardEl.style.marginLeft = "auto";
       cardEl.style.marginRight = `${right}px`;
     } else {
@@ -876,19 +894,23 @@
         <button class="tx" type="button">Transcrever</button>
       </div>`;
     }
-    const mark = phase === "download" ? "②" : phase === "decode" ? "①" : "③";
-    const label = escapeHtml(msg.label || "Transcrevendo…");
+    if (phase !== "download") {
+      return `<div class="box">
+        <div class="label"><span>VozClara</span></div>
+        <p class="busy">${barsHtml()} Aguarde. Transcrevendo áudio…</p>
+      </div>`;
+    }
+    const label = escapeHtml(msg.label || "Baixando Whisper…");
     const detail = msg.detail ? ` — ${escapeHtml(msg.detail)}` : "";
     const pct =
-      phase === "download" && msg.percent != null
+      msg.percent != null
         ? ` — ${Math.max(0, Math.min(100, Number(msg.percent) || 0))}%`
         : "";
     const bar =
-      phase === "download" && Number(msg.percent) >= 0
+      Number(msg.percent) >= 0
         ? `<div class="meter"><span style="width:${Math.max(0, Math.min(100, Number(msg.percent) || 0))}%"></span></div>`
         : "";
-    const clockSlot = phase === "transcribe" ? `<span data-clock></span>` : "";
-    return `<div class="box"><p class="busy">${barsHtml()} ${mark} ${label}${detail}${pct} ${clockSlot}</p>${bar}</div>`;
+    return `<div class="box"><p class="busy">${barsHtml()} ${label}${detail}${pct}</p>${bar}</div>`;
   }
 
   function buttonOf(root) {
@@ -906,7 +928,7 @@
       panel.querySelectorAll("[data-bound]").forEach((n) => n.removeAttribute("data-bound"));
       htmlByKey.set(keyFor(root), panel.innerHTML);
       el.style.display = "block";
-      if (!html || /button class="tx"|data-retry|data-copy|data-suggest|button class="reply"/.test(html)) {
+      if (!html || /button class="tx"|data-retry|data-copy|data-suggest|data-go|button class="reply"/.test(html)) {
         bindTx(root, el);
         bindResultTools(root, el);
       }
@@ -1329,28 +1351,16 @@
     jobs.set(requestId, key);
     rootByKey.set(key, { root, html: "" });
     cancelled.delete(requestId);
-    const dur = durationLabel(root);
 
-    // Fase ① com cronômetro que só atualiza o relógio — nunca pinta por cima
-    // da ②/③ (o listener de VOZCLARA_PROGRESS derruba este timer no 1º tick).
-    let ticks = 0;
-    const clock = () =>
-      `${Math.floor(ticks / 60)}:${String(ticks % 60).padStart(2, "0")}`;
-    const phaseHtml = (extra) =>
+    setPanel(
+      root,
       `<div class="box">
          <div class="label"><span>VozClara</span>
            <button class="copy" type="button" data-cancel="${requestId}" aria-label="Cancelar">Cancelar</button>
          </div>
-         <p class="busy">${barsHtml()} ① ${dur ? `Lendo áudio de ${escapeHtml(dur)}` : "Lendo o áudio"}… <span data-clock>${clock()}</span></p>
-         <p class="micro">${escapeHtml(extra)}</p>
-       </div>`;
-    setPanel(root, phaseHtml("o áudio toca silenciosamente para leitura"));
-    const timer = window.setInterval(() => {
-      ticks += 1;
-      const span = panelOf(root)?.querySelector("[data-clock]");
-      if (span) span.textContent = clock();
-    }, 1000);
-    timersByRequest.set(requestId, timer);
+         <p class="busy">${barsHtml()} Aguarde. Transcrevendo áudio…</p>
+       </div>`,
+    );
     let cancelledHere = false;
 
     // Bind do botão Cancelar (Parte 7.4 — só na fase ①; a ③ também aceita via mesmo id).
@@ -1727,10 +1737,101 @@
     return result.replies.slice(0, 3);
   }
 
+  function fillCtxFrame(root, el, opts = {}) {
+    const frame = el.shadowRoot?.querySelector("[data-ctx-frame]");
+    if (!(frame instanceof HTMLIFrameElement) || frame.dataset.filled === "1") return;
+    frame.dataset.filled = "1";
+    const key = keyFor(root);
+    const draft = suggestDraft.get(key) || {};
+    const dark = appIsDark();
+    const fg = dark ? "#e9edef" : "#111b21";
+    const muted = dark ? "#8696a0" : "#667781";
+    const bg = dark ? "#1a2329" : "#f6f7f8";
+    const ph = escapeHtml(
+      "Contexto: quem falou, se é pergunta, o que você precisa responder…",
+    );
+    const val = escapeHtml(draft.context || "");
+    const onLoad = () => {
+      const t = frame.contentDocument?.querySelector("textarea");
+      if (!t || t.dataset.bound === "1") return;
+      t.dataset.bound = "1";
+      t.addEventListener("input", () => {
+        const prev = suggestDraft.get(key) || {};
+        suggestDraft.set(key, { ...prev, context: t.value });
+      });
+      t.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+          e.preventDefault();
+          void runSuggest(root);
+        }
+      });
+      if (opts.focus) t.focus();
+    };
+    frame.addEventListener("load", onLoad, { once: true });
+    frame.srcdoc = `<!doctype html><meta charset="utf-8"><style>
+html,body{margin:0;height:100%;background:${bg};}
+textarea{width:100%;height:100%;border:0;outline:none;resize:none;box-sizing:border-box;padding:8px 10px;font:400 12.5px/1.4 Segoe UI,Helvetica,Arial,sans-serif;color:${fg};background:transparent;}
+textarea::placeholder{color:${muted};}
+</style><textarea maxlength="480" placeholder="${ph}">${val}</textarea>`;
+  }
+
+  function bindComposer(root, el) {
+    if (!el?.shadowRoot) return;
+    const sel = el.shadowRoot.querySelector("[data-tone-select]");
+    if (sel && !sel.dataset.bound) {
+      sel.dataset.bound = "1";
+      sel.addEventListener("change", () => {
+        const prev = suggestDraft.get(keyFor(root)) || {};
+        suggestDraft.set(keyFor(root), { ...prev, tone: sel.value || "cliente" });
+      });
+    }
+    const go = el.shadowRoot.querySelector("[data-go]");
+    if (go && !go.dataset.bound) {
+      go.dataset.bound = "1";
+      go.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        go.blur();
+        void runSuggest(root);
+      });
+    }
+    fillCtxFrame(root, el, { focus: el.dataset.vcFocusCtx === "1" });
+    el.dataset.vcFocusCtx = "";
+  }
+
+  function waitLabel(stored) {
+    const loading = Boolean(stored?.gemmaLoading);
+    const pct = Number(stored?.gemmaPercent) || 0;
+    const detail = String(stored?.gemmaDetail || "").trim();
+    if (loading && (pct || /baix/i.test(detail))) {
+      return pct ? `Baixando Qwen ${pct}%` : detail || "Baixando Qwen…";
+    }
+    if (detail && !stored?.gemmaReady && /baix/i.test(detail)) return detail;
+    return "Digitando…";
+  }
+
+  function showTyping(root, label) {
+    const composer = panelOf(root)?.querySelector(".composer");
+    if (!composer) return;
+    let row = composer.querySelector("[data-typing]");
+    if (!row) {
+      row = document.createElement("div");
+      row.className = "typing";
+      row.dataset.typing = "1";
+      row.setAttribute("aria-live", "polite");
+      row.innerHTML =
+        '<span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span data-typing-label></span>';
+      composer.appendChild(row);
+    }
+    const lab = row.querySelector("[data-typing-label]");
+    if (lab) lab.textContent = label || "Digitando…";
+    const go = composer.querySelector("[data-go]");
+    if (go) go.disabled = true;
+  }
+
   function composerHtml(root, opts = {}) {
     const draft = suggestDraft.get(keyFor(root)) || {};
-    const ctx = escapeHtml(draft.context || "");
-    const picked = opts.tone || draft.tone || "";
+    const picked = opts.tone || draft.tone || "cliente";
     const busy = Boolean(opts.busy);
     const tones = [
       ["curto", "Curto"],
@@ -1738,38 +1839,40 @@
       ["cliente", "No tom da pessoa"],
       ["comercial", "Comercial"],
     ];
-    const buttons = tones
-      .map(([id, label]) => {
-        const on = picked === id ? " on" : "";
-        const dis = busy ? " disabled" : "";
-        return `<button type="button" class="tone${on}" data-tone="${id}"${dis}>${label}</button>`;
-      })
+    const options = tones
+      .map(
+        ([id, label]) =>
+          `<option value="${id}"${picked === id ? " selected" : ""}>${label}</option>`,
+      )
       .join("");
-    const hint = busy
-      ? `<p class="micro">${escapeHtml(opts.wait || "Gerando…")}</p>`
-      : `<p class="micro">Escolha o tom para gerar 3 respostas</p>`;
+    const typing = busy
+      ? `<div class="typing" data-typing="1" aria-live="polite"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span data-typing-label>${escapeHtml(opts.wait || "Digitando…")}</span></div>`
+      : "";
     return `<div class="composer">
-      <textarea class="ctx" data-ctx maxlength="480" rows="3" placeholder="Contexto: quem falou, se é pergunta, o que você precisa responder…">${ctx}</textarea>
-      ${hint}
-      <div class="tones">${buttons}</div>
+      <iframe class="ctx-frame" data-ctx-frame title="Contexto da resposta"></iframe>
+      <div class="go-row">
+        <select class="tone-sel" data-tone-select aria-label="Tom da resposta">${options}</select>
+        <button type="button" class="go" data-go aria-label="Gerar respostas" title="Gerar"${busy ? " disabled" : ""}>${ENTER_SVG}</button>
+      </div>
+      ${typing}
     </div>`;
   }
 
   function readComposer(root) {
     const panel = panelOf(root);
-    const ctx = panel?.querySelector("[data-ctx]");
+    const sel = panel?.querySelector("[data-tone-select]");
     const prev = suggestDraft.get(keyFor(root)) || {};
-    const context = ctx ? String(ctx.value || "") : prev.context || "";
-    suggestDraft.set(keyFor(root), { ...prev, context });
-    return { context, tone: prev.tone || "cliente" };
+    const tone = sel?.value || prev.tone || "cliente";
+    const context = prev.context || "";
+    suggestDraft.set(keyFor(root), { ...prev, context, tone });
+    return { context, tone };
   }
 
   function replyExtra(root, replies, wait) {
     const chips = replies?.length
       ? `<div class="replies">${replies
           .map((line) => `<button class="reply" type="button">${escapeHtml(line)}</button>`)
-          .join("")}</div>
-         <button class="again" type="button" data-suggest="1" aria-label="Ajustar sugestão">${REFRESH_SVG} Ajustar</button>`
+          .join("")}</div>`
       : "";
     return `${composerHtml(root, wait || {})}${chips}`;
   }
@@ -1783,7 +1886,10 @@
         /\sdata-bound="1"/g,
         "",
       ),
-      micros: [...(panel?.querySelectorAll(".micro") || [])].map((n) => n.outerHTML).join(""),
+      micros: [...(panel?.querySelectorAll(".micro") || [])]
+        .filter((n) => !n.closest(".composer"))
+        .map((n) => n.outerHTML)
+        .join(""),
     };
   }
 
@@ -1802,14 +1908,10 @@
   }
 
   function paintSuggestWait(root, kept, stored) {
-    const loading = Boolean(stored?.gemmaLoading);
-    const pct = Number(stored?.gemmaPercent) || 0;
-    const detail = String(stored?.gemmaDetail || "").trim();
-    let label = "Gerando…";
-    if (loading) {
-      label = pct ? `Baixando Qwen ${pct}%` : detail || "Baixando Qwen…";
-    } else if (detail && !stored?.gemmaReady) {
-      label = detail;
+    const label = waitLabel(stored);
+    if (panelOf(root)?.querySelector(".composer")) {
+      showTyping(root, label);
+      return;
     }
     renderTranscript(root, kept, composerHtml(root, { busy: true, wait: label }));
     bindResultTools(root, cardOf(root));
@@ -1828,6 +1930,7 @@
       return;
     }
     const key = keyFor(root);
+    rootByKey.set(key, { root, html: "" });
     if (!suggestDraft.has(key)) {
       const stored = await chrome.storage.local.get([
         "gemmaCardContext",
@@ -1840,16 +1943,14 @@
       });
     }
     hideSmartBar();
+    if (panelOf(root)?.querySelector(".composer")) return;
+    const card = cardOf(root);
+    if (card) card.dataset.vcFocusCtx = "1";
     renderTranscript(root, kept, composerHtml(root));
     bindResultTools(root, cardOf(root));
-    const box = panelOf(root)?.querySelector("[data-ctx]");
-    if (box instanceof HTMLTextAreaElement) {
-      box.focus();
-      box.setSelectionRange(box.value.length, box.value.length);
-    }
   }
 
-  async function runSuggest(root, tone) {
+  async function runSuggest(root) {
     if (suggestBusy) return;
     const kept = keepTranscript(root);
     const current = kept.text.trim();
@@ -1862,14 +1963,19 @@
       return;
     }
     const draft = readComposer(root);
-    const picked = tone || draft.tone || "cliente";
+    const picked = draft.tone || "cliente";
     suggestDraft.set(keyFor(root), { context: draft.context, tone: picked });
     chrome.storage.local
       .set({ gemmaTone: picked, gemmaCardContext: draft.context })
       .catch(() => {});
     suggestBusy = true;
     hideSmartBar();
-    paintSuggestWait(root, kept, { gemmaLoading: true, gemmaPercent: 0, gemmaDetail: "Gerando…" });
+    panelOf(root)?.querySelector(".replies")?.remove();
+    paintSuggestWait(root, kept, {
+      gemmaLoading: true,
+      gemmaPercent: 0,
+      gemmaDetail: "Digitando…",
+    });
     const onProgress = (changes, area) => {
       if (area !== "local" || !suggestBusy) return;
       if (
