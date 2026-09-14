@@ -110,7 +110,7 @@
         id: "ready",
         label: "Pronto",
         disabled: true,
-        status: `Pronto · ${meta.name} · ${size} no disco`,
+        status: `No disco · ${meta.name} · sobe na memória só ao sugerir`,
         kind: "ok",
         canDelete: true,
       };

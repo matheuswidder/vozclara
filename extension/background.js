@@ -699,7 +699,7 @@ async function probeKind(kind, repo) {
     const extra = await chrome.storage.local.get(["localUrl", "motorInstalled"]);
     const probe = await probeLocal(extra.localUrl);
     const alive = Boolean(probe?.ok);
-    const up = Boolean(probe?.ok && probe.ready);
+    const up = alive;
     return {
       ok: true,
       kind: want,
@@ -2076,9 +2076,9 @@ async function transcribe(msg, tabId) {
   let text = "";
   let model = "";
   let device = "";
-  if (provider === "local" && kind === "nemotron") {
+    if (provider === "local" && kind === "nemotron") {
     let probe = await probeLocal(stored.localUrl);
-    if (!probe?.ok || !probe.ready) {
+    if (!probe?.ok) {
       const woke = await wakeMotor();
       probe = await probeLocal(stored.localUrl);
       if (!probe?.ok) {
@@ -2087,14 +2087,6 @@ async function transcribe(msg, tabId) {
           error:
             woke?.error ||
             "Não alcanço o motor. Se a bandeja estiver desligada, rode o Setup do zip e clique em Verificar.",
-        };
-      }
-      if (!probe.ready) {
-        return {
-          ok: false,
-          error:
-            probe.error ||
-            "O motor está ligado, mas o Nemotron ainda carrega. Espere Pronto no painel e clique de novo.",
         };
       }
     }
