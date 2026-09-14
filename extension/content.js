@@ -133,13 +133,14 @@
       padding: 0; background: transparent; border: 0; border-radius: 0;
     }
     button.sug {
-      appearance: none; border: 0; background: transparent; cursor: pointer;
-      color: var(--vc-accent, #00a884);
-      font: 600 11.5px/1 Segoe UI, Helvetica, Arial, sans-serif;
-      padding: 4px 2px;
+      appearance: none; border: 0; cursor: pointer;
+      background: var(--vc-accent, #00a884); color: #062016;
+      font: 600 12.5px/1 Segoe UI, Helvetica, Arial, sans-serif;
+      border-radius: 8px; padding: 8px 12px; width: 100%;
+      margin-top: 8px;
     }
-    button.sug:hover { filter: brightness(1.12); }
-    button.sug:disabled { opacity: .55; cursor: default; }
+    button.sug:hover { filter: brightness(1.06); }
+    button.sug:disabled { opacity: .55; cursor: default; filter: none; }
   `;
 
   /** @type {Array<{ t: number; mime: string; size: number; buffer: ArrayBuffer; requestId: string }>} */
@@ -224,6 +225,7 @@
   let mutating = false;
   let paneCache = null;
   let gemmaEnabled = false;
+  let suggestBusy = false;
   /** @type {MutationObserver | null} */
   let obs = null;
 
@@ -368,34 +370,6 @@
       return "";
     }
     return best.slice(0, 4000);
-  }
-
-  function isTextRoot(root) {
-    if (!root || isChromeUi(root) || isVoiceRoot(root)) return false;
-    if (root.querySelector("video") || root.querySelector('[data-icon*="video"]')) {
-      return false;
-    }
-    if (isOutgoing(root)) return false;
-    return readableText(root).length >= 2;
-  }
-
-  function collectTextRoots(from = document) {
-    const set = new Set();
-    const add = (n) => {
-      if (!(n instanceof Element) || isChromeUi(n)) return;
-      const root = n.closest?.("[data-id]") || (n.matches?.("[data-id]") ? n : null);
-      if (isTextRoot(root)) set.add(root);
-    };
-    const main =
-      document.querySelector("#main") ||
-      document.querySelector('[data-testid="conversation-panel-messages"]') ||
-      document;
-    const scope = from instanceof Element ? from : main;
-    if (from instanceof Element) add(from);
-    scope.querySelectorAll?.("[data-id]").forEach(add);
-    const list = [...set];
-    const uniq = list.filter((r) => !list.some((o) => o !== r && r.contains(o)));
-    return new Set(uniq.slice(-16));
   }
 
   function collectRoots(from = document) {
@@ -547,63 +521,6 @@
     return el;
   }
 
-  function miniHtml() {
-    return `<div class="box mini"><button class="sug" type="button">Sugerir</button></div>`;
-  }
-
-  function makeMini(root) {
-    const el = document.createElement("div");
-    el.className = "vozclara-mini";
-    el.style.overflowAnchor = "none";
-    const shadow = el.attachShadow({ mode: "open" });
-    shadow.innerHTML = `<style>${CARD_STYLE}</style><div class="panel">${miniHtml()}</div>`;
-    bindMini(root, el);
-    return el;
-  }
-
-  function bindMini(root, el) {
-    const btn = el.shadowRoot?.querySelector("button.sug");
-    if (!btn || btn.dataset.bound) return;
-    btn.dataset.bound = "1";
-    btn.addEventListener("click", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      btn.blur();
-      void suggestFromRoot(root);
-    });
-  }
-
-  function ensureMini(root) {
-    if (!gemmaEnabled || !isTextRoot(root) || isChromeUi(root)) {
-      const dead = miniByKey.get(keyFor(root));
-      if (dead) {
-        dead.remove();
-        miniByKey.delete(keyFor(root));
-      }
-      return;
-    }
-    const key = keyFor(root);
-    const sib = root.nextElementSibling;
-    let el = miniByKey.get(key);
-    if (sib?.classList.contains("vozclara-mini") && sib !== el) {
-      if (el && el !== sib) el.remove();
-      el = sib;
-      el.dataset.vcKey = key;
-      miniByKey.set(key, el);
-      bindMini(root, el);
-    }
-    if (!el || !el.isConnected) {
-      el = makeMini(root);
-      el.dataset.vcKey = key;
-      miniByKey.set(key, el);
-    }
-    const host = root.parentElement;
-    if (host && (el.parentElement !== host || el.previousElementSibling !== root)) {
-      root.insertAdjacentElement("afterend", el);
-    }
-    placeCard(findTextBubble(root) || root, el, root);
-  }
-
   function bindResultTools(root, el) {
     const copyBtn = el.shadowRoot?.querySelector("[data-copy]");
     if (copyBtn && !copyBtn.dataset.bound) {
@@ -628,6 +545,16 @@
         e.stopPropagation();
         retry.blur();
         void transcribeRoot(root, { fresh: true });
+      });
+    }
+    const sug = el.shadowRoot?.querySelector("[data-suggest]");
+    if (sug && !sug.dataset.bound) {
+      sug.dataset.bound = "1";
+      sug.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        sug.blur();
+        void suggestFromAudio(root);
       });
     }
   }
@@ -774,7 +701,7 @@
       panel.innerHTML = html || idleHtml();
       htmlByKey.set(keyFor(root), panel.innerHTML);
       el.style.display = "block";
-      if (!html || /button class="tx"|data-retry|data-copy/.test(html)) {
+      if (!html || /button class="tx"|data-retry|data-copy|data-suggest/.test(html)) {
         bindTx(root, el);
         bindResultTools(root, el);
       }
@@ -797,22 +724,8 @@
           cardByKey.delete(key);
         }
       }
-      const liveMini = new Set();
-      if (gemmaEnabled) {
-        collectTextRoots(from).forEach((root) => {
-          const key = keyFor(root);
-          if (key) liveMini.add(key);
-          ensureMini(root);
-        });
-      }
-      for (const [key, el] of miniByKey) {
-        if (!liveMini.has(key)) {
-          el.remove();
-          miniByKey.delete(key);
-        }
-      }
     });
-    ensureSmartBar();
+    pruneSmartBar();
   }
 
   function positionAll() {
@@ -820,12 +733,6 @@
       const el = cardOf(root);
       if (el) placeCard(findAudioCard(root) || root, el, root);
     });
-    if (gemmaEnabled) {
-      collectTextRoots(document).forEach((root) => {
-        const el = miniByKey.get(keyFor(root));
-        if (el) placeCard(findTextBubble(root) || root, el, root);
-      });
-    }
   }
 
   document.addEventListener(
@@ -1283,7 +1190,7 @@
         setPanel(root, progressHtml({ phase: "download", percent: 1, label: "Preparando Whisper" }));
       });
       if (btn) btn.disabled = false;
-      return;
+      return "";
     }
     if (status && status.ok && status.downloading && !cancelledHere) {
       // ② em andamento: mostra % real atual, sem erro.
@@ -1294,7 +1201,7 @@
     }
 
     try {
-      if (cancelledHere) return;
+      if (cancelledHere) return "";
       const blob = await extractBlob(root);
       if (!blob || blob.size < 512) {
         throw new Error(
@@ -1318,7 +1225,7 @@
         byteLength: audioBuffer.byteLength,
         fresh: Boolean(opts.fresh),
       });
-      if (cancelledHere || cancelled.get(requestId)?.cancel) return;
+      if (cancelledHere || cancelled.get(requestId)?.cancel) return "";
       if (!result?.ok) {
         setPanel(
           root,
@@ -1328,7 +1235,7 @@
              <button class="tx" type="button" style="margin-top:8px">Tentar de novo</button>
            </div>`,
         );
-        return;
+        return "";
       }
       const spent = clock();
       const device = result.device ? ` · ${escapeHtml(result.device)}` : "";
@@ -1339,9 +1246,10 @@
         : "";
       const gemmaOn = Boolean((await chrome.storage.local.get(["gemmaOn"])).gemmaOn);
       gemmaEnabled = gemmaOn;
-      const suggest = gemmaOn
-        ? `<div class="replies" data-suggest="1"><p class="micro">Sugerindo respostas…</p></div>`
-        : "";
+      const suggest =
+        gemmaOn && !opts.forContext
+          ? `<button class="sug" type="button" data-suggest="1">Sugerir resposta</button>`
+          : "";
       setPanel(
         root,
         `<div class="box">
@@ -1357,9 +1265,9 @@
            ${suggest}
          </div>`,
       );
-      if (gemmaOn) void fillSuggestions(root, result.text);
+      return result.text || "";
     } catch (err) {
-      if (cancelledHere || cancelled.get(requestId)?.cancel) return;
+      if (cancelledHere || cancelled.get(requestId)?.cancel) return "";
       const raw = err instanceof Error ? err.message : "Falha ao transcrever.";
       const motor = /motor|bandeja|relógio|Nemotron não está ligado/i.test(raw);
       setPanel(
@@ -1370,6 +1278,7 @@
            <button class="tx" type="button" style="margin-top:8px" ${motor ? 'data-wake="1"' : ""}>${motor ? "Ligar motor" : "Tentar de novo"}</button>
          </div>`,
       );
+      return "";
     } finally {
       window.clearInterval(timersByRequest.get(requestId));
       timersByRequest.delete(requestId);
@@ -1433,21 +1342,37 @@
     return Boolean(ok) || Boolean(box.innerText);
   }
 
-  function lastIncomingText() {
-    const main = document.querySelector("#main") || document;
-    const nodes = [...main.querySelectorAll("[data-id]")];
-    for (let i = nodes.length - 1; i >= 0; i--) {
-      const root = nodes[i];
-      if (isChromeUi(root) || isOutgoing(root)) continue;
-      if (isVoiceRoot(root)) {
-        const t = cardOf(root)?.shadowRoot?.querySelector(".text")?.textContent || "";
-        if (t.trim()) return t.trim();
-        continue;
-      }
-      const t = readableText(root);
-      if (t) return t;
+  function conversationRoots() {
+    const main =
+      document.querySelector("#main") ||
+      document.querySelector('[data-testid="conversation-panel-messages"]') ||
+      document;
+    const list = [...main.querySelectorAll("[data-id]")].filter(
+      (n) => n instanceof Element && !isChromeUi(n),
+    );
+    return list.filter((r, i, a) => !a.some((o) => o !== r && r.contains(o)));
+  }
+
+  function threadText(root) {
+    if (isVoiceRoot(root)) {
+      return cardOf(root)?.shadowRoot?.querySelector(".text")?.textContent?.trim() || "";
     }
-    return "";
+    return readableText(root);
+  }
+
+  function collectThread(target, limit = 12) {
+    const roots = conversationRoots();
+    const idx = roots.indexOf(target);
+    const slice =
+      idx < 0
+        ? [target]
+        : roots.slice(Math.max(0, idx - (limit - 1)), idx + 1);
+    return slice.map((root) => ({
+      root,
+      outgoing: isOutgoing(root),
+      voice: isVoiceRoot(root),
+      text: threadText(root),
+    }));
   }
 
   const SMART_ID = "vozclara-smart";
@@ -1455,13 +1380,6 @@
     :host { all: initial; display: block; overflow-anchor: none; font-family: Segoe UI, Helvetica, Arial, sans-serif; }
     .bar { padding: 6px 12px 2px; }
     .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-    button.go {
-      appearance: none; border: 0; cursor: pointer;
-      background: #00a884; color: #062016;
-      font: 600 12px/1 Segoe UI, Helvetica, Arial, sans-serif;
-      border-radius: 16px; padding: 7px 12px;
-    }
-    button.go:disabled { opacity: .55; cursor: default; }
     button.chip {
       appearance: none; cursor: pointer;
       border: 1px solid rgba(0,168,132,.45); background: transparent;
@@ -1482,13 +1400,22 @@
     return document.getElementById(SMART_ID);
   }
 
-  function ensureSmartBar() {
+  function pruneSmartBar() {
+    const host = smartHost();
     if (!gemmaEnabled) {
-      smartHost()?.remove();
+      host?.remove();
       return;
     }
+    if (!host) return;
     const footer = composeFooter();
-    if (!footer) return;
+    if (!footer || host.parentElement !== footer || host.dataset.mode === "idle") {
+      host.remove();
+    }
+  }
+
+  function mountSmartBar() {
+    const footer = composeFooter();
+    if (!footer || !gemmaEnabled) return null;
     let host = smartHost();
     if (!host) {
       host = document.createElement("div");
@@ -1496,63 +1423,42 @@
       host.style.overflowAnchor = "none";
       const shadow = host.attachShadow({ mode: "open" });
       shadow.innerHTML = `<style>${SMART_CSS}</style><div class="bar dark"><div class="row"></div><p class="hint"></p></div>`;
-      host.dataset.mode = "idle";
     }
     if (host.parentElement !== footer) {
       footer.insertBefore(host, footer.firstChild);
     }
     const fg = getComputedStyle(footer).color;
     const dark = rgbLum(fg) > 140;
-    shadowBar(host).className = `bar ${dark ? "dark" : "light"}`;
-    if (host.dataset.mode === "idle") paintSmartIdle();
+    const bar = host.shadowRoot?.querySelector(".bar");
+    if (bar) bar.className = `bar ${dark ? "dark" : "light"}`;
     bindComposeWatch();
+    return host;
   }
 
-  function shadowBar(host) {
-    return host.shadowRoot?.querySelector(".bar");
-  }
-
-  function paintSmartIdle() {
-    const host = smartHost();
-    if (!host?.shadowRoot) return;
-    host.dataset.mode = "idle";
-    const row = host.shadowRoot.querySelector(".row");
-    const hint = host.shadowRoot.querySelector(".hint");
-    const has = Boolean(lastIncomingText());
-    if (row) {
-      row.innerHTML = `<button class="go" type="button" ${has ? "" : "disabled"}>Sugerir resposta</button>`;
-      const go = row.querySelector(".go");
-      go?.addEventListener("click", (e) => {
-        e.preventDefault();
-        void suggestLastIncoming();
-      });
-    }
-    if (hint) hint.textContent = has ? "Da última mensagem recebida" : "Espere uma mensagem para sugerir";
-  }
-
-  function paintSmartBusy() {
-    const host = smartHost();
+  function paintSmartBusy(label) {
+    const host = mountSmartBar();
     if (!host?.shadowRoot) return;
     host.dataset.mode = "busy";
     const row = host.shadowRoot.querySelector(".row");
     const hint = host.shadowRoot.querySelector(".hint");
-    if (row) row.innerHTML = `<button class="go" type="button" disabled>Sugerindo…</button>`;
-    if (hint) hint.textContent = "No motor do Windows. Primeira vez pode demorar.";
+    if (row) row.innerHTML = "";
+    if (hint) hint.textContent = label || "Sugerindo no motor do Windows…";
+  }
+
+  function hideSmartBar() {
+    smartHost()?.remove();
   }
 
   function showSmartChips(replies, error) {
-    ensureSmartBar();
-    const host = smartHost();
+    if (error || !replies?.length) {
+      hideSmartBar();
+      return;
+    }
+    const host = mountSmartBar();
     if (!host?.shadowRoot) return;
     const row = host.shadowRoot.querySelector(".row");
     const hint = host.shadowRoot.querySelector(".hint");
     if (!row) return;
-    if (error || !replies?.length) {
-      host.dataset.mode = "idle";
-      paintSmartIdle();
-      if (hint) hint.textContent = error || "Não sugeri agora.";
-      return;
-    }
     host.dataset.mode = "chips";
     row.innerHTML =
       replies
@@ -1563,15 +1469,14 @@
       btn.addEventListener("click", (e) => {
         e.preventDefault();
         const line = btn.textContent || "";
-        if (insertCompose(line)) {
-          paintSmartIdle();
-        } else {
+        if (insertCompose(line)) hideSmartBar();
+        else {
           navigator.clipboard.writeText(line).catch(() => {});
           btn.textContent = "Copiado";
         }
       });
     });
-    row.querySelector(".x")?.addEventListener("click", () => paintSmartIdle());
+    row.querySelector(".x")?.addEventListener("click", () => hideSmartBar());
     if (hint) hint.textContent = "Clique cola no campo";
   }
 
@@ -1586,7 +1491,7 @@
         if (!(t instanceof Element)) return;
         if (!t.closest("footer")) return;
         const host = smartHost();
-        if (host?.dataset.mode === "chips" && !composeEmpty()) paintSmartIdle();
+        if (host?.dataset.mode === "chips" && !composeEmpty()) hideSmartBar();
       },
       true,
     );
@@ -1603,80 +1508,88 @@
     return result.replies.slice(0, 3);
   }
 
-  async function suggestLastIncoming() {
-    const text = lastIncomingText();
-    if (!text) {
-      showSmartChips([], "Não achei uma mensagem para responder.");
+  function keepTranscript(root) {
+    const panel = panelOf(root);
+    return {
+      text: panel?.querySelector(".text")?.textContent || "",
+      textHtml: panel?.querySelector(".text")?.innerHTML || "",
+      tools: (panel?.querySelector(".tools")?.innerHTML || "").replace(
+        /\sdata-bound="1"/g,
+        "",
+      ),
+      micros: [...(panel?.querySelectorAll(".micro") || [])].map((n) => n.outerHTML).join(""),
+    };
+  }
+
+  function renderTranscript(root, kept, extra) {
+    setPanel(
+      root,
+      `<div class="box">
+         <div class="label"><span>VozClara</span>
+           <span class="tools">${kept.tools || ""}</span>
+         </div>
+         <p class="text">${kept.textHtml}</p>
+         ${kept.micros}
+         ${extra || ""}
+       </div>`,
+    );
+  }
+
+  async function suggestFromAudio(root) {
+    if (suggestBusy) return;
+    const kept = keepTranscript(root);
+    const current = kept.text.trim();
+    if (!current) {
+      renderTranscript(
+        root,
+        kept,
+        `<p class="micro">Transcreva este áudio antes de sugerir.</p>`,
+      );
       return;
     }
-    paintSmartBusy();
+    suggestBusy = true;
     try {
-      const replies = await askGemma(text);
-      showSmartChips(replies);
-    } catch (err) {
-      showSmartChips([], err instanceof Error ? err.message : "Não sugeri.");
-    }
-  }
-
-  async function suggestFromRoot(root) {
-    const text =
-      cardOf(root)?.shadowRoot?.querySelector(".text")?.textContent?.trim() ||
-      readableText(root);
-    const el = miniByKey.get(keyFor(root));
-    const btn = el?.shadowRoot?.querySelector("button.sug");
-    if (btn) {
-      btn.disabled = true;
-      btn.textContent = "Sugerindo…";
-    }
-    paintSmartBusy();
-    try {
-      const replies = await askGemma(text);
-      showSmartChips(replies);
-      if (el) {
-        const slot = `<div class="box mini"><div class="replies">${replies
-          .map((line) => `<button class="reply" type="button">${escapeHtml(line)}</button>`)
-          .join("")}</div></div>`;
-        const panel = el.shadowRoot?.querySelector(".panel");
-        if (panel) panel.innerHTML = slot;
-        panel?.querySelectorAll("button.reply").forEach((b) => {
-          b.addEventListener("click", (e) => {
-            e.preventDefault();
-            const line = b.textContent || "";
-            if (insertCompose(line)) showSmartChips(replies);
-          });
-        });
+      renderTranscript(
+        root,
+        kept,
+        `<button class="sug" type="button" disabled>Ouvindo o contexto…</button>`,
+      );
+      let thread = collectThread(root);
+      const missing = thread
+        .slice(0, -1)
+        .filter((item) => item.voice && !item.text)
+        .slice(-5);
+      for (let i = 0; i < missing.length; i++) {
+        renderTranscript(
+          root,
+          kept,
+          `<button class="sug" type="button" disabled>Ouvindo áudios anteriores… ${i + 1}/${missing.length}</button>`,
+        );
+        await transcribeRoot(missing[i].root, { forContext: true });
       }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Não sugeri.";
-      showSmartChips([], msg);
-      if (btn) {
-        btn.disabled = false;
-        btn.textContent = "Sugerir";
-      }
-    }
-  }
-
-  async function fillSuggestions(root, text) {
-    const slot = panelOf(root)?.querySelector("[data-suggest]");
-    if (!slot || !text) return;
-    try {
-      if (!gemmaEnabled) {
-        slot.remove();
-        return;
-      }
-      paintSmartBusy();
-      const replies = await askGemma(text);
-      slot.innerHTML = replies
+      thread = collectThread(root);
+      const format = globalThis.VCShared?.formatSuggestPrompt;
+      const rows = thread.map(({ outgoing, voice, text }) => ({ outgoing, voice, text }));
+      const prompt = format ? format(rows) : current;
+      paintSmartBusy("Sugerindo com o contexto da conversa…");
+      renderTranscript(
+        root,
+        kept,
+        `<button class="sug" type="button" disabled>Sugerindo…</button>`,
+      );
+      const replies = await askGemma(prompt || current);
+      const chips = `<div class="replies">${replies
         .map((line) => `<button class="reply" type="button">${escapeHtml(line)}</button>`)
-        .join("");
-      slot.querySelectorAll("button.reply").forEach((btn) => {
+        .join("")}</div>
+         <button class="copy" type="button" data-suggest="1" style="margin-top:8px">Outras sugestões</button>`;
+      renderTranscript(root, kept, chips);
+      panelOf(root)?.querySelectorAll("button.reply").forEach((btn) => {
         btn.addEventListener("click", (e) => {
           e.preventDefault();
           e.stopPropagation();
           const line = btn.textContent || "";
-          if (insertCompose(line)) {
-            showSmartChips(replies);
-          } else {
+          if (insertCompose(line)) hideSmartBar();
+          else {
             navigator.clipboard.writeText(line).catch(() => {});
             btn.textContent = "Copiado";
           }
@@ -1685,8 +1598,14 @@
       showSmartChips(replies);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Não sugeri.";
-      slot.innerHTML = `<p class="micro">${escapeHtml(msg)}</p>`;
-      showSmartChips([], msg);
+      renderTranscript(
+        root,
+        kept,
+        `<p class="micro">${escapeHtml(msg)}</p><button class="sug" type="button" data-suggest="1">Sugerir de novo</button>`,
+      );
+      hideSmartBar();
+    } finally {
+      suggestBusy = false;
     }
   }
 
