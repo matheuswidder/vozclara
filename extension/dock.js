@@ -390,13 +390,8 @@
               <strong>Sugestões no áudio</strong>
               <label class="switch"><input type="checkbox" id="gemma-on" /><i></i></label>
             </div>
-            <p class="status">Só no card do áudio, depois de Transcrever. Lê a conversa e os áudios anteriores.</p>
+            <p class="status">Só no card do áudio, depois de Transcrever. Lê a conversa e os áudios anteriores. Usa Qwen 1.5B Q4 no PC (~1,1 GB).</p>
             <div id="gemma-panel" hidden>
-            <div class="seg">
-              <label title="Base. Não conversa."><input type="radio" name="gemma-kind" value="e2b" />E2B</label>
-              <label title="Responde no tom da conversa."><input type="radio" name="gemma-kind" value="it" checked />E2B-it</label>
-              <label title="Mesmo E2B-it, mais rápido."><input type="radio" name="gemma-kind" value="assistant" />+rápido</label>
-            </div>
             <div class="split">
               <div class="pill">
                 <i id="g-motor-dot" class="dot"></i>
@@ -404,7 +399,7 @@
               </div>
               <div class="pill">
                 <i id="g-model-dot" class="dot"></i>
-                <span id="g-model-text">Gemma</span>
+                <span id="g-model-text">Qwen</span>
               </div>
             </div>
             <p class="status" id="gemma-status"></p>
@@ -474,14 +469,6 @@
       syncGemmaPanel();
       void save();
     });
-    shadow.querySelectorAll('input[name="gemma-kind"]').forEach((el) => {
-      el.addEventListener("change", () => {
-        if ($p("gemma-on")) $p("gemma-on").checked = true;
-        syncGemmaPanel();
-        void save();
-        void refreshLocal();
-      });
-    });
     $p("gemma-download")?.addEventListener("click", () => void startGemma());
     $p("gemma-who")?.addEventListener("change", () => void save());
     $p("gemma-tone")?.addEventListener("change", () => void save());
@@ -534,9 +521,7 @@
       language: $p("language")?.value || "pt",
       customModelInput: $p("hf-repo")?.value.trim() || "",
       gemmaOn: Boolean($p("gemma-on")?.checked),
-      gemmaKind: globalThis.VCShared.normalizeGemma(
-        shadow.querySelector('input[name="gemma-kind"]:checked')?.value || "it",
-      ),
+      gemmaKind: "qwen",
       gemmaWho: $p("gemma-who")?.value.trim() || "",
       gemmaTone: $p("gemma-tone")?.value || "cliente",
       gemmaNotes: $p("gemma-notes")?.value.trim() || "",
@@ -648,10 +633,6 @@
       $p("hf-repo").value = stored.customModelInput || stored.customModelRepo || "";
     }
     if ($p("gemma-on")) $p("gemma-on").checked = Boolean(stored.gemmaOn);
-    const gWant = globalThis.VCShared.normalizeGemma(stored.gemmaKind);
-    shadow.querySelectorAll('input[name="gemma-kind"]').forEach((el) => {
-      el.checked = el.value === gWant;
-    });
     if ($p("gemma-who")) $p("gemma-who").value = stored.gemmaWho || "";
     if ($p("gemma-tone")) $p("gemma-tone").value = stored.gemmaTone || "cliente";
     if ($p("gemma-notes")) $p("gemma-notes").value = stored.gemmaNotes || "";
@@ -760,9 +741,7 @@
   }
 
   function selectedGemma() {
-    return globalThis.VCShared.normalizeGemma(
-      shadow.querySelector('input[name="gemma-kind"]:checked')?.value || "it",
-    );
+    return "qwen";
   }
 
   function paintGemma(state) {
@@ -815,12 +794,12 @@
         kind,
       });
       if (!result?.ok) {
-        throw new Error(result?.error || "Não baixei o Gemma.");
+        throw new Error(result?.error || "Não baixei o Qwen.");
       }
     } catch (err) {
       const status = $p("gemma-status");
       if (status) {
-        status.textContent = err instanceof Error ? err.message : "Não baixei o Gemma.";
+        status.textContent = err instanceof Error ? err.message : "Não baixei o Qwen.";
         status.dataset.kind = "warn";
         status.className = "status warn";
       }

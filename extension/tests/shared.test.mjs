@@ -127,17 +127,17 @@ test("collapseRepeats corta loop do tiny", () => {
 });
 
 test("gemmaAction pede motor e marca pronto", () => {
-  const off = VC.gemmaAction({ motorAlive: false }, "it");
+  const off = VC.gemmaAction({ motorAlive: false }, "qwen");
   assert.equal(off.id, "wake");
   const stale = VC.gemmaAction(
     { motorAlive: true, gemmaStale: true, gemma: { stale: true } },
-    "it",
+    "qwen",
   );
   assert.equal(stale.id, "update");
   assert.match(stale.label, /Setup/i);
   const waiting = VC.gemmaAction(
     { motorAlive: true, gemmaWaiting: true, gemmaStale: true },
-    "it",
+    "qwen",
   );
   assert.equal(waiting.id, "update");
   assert.equal(waiting.disabled, false);
@@ -147,12 +147,12 @@ test("gemmaAction pede motor e marca pronto", () => {
       motorUp: true,
       gemma: { error: "401 Client Error gated repo for url huggingface" },
     },
-    "it",
+    "qwen",
   );
   assert.equal(fail.id, "retry");
-  assert.match(fail.status, /Hugging Face|termo|Gemma/i);
+  assert.match(fail.status, /Hugging Face/i);
   const crash = VC.explainGemmaError(
-    "O motor reiniciou no meio do download. O E2B-it usa bastante RAM.",
+    "O motor reiniciou no meio do download. Faltou RAM.",
   );
   assert.match(crash, /RAM/);
   const viewFail = VC.gemmaView({
@@ -168,16 +168,17 @@ test("gemmaAction pede motor e marca pronto", () => {
   assert.match(view.model.text, /22/);
   const wait = VC.gemmaAction(
     { motorAlive: true, gemma: { loading: true, percent: 40 } },
-    "it",
+    "qwen",
   );
   assert.equal(wait.id, "wait");
   const ready = VC.gemmaAction(
-    { motorAlive: true, motorUp: true, gemma: { ready: true, kind: "it" } },
-    "it",
+    { motorAlive: true, motorUp: true, gemma: { ready: true, kind: "qwen" } },
+    "qwen",
   );
   assert.equal(ready.id, "ready");
-  const dl = VC.gemmaAction({ motorAlive: true, motorUp: true, gemma: {} }, "it");
+  const dl = VC.gemmaAction({ motorAlive: true, motorUp: true, gemma: {} }, "qwen");
   assert.equal(dl.id, "download");
+  assert.match(dl.label, /Qwen/i);
 });
 
 test("formatSuggestPrompt usa conversa e marca o áudio atual", () => {
@@ -195,11 +196,10 @@ test("formatSuggestPrompt usa conversa e marca o áudio atual", () => {
   assert.equal(VC.formatSuggestPrompt([]), "");
 });
 
-test("gemmaMeta distingue base, it e assistant", () => {
-  assert.equal(VC.normalizeGemma("e2b"), "e2b");
-  assert.equal(VC.normalizeGemma("it"), "it");
-  assert.equal(VC.normalizeGemma("assistant"), "assistant");
-  assert.match(VC.gemmaMeta("e2b").tip, /não/i);
-  assert.match(VC.gemmaMeta("it").tipTitle, /responde/i);
-  assert.match(VC.gemmaMeta("assistant").tip, /sozinho/i);
+test("gemmaMeta aponta para Qwen 1.5B Q4", () => {
+  assert.equal(VC.normalizeGemma("e2b"), "qwen");
+  assert.equal(VC.normalizeGemma("it"), "qwen");
+  assert.equal(VC.normalizeGemma("assistant"), "qwen");
+  assert.match(VC.gemmaMeta("qwen").name, /Qwen/i);
+  assert.match(VC.gemmaMeta().repo, /Qwen2\.5-1\.5B-Instruct-GGUF/);
 });

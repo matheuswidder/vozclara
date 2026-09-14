@@ -10,7 +10,7 @@ const STEPS = [
   {
     n: "2",
     title: "Motor Windows",
-    body: "Nemotron e Gemma usam o Setup que já está no zip. Não peça outro download — o Chrome recusa o .exe duplicado.",
+    body: "Nemotron transcreve e o Qwen 1.5B Q4 sugere respostas. Os dois usam o Setup que já está no zip. Não peça outro download — o Chrome recusa o .exe duplicado.",
   },
   {
     n: "3",

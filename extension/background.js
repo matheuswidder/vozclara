@@ -113,7 +113,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       .catch((err) =>
         sendResponse({
           ok: false,
-          error: err instanceof Error ? err.message : "Não baixei o Gemma.",
+          error: err instanceof Error ? err.message : "Não baixei o Qwen.",
         }),
       );
     return true;
@@ -1277,15 +1277,18 @@ async function withGemma(status) {
       probe = { ok: false };
     }
   }
-  const g = probe?.gemma && typeof probe.gemma === "object" ? probe.gemma : {};
-  const stale = Boolean(probe?.ok) && probe.gemma == null;
-  if (extra.gemmaWaitingMotor && probe.gemma != null) {
+  const g =
+    (probe?.suggest && typeof probe.suggest === "object" && probe.suggest) ||
+    (probe?.gemma && typeof probe.gemma === "object" && probe.gemma) ||
+    {};
+  const stale = Boolean(probe?.ok) && probe.suggest == null && probe.gemma == null;
+  if (extra.gemmaWaitingMotor && (probe.suggest != null || probe.gemma != null)) {
     await chrome.storage.local.set({
       gemmaWaitingMotor: false,
       gemmaStale: false,
       gemmaLoading: true,
     });
-    postGemmaLoad(extra.gemmaKind || "it").catch(() => {});
+    postGemmaLoad("qwen").catch(() => {});
   }
   const saw = Boolean(extra.gemmaSawLoading) || Boolean(g.loading);
   const startedAt = Number(extra.gemmaLoadStartedAt) || 0;
@@ -1293,7 +1296,7 @@ async function withGemma(status) {
   let crash = "";
   if (saw && waited && probe?.ok && !g.loading && !g.ready && !g.error && !stale) {
     crash =
-      "O motor reiniciou no meio do download. O E2B-it usa bastante RAM junto com o Nemotron. Feche outros programas e clique em Tentar de novo.";
+      "O motor reiniciou no meio do download. Feche outros programas e clique em Tentar de novo.";
   }
   const keepErr = g.ready || g.loading
     ? ""
@@ -1317,7 +1320,7 @@ async function withGemma(status) {
     gemma: {
       ready: Boolean(g.ready),
       loading: Boolean(g.loading),
-      kind: g.kind || extra.gemmaKind || "it",
+      kind: g.kind || extra.gemmaKind || "qwen",
       percent: Number(g.percent) || 0,
       detail: g.detail || "",
       error: keepErr,
@@ -1327,7 +1330,7 @@ async function withGemma(status) {
 }
 
 async function postGemmaLoad(kind) {
-  const want = String(kind || "it");
+  const want = "qwen";
   const extra = await chrome.storage.local.get(["localUrl"]);
   const root = localRoot(extra.localUrl) || "http://127.0.0.1:8173";
   let token = "";
@@ -1336,8 +1339,8 @@ async function postGemmaLoad(kind) {
   } catch {
     token = "";
   }
-  const send = () =>
-    fetch(`${root}/v1/gemma/load`, {
+  const send = (path) =>
+    fetch(`${root}${path}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -1346,7 +1349,8 @@ async function postGemmaLoad(kind) {
       },
       body: JSON.stringify({ kind: want }),
     });
-  let res = await send();
+  let res = await send("/v1/suggest/load");
+  if (res.status === 404) res = await send("/v1/gemma/load");
   let json = await res.json().catch(() => null);
   if (res.status === 401) {
     try {
@@ -1354,7 +1358,8 @@ async function postGemmaLoad(kind) {
     } catch {
       token = "";
     }
-    res = await send();
+    res = await send("/v1/suggest/load");
+    if (res.status === 404) res = await send("/v1/gemma/load");
     json = await res.json().catch(() => null);
   }
   if (res.status === 404) {
@@ -1362,14 +1367,14 @@ async function postGemmaLoad(kind) {
   }
   if (!res.ok) {
     throw new Error(
-      (typeof json?.error === "string" && json.error) || "Não comecei o download do Gemma.",
+      (typeof json?.error === "string" && json.error) || "Não comecei o download do Qwen.",
     );
   }
   return { ok: true, started: true, ready: Boolean(json?.ready), kind: want };
 }
 
 async function loadGemmaMotor(kind) {
-  const want = String(kind || "it");
+  const want = "qwen";
   await chrome.storage.local.set({ gemmaOn: true, gemmaKind: want, gemmaLoading: true });
   try {
     const extra = await chrome.storage.local.get(["localUrl", "gemmaSetupAt"]);
@@ -1385,9 +1390,9 @@ async function loadGemmaMotor(kind) {
     if (!probe?.ok) {
       throw new Error("Ligue o motor na bandeja.");
     }
-    if (probe.gemma == null) {
+    if (probe.suggest == null && probe.gemma == null) {
       const error =
-        "Este motor ainda não sabe baixar o Gemma. Feche o ícone da bandeja (Sair) e abra o Setup — se já instalou, ele só atualiza e liga.";
+        "Este motor ainda não sabe sugerir respostas. Feche o ícone da bandeja (Sair) e abra o Setup — se já instalou, ele só atualiza e liga.";
       await chrome.storage.local.set({
         gemmaSetupOk: true,
         gemmaError: error,
@@ -1400,7 +1405,7 @@ async function loadGemmaMotor(kind) {
     const posted = await postGemmaLoad(want);
     if (posted.missing) {
       const error =
-        "Este motor ainda não sabe baixar o Gemma. Feche o ícone da bandeja (Sair) e abra o Setup — se já instalou, ele só atualiza e liga.";
+        "Este motor ainda não sabe sugerir respostas. Feche o ícone da bandeja (Sair) e abra o Setup — se já instalou, ele só atualiza e liga.";
       await chrome.storage.local.set({
         gemmaWaitingMotor: true,
         gemmaStale: true,
@@ -1418,7 +1423,7 @@ async function loadGemmaMotor(kind) {
     });
     return posted;
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Não baixei o Gemma.";
+    const msg = err instanceof Error ? err.message : "Não baixei o Qwen.";
     await chrome.storage.local.set({
       gemmaLoading: false,
       gemmaError: msg,
@@ -1442,20 +1447,21 @@ async function suggestReplies(text) {
   if (!raw) return { ok: false, error: "Não há texto para sugerir." };
   const probe = await probeLocal(stored.localUrl);
   if (!probe?.ok) {
-    return { ok: false, error: "Ligue o motor na bandeja para o Gemma sugerir." };
+    return { ok: false, error: "Ligue o motor na bandeja para sugerir." };
   }
-  if (!probe.gemma?.ready) {
+  const llm = probe.suggest || probe.gemma;
+  if (!llm?.ready) {
     try {
-      await loadGemmaMotor(stored.gemmaKind || "it");
+      await loadGemmaMotor("qwen");
     } catch (err) {
       return {
         ok: false,
-        error: err instanceof Error ? err.message : "Baixe o Gemma no painel.",
+        error: err instanceof Error ? err.message : "Baixe o Qwen no painel.",
       };
     }
     return {
       ok: false,
-      error: "Baixando o Gemma no PC. Espere o Pronto no painel (~4 GB).",
+      error: "Baixando o Qwen no PC. Espere o Pronto no painel (~1,1 GB).",
     };
   }
   const root = localRoot(stored.localUrl) || "http://127.0.0.1:8173";
@@ -1474,7 +1480,7 @@ async function suggestReplies(text) {
     },
     body: JSON.stringify({
       text: raw,
-      kind: stored.gemmaKind || "it",
+      kind: "qwen",
       who: stored.gemmaWho || "",
       tone: stored.gemmaTone || "cliente",
       notes: stored.gemmaNotes || "",
@@ -1487,16 +1493,16 @@ async function suggestReplies(text) {
   if (!res.ok) {
     return {
       ok: false,
-      error: (typeof json?.error === "string" && json.error) || "O Gemma não sugeriu.",
+      error: (typeof json?.error === "string" && json.error) || "O Qwen não sugeriu.",
     };
   }
   const replies = Array.isArray(json?.replies)
     ? json.replies.map((s) => String(s || "").trim()).filter(Boolean)
     : [];
   if (!replies.length) {
-    return { ok: false, error: "O Gemma não devolveu respostas." };
+    return { ok: false, error: "O Qwen não devolveu respostas." };
   }
-  return { ok: true, replies, kind: json?.kind || stored.gemmaKind };
+  return { ok: true, replies, kind: json?.kind || "qwen" };
 }
 
 async function probeLocal(url) {
@@ -1534,7 +1540,8 @@ async function probeLocal(url) {
           phase: json?.phase || (json?.ready ? "ready" : "load"),
           percent: Number(json?.percent) || (json?.ready ? 100 : 0),
           detail: json?.detail || "",
-          gemma: json?.gemma || null,
+          suggest: json?.suggest || json?.gemma || null,
+          gemma: json?.suggest || json?.gemma || null,
         };
       }
       last = {
