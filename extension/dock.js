@@ -390,6 +390,7 @@
                 <option value="auto">Detectar</option>
               </select>
             </label>
+            <p class="status">Português (e inglês/espanhol) descarta chinês, japonês e outros alfabetos que o modelo misturar.</p>
             <div class="hr"></div>
             <div class="row-head">
               <strong>Sugestões no áudio</strong>

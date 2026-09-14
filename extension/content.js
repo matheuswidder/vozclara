@@ -11,7 +11,6 @@
     '[data-icon*="audio-pause"]',
     '[data-icon*="pr-audio"]',
     '[data-icon*="ptt"]',
-    '[data-icon*="audio"]',
     '[data-testid*="audio-play"]',
     '[data-testid*="ptt"]',
   ].join(",");
@@ -49,14 +48,17 @@
       font-family: Segoe UI, Helvetica, Arial, sans-serif;
       overflow-anchor: none;
       pointer-events: none;
+      color-scheme: var(--vc-scheme, light);
     }
-    .panel { pointer-events: auto; }
+    .panel { pointer-events: none; }
     .box {
+      pointer-events: auto;
       margin: 2px 0 4px;
       padding: 6px 10px 8px;
-      background: var(--vc-panel, #1d282f);
+      background: var(--vc-panel, #ffffff);
+      border: 1px solid var(--vc-line, #e9edef);
       border-radius: 7.5px;
-      color: var(--vc-fg, #e9edef);
+      color: var(--vc-fg, #111b21);
       box-sizing: border-box;
     }
     .label {
@@ -74,10 +76,10 @@
     button.tx:disabled { opacity: .6; cursor: default; filter: none; }
     .copy, .retry, .again, .iconbtn {
       appearance: none; border: 0; background: transparent;
-      color: var(--vc-muted, #8696a0); cursor: pointer; font-size: 11px;
+      color: var(--vc-muted, #667781); cursor: pointer; font-size: 11px;
       padding: 0;
     }
-    .copy:hover, .retry:hover, .again:hover, .iconbtn:hover { color: var(--vc-fg, #e9edef); }
+    .copy:hover, .retry:hover, .again:hover, .iconbtn:hover { color: var(--vc-fg, #111b21); }
     .iconbtn, .ok, .again {
       display: inline-flex; align-items: center; justify-content: center; gap: 6px;
     }
@@ -88,7 +90,7 @@
     .text {
       margin: 0;
       font-size: 13.5px; line-height: 1.35; white-space: pre-wrap;
-      color: var(--vc-fg, #e9edef);
+      color: var(--vc-fg, #111b21);
     }
     .err {
       margin: 0;
@@ -99,7 +101,7 @@
       margin: 0;
       display: flex; align-items: center; gap: 8px;
       font-size: 12.5px; font-weight: 600;
-      color: var(--vc-muted, #8696a0);
+      color: var(--vc-muted, #667781);
     }
     .bars { display: inline-flex; align-items: flex-end; gap: 2px; height: 14px; }
     .bars i {
@@ -126,12 +128,12 @@
     }
     .micro {
       margin: 4px 0 0; font-size: 11px; font-weight: 400;
-      color: var(--vc-muted, #8696a0);
+      color: var(--vc-muted, #667781);
     }
     .replies { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 0; }
     button.reply {
       appearance: none; border: 1px solid rgba(0,168,132,.45);
-      background: transparent; color: var(--vc-fg, #e9edef);
+      background: transparent; color: var(--vc-fg, #111b21);
       font: 500 12.5px/1.35 Segoe UI, Helvetica, Arial, sans-serif;
       border-radius: 16px; padding: 6px 10px; text-align: left; cursor: pointer;
       max-width: 100%;
@@ -139,6 +141,7 @@
     button.reply:hover { background: rgba(0,168,132,.12); }
     .box.mini {
       padding: 0; background: transparent; border: 0; border-radius: 0;
+      pointer-events: auto;
     }
     button.sug {
       appearance: none; border: 0; cursor: pointer;
@@ -150,6 +153,28 @@
     button.sug:hover { filter: brightness(1.06); }
     button.sug:disabled { opacity: .55; cursor: default; filter: none; }
     .again { margin-top: 8px; }
+    .composer { margin-top: 8px; }
+    textarea.ctx {
+      display: block; width: 100%; box-sizing: border-box;
+      min-height: 68px; resize: vertical;
+      margin: 0;
+      border: 1px solid var(--vc-line, #e9edef);
+      background: color-mix(in srgb, var(--vc-fg, #111b21) 4%, var(--vc-panel, #fff));
+      color: var(--vc-fg, #111b21);
+      border-radius: 8px; padding: 8px 10px;
+      font: 400 12.5px/1.4 Segoe UI, Helvetica, Arial, sans-serif;
+    }
+    textarea.ctx:focus { outline: 2px solid var(--vc-accent, #00a884); outline-offset: 1px; }
+    .tones { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    button.tone {
+      appearance: none; cursor: pointer;
+      border: 1px solid rgba(0,168,132,.45);
+      background: transparent; color: var(--vc-fg, #111b21);
+      font: 600 12px/1 Segoe UI, Helvetica, Arial, sans-serif;
+      border-radius: 16px; padding: 7px 10px;
+    }
+    button.tone:hover, button.tone.on { background: rgba(0,168,132,.14); }
+    button.tone:disabled { opacity: .55; cursor: default; }
   `;
 
   const CHECK_SVG =
@@ -234,14 +259,11 @@
     return null;
   }
 
-  function voiceTimes(el) {
-    const text = String(el?.innerText || "");
-    return [...text.matchAll(/\b\d{1,2}:\d{2}\b/g)].length;
-  }
-
   const cardByKey = new Map();
   const htmlByKey = new Map();
   const miniByKey = new Map();
+  /** @type {Map<string, { context: string; tone: string }>} */
+  const suggestDraft = new Map();
   /** @type {Map<string, { root: Element | null; html: string }>} Parte 1.1 */
   const rootByKey = new Map();
   /** @type {Map<string, number>} requestId → interval id do cronômetro da fase ① */
@@ -320,27 +342,97 @@
     return (key && cardByKey.get(key)) || null;
   }
 
-  function hasWaveform(root) {
-    return Boolean(
-      root.querySelector("canvas") ||
-        root.querySelector('[data-testid*="audio"]') ||
-        root.querySelector('[data-icon*="ptt"]'),
+  function quotedMedia(root) {
+    return root.querySelector(
+      '[data-testid="quoted-message"], .quoted-message, [data-testid="quoted-content"]',
     );
+  }
+
+  function outsideQuote(root, node) {
+    const quoted = quotedMedia(root);
+    return Boolean(node && (!quoted || !quoted.contains(node)));
+  }
+
+  function hasAudioControl(root) {
+    const nodes = root.querySelectorAll(
+      [
+        ICON_SEL,
+        ARIA_SEL,
+        '[aria-label*="mensagem de voz" i]',
+        '[aria-label*="voice message" i]',
+      ].join(","),
+    );
+    for (const n of nodes) {
+      if (outsideQuote(root, n)) return true;
+    }
+    return false;
+  }
+
+  function hasSlimWaveform(root) {
+    return [...root.querySelectorAll("canvas")].some((c) => {
+      if (!outsideQuote(root, c)) return false;
+      const r = c.getBoundingClientRect();
+      return r.width >= 60 && r.width <= 280 && r.height >= 12 && r.height <= 56;
+    });
+  }
+
+  function hasBigPicture(root) {
+    return [...root.querySelectorAll("img, canvas")].some((n) => {
+      if (!outsideQuote(root, n)) return false;
+      if (n.closest('[data-icon], button, [role="button"]') && n.getBoundingClientRect().width < 80) {
+        return false;
+      }
+      const r = n.getBoundingClientRect();
+      return r.width >= 80 && r.height >= 80;
+    });
+  }
+
+  function looksLikeGif(root) {
+    return Boolean(
+      root.querySelector(
+        [
+          '[data-testid*="gif" i]',
+          '[data-icon*="gif" i]',
+          '[aria-label*="gif" i]',
+          '[alt*="gif" i]',
+          'img[src*=".gif" i]',
+          'img[src*="image/gif" i]',
+        ].join(","),
+      ),
+    );
+  }
+
+  function looksLikeSticker(root) {
+    return Boolean(
+      root.querySelector(
+        '[data-testid*="sticker" i], [data-icon*="sticker" i], [aria-label*="figurinha" i], [aria-label*="sticker" i]',
+      ),
+    );
+  }
+
+  function voiceProbe(root) {
+    const audioIcon = hasAudioControl(root);
+    const gif = looksLikeGif(root) && !audioIcon;
+    return {
+      video: Boolean(
+        root.querySelector("video") ||
+          root.querySelector('[data-icon*="video"]') ||
+          root.querySelector('[data-testid*="video" i]'),
+      ),
+      gif,
+      sticker: looksLikeSticker(root) && !audioIcon,
+      bigPicture: hasBigPicture(root),
+      audioIcon,
+      slimWaveform: hasSlimWaveform(root),
+      quotedOnly: Boolean(quotedMedia(root)) && !audioIcon && !hasSlimWaveform(root),
+    };
   }
 
   function isVoiceRoot(root) {
     if (!root || isChromeUi(root)) return false;
-    if (root.querySelector("video") || root.querySelector('[data-icon*="video"]')) {
-      return false;
-    }
-    if (root.querySelector(ICON_SEL)) return true;
-    if (root.querySelector(PLAY_SEL)) return true;
-    if (root.querySelector(ARIA_SEL)) return true;
-    if (hasWaveform(root) && voiceTimes(root) >= 1) return true;
-    if (voiceTimes(root) >= 2 && root.querySelector("button, [role='button'], canvas, svg")) {
-      return true;
-    }
-    return false;
+    const decide = globalThis.VCShared?.shouldAttachVoiceCard;
+    if (typeof decide !== "function") return hasAudioControl(root);
+    return decide(voiceProbe(root));
   }
 
   function isOutgoing(root) {
@@ -467,19 +559,48 @@
     return (r * 299 + g * 587 + b * 114) / 1000;
   }
 
-  function paintTheme(card, host) {
-    const bg = getComputedStyle(card).backgroundColor || "rgb(32,44,51)";
-    const dark = rgbLum(bg) < 140;
+  function opaqueBg(el) {
+    if (!el || !(el instanceof Element)) return "";
+    const c = getComputedStyle(el).backgroundColor || "";
+    const m = String(c).match(/\d+/g);
+    if (!m || m.length < 3) return "";
+    if (m.length >= 4 && Number(m[3]) === 0) return "";
+    return c;
+  }
+
+  function appIsDark() {
+    const html = document.documentElement;
+    const body = document.body;
+    const mark = `${html.className || ""} ${body?.className || ""} ${html.dataset.theme || ""} ${body?.dataset?.theme || ""}`.toLowerCase();
+    if (/\bdark\b/.test(mark) || mark.includes("web-dark")) return true;
+    if (/\blight\b/.test(mark) || mark.includes("web-light")) return false;
+    const scheme = `${getComputedStyle(html).colorScheme || ""} ${getComputedStyle(body || html).colorScheme || ""}`.toLowerCase();
+    if (/\bdark\b/.test(scheme) && !/\blight\b/.test(scheme)) return true;
+    if (/\blight\b/.test(scheme)) return false;
+    const bg =
+      opaqueBg(body) ||
+      opaqueBg(html) ||
+      opaqueBg(document.getElementById("app")) ||
+      opaqueBg(document.getElementById("main"));
+    return rgbLum(bg || "rgb(255,255,255)") < 90;
+  }
+
+  function paintTheme(host) {
+    const dark = appIsDark();
     host.style.setProperty("--vc-accent", "#00a884");
+    host.style.setProperty("--vc-scheme", dark ? "dark" : "light");
+    host.style.colorScheme = dark ? "dark" : "light";
     if (dark) {
       host.style.setProperty("--vc-fg", "#e9edef");
       host.style.setProperty("--vc-muted", "#8696a0");
-      host.style.setProperty("--vc-panel", "#1d282f");
+      host.style.setProperty("--vc-panel", "#202c33");
+      host.style.setProperty("--vc-line", "#3b4a54");
       host.style.setProperty("--vc-err-fg", "#f5c2c2");
     } else {
       host.style.setProperty("--vc-fg", "#111b21");
       host.style.setProperty("--vc-muted", "#667781");
-      host.style.setProperty("--vc-panel", "#f0f2f5");
+      host.style.setProperty("--vc-panel", "#ffffff");
+      host.style.setProperty("--vc-line", "#e9edef");
       host.style.setProperty("--vc-err-fg", "#8b2e2e");
     }
   }
@@ -540,6 +661,7 @@
     el.style.overflowAnchor = "none";
     const shadow = el.attachShadow({ mode: "open" });
     shadow.innerHTML = `<style>${CARD_STYLE}</style><div class="panel">${idleHtml()}</div>`;
+    paintTheme(el);
     bindTx(root, el);
     return el;
   }
@@ -578,9 +700,28 @@
         e.preventDefault();
         e.stopPropagation();
         sug.blur();
-        void suggestFromAudio(root);
+        void openSuggestComposer(root);
       });
     }
+    const ctx = el.shadowRoot?.querySelector("[data-ctx]");
+    if (ctx && !ctx.dataset.bound) {
+      ctx.dataset.bound = "1";
+      ctx.addEventListener("input", () => {
+        const prev = suggestDraft.get(keyFor(root)) || {};
+        suggestDraft.set(keyFor(root), { ...prev, context: ctx.value });
+      });
+      ctx.addEventListener("keydown", (e) => e.stopPropagation());
+    }
+    el.shadowRoot?.querySelectorAll("[data-tone]").forEach((btn) => {
+      if (btn.dataset.bound) return;
+      btn.dataset.bound = "1";
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        btn.blur();
+        void runSuggest(root, btn.dataset.tone || "cliente");
+      });
+    });
     el.shadowRoot?.querySelectorAll("button.reply").forEach((btn) => {
       if (btn.dataset.bound) return;
       btn.dataset.bound = "1";
@@ -652,9 +793,23 @@
       cardEl.style.marginRight = "auto";
     }
     cardEl.style.pointerEvents = "none";
+    cardEl.style.flex = "0 0 auto";
+    cardEl.style.alignSelf = outgoing ? "flex-end" : "flex-start";
     cardEl.style.zIndex = "";
     cardEl.style.overflowAnchor = "none";
-    paintTheme(bubble, cardEl);
+    paintTheme(cardEl);
+  }
+
+  function mountCard(root, audio, cardEl) {
+    const bubble = audio && audio !== root && root.contains(audio) ? audio : null;
+    const column = bubble?.parentElement;
+    if (column && column !== root && !bubble.contains(cardEl)) {
+      if (cardEl.parentElement !== column || cardEl.previousElementSibling !== bubble) {
+        bubble.insertAdjacentElement("afterend", cardEl);
+      }
+      return;
+    }
+    if (cardEl.parentElement !== root) root.appendChild(cardEl);
   }
 
   function ensureUi(root) {
@@ -669,11 +824,11 @@
     }
     const audio = findAudioCard(root);
     const key = keyFor(root);
-    const inner = [...root.children].find((n) => n.classList?.contains("vozclara-card"));
+    const nested = [...root.querySelectorAll(".vozclara-card")];
     const sib = root.nextElementSibling;
     let cardEl = cardByKey.get(key);
     const found =
-      (inner && inner !== cardEl ? inner : null) ||
+      nested.find((n) => n !== cardEl) ||
       (sib?.classList.contains("vozclara-card") && sib !== cardEl ? sib : null);
     if (found) {
       if (cardEl && cardEl !== found) cardEl.remove();
@@ -698,9 +853,11 @@
       }
       cardByKey.set(key, cardEl);
     }
-    if (cardEl.parentElement !== root) {
-      root.appendChild(cardEl);
-    }
+    const inPlace =
+      root.contains(cardEl) &&
+      ((audio?.parentElement && cardEl.parentElement === audio.parentElement) ||
+        cardEl.parentElement === root);
+    if (!inPlace) mountCard(root, audio || root, cardEl);
     placeCard(audio || root, cardEl, root);
   }
 
@@ -981,6 +1138,13 @@
     window.postMessage({ source: "vozclara", type: "restore" }, "*");
   }
 
+  function releasePlayback() {
+    window.clearTimeout(silentTimer);
+    document.documentElement.removeAttribute("data-vozclara-silent");
+    window.postMessage({ source: "vozclara", type: "silent", on: false }, "*");
+    restoreMedia();
+  }
+
   function blobFromCapture(since) {
     const hit = [...recentMedia]
       .reverse()
@@ -1123,10 +1287,15 @@
       return blob;
     } finally {
       restoreMedia();
-      setSilent(false);
+      releasePlayback();
       clickPause(root);
       const el = findAudioEl(root);
       if (el) {
+        try {
+          el.pause();
+        } catch {
+          /* ignore */
+        }
         try {
           el.currentTime = 0;
         } catch {
@@ -1289,6 +1458,9 @@
       const note = result.cleaned
         ? `<p class="micro">O tiny repetiu demais — texto limpo. Troque o modelo e clique em Re-transcrever.</p>`
         : "";
+      const langNote = result.langCleaned
+        ? `<p class="micro">Tirei trechos em outro alfabeto (filtro do idioma).</p>`
+        : "";
       const gemmaOn = Boolean((await chrome.storage.local.get(["gemmaOn"])).gemmaOn);
       gemmaEnabled = gemmaOn;
       const suggest =
@@ -1303,6 +1475,7 @@
            </div>
            <p class="text">${safe}</p>
            ${note}
+           ${langNote}
            ${suggest}
          </div>`,
       );
@@ -1325,6 +1498,7 @@
       timersByRequest.delete(requestId);
       jobs.delete(requestId);
       if (btn) btn.disabled = false;
+      releasePlayback();
     }
   }
 
@@ -1539,15 +1713,65 @@
     );
   }
 
-  async function askGemma(text) {
+  async function askGemma(text, opts = {}) {
     const result = await chrome.runtime.sendMessage({
       type: "VOZCLARA_SUGGEST",
       text,
+      context: opts.context || "",
+      tone: opts.tone || "cliente",
+      outgoing: Boolean(opts.outgoing),
     });
     if (!result?.ok || !Array.isArray(result.replies) || !result.replies.length) {
       throw new Error(result?.error || "Não sugeri agora. Ligue o motor.");
     }
     return result.replies.slice(0, 3);
+  }
+
+  function composerHtml(root, opts = {}) {
+    const draft = suggestDraft.get(keyFor(root)) || {};
+    const ctx = escapeHtml(draft.context || "");
+    const picked = opts.tone || draft.tone || "";
+    const busy = Boolean(opts.busy);
+    const tones = [
+      ["curto", "Curto"],
+      ["formal", "Formal"],
+      ["cliente", "No tom da pessoa"],
+      ["comercial", "Comercial"],
+    ];
+    const buttons = tones
+      .map(([id, label]) => {
+        const on = picked === id ? " on" : "";
+        const dis = busy ? " disabled" : "";
+        return `<button type="button" class="tone${on}" data-tone="${id}"${dis}>${label}</button>`;
+      })
+      .join("");
+    const hint = busy
+      ? `<p class="micro">${escapeHtml(opts.wait || "Gerando…")}</p>`
+      : `<p class="micro">Escolha o tom para gerar 3 respostas</p>`;
+    return `<div class="composer">
+      <textarea class="ctx" data-ctx maxlength="480" rows="3" placeholder="Contexto: quem falou, se é pergunta, o que você precisa responder…">${ctx}</textarea>
+      ${hint}
+      <div class="tones">${buttons}</div>
+    </div>`;
+  }
+
+  function readComposer(root) {
+    const panel = panelOf(root);
+    const ctx = panel?.querySelector("[data-ctx]");
+    const prev = suggestDraft.get(keyFor(root)) || {};
+    const context = ctx ? String(ctx.value || "") : prev.context || "";
+    suggestDraft.set(keyFor(root), { ...prev, context });
+    return { context, tone: prev.tone || "cliente" };
+  }
+
+  function replyExtra(root, replies, wait) {
+    const chips = replies?.length
+      ? `<div class="replies">${replies
+          .map((line) => `<button class="reply" type="button">${escapeHtml(line)}</button>`)
+          .join("")}</div>
+         <button class="again" type="button" data-suggest="1" aria-label="Ajustar sugestão">${REFRESH_SVG} Ajustar</button>`
+      : "";
+    return `${composerHtml(root, wait || {})}${chips}`;
   }
 
   function keepTranscript(root) {
@@ -1581,22 +1805,17 @@
     const loading = Boolean(stored?.gemmaLoading);
     const pct = Number(stored?.gemmaPercent) || 0;
     const detail = String(stored?.gemmaDetail || "").trim();
-    let label = "Sugerindo…";
+    let label = "Gerando…";
     if (loading) {
-      label = pct
-        ? `Baixando Qwen ${pct}%`
-        : detail || "Baixando Qwen…";
+      label = pct ? `Baixando Qwen ${pct}%` : detail || "Baixando Qwen…";
     } else if (detail && !stored?.gemmaReady) {
       label = detail;
     }
-    renderTranscript(
-      root,
-      kept,
-      `<button class="sug" type="button" disabled>${escapeHtml(label)}</button>`,
-    );
+    renderTranscript(root, kept, composerHtml(root, { busy: true, wait: label }));
+    bindResultTools(root, cardOf(root));
   }
 
-  async function suggestFromAudio(root) {
+  async function openSuggestComposer(root) {
     if (suggestBusy) return;
     const kept = keepTranscript(root);
     const current = kept.text.trim();
@@ -1608,9 +1827,49 @@
       );
       return;
     }
+    const key = keyFor(root);
+    if (!suggestDraft.has(key)) {
+      const stored = await chrome.storage.local.get([
+        "gemmaCardContext",
+        "gemmaNotes",
+        "gemmaTone",
+      ]);
+      suggestDraft.set(key, {
+        context: stored.gemmaCardContext || stored.gemmaNotes || "",
+        tone: stored.gemmaTone || "cliente",
+      });
+    }
+    hideSmartBar();
+    renderTranscript(root, kept, composerHtml(root));
+    bindResultTools(root, cardOf(root));
+    const box = panelOf(root)?.querySelector("[data-ctx]");
+    if (box instanceof HTMLTextAreaElement) {
+      box.focus();
+      box.setSelectionRange(box.value.length, box.value.length);
+    }
+  }
+
+  async function runSuggest(root, tone) {
+    if (suggestBusy) return;
+    const kept = keepTranscript(root);
+    const current = kept.text.trim();
+    if (!current) {
+      renderTranscript(
+        root,
+        kept,
+        `<p class="micro">Transcreva este áudio antes de sugerir.</p>`,
+      );
+      return;
+    }
+    const draft = readComposer(root);
+    const picked = tone || draft.tone || "cliente";
+    suggestDraft.set(keyFor(root), { context: draft.context, tone: picked });
+    chrome.storage.local
+      .set({ gemmaTone: picked, gemmaCardContext: draft.context })
+      .catch(() => {});
     suggestBusy = true;
     hideSmartBar();
-    paintSuggestWait(root, kept, { gemmaLoading: true, gemmaPercent: 0, gemmaDetail: "Sugerindo…" });
+    paintSuggestWait(root, kept, { gemmaLoading: true, gemmaPercent: 0, gemmaDetail: "Gerando…" });
     const onProgress = (changes, area) => {
       if (area !== "local" || !suggestBusy) return;
       if (
@@ -1639,19 +1898,21 @@
         });
     }, 800);
     try {
-      const replies = await askGemma(current);
-      const chips = `<div class="replies">${replies
-        .map((line) => `<button class="reply" type="button">${escapeHtml(line)}</button>`)
-        .join("")}</div>
-         <button class="again" type="button" data-suggest="1" aria-label="Outras sugestões">${REFRESH_SVG} Outras sugestões</button>`;
-      renderTranscript(root, kept, chips);
+      const replies = await askGemma(current, {
+        context: draft.context,
+        tone: picked,
+        outgoing: isOutgoing(root),
+      });
+      renderTranscript(root, kept, replyExtra(root, replies, { tone: picked }));
+      bindResultTools(root, cardOf(root));
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Não sugeri.";
       renderTranscript(
         root,
         kept,
-        `<p class="micro">${escapeHtml(msg)}</p><button class="again" type="button" data-suggest="1" aria-label="Sugerir de novo">${REFRESH_SVG} Sugerir de novo</button>`,
+        `${composerHtml(root, { tone: picked })}<p class="micro">${escapeHtml(msg)}</p>`,
       );
+      bindResultTools(root, cardOf(root));
       hideSmartBar();
     } finally {
       window.clearInterval(tick);

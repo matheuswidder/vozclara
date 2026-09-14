@@ -355,6 +355,44 @@
     return words.join(" ").replace(/\s+,/g, ",").replace(/,\s*,+/g, ",").trim();
   }
 
+  function latinLetterShare(text) {
+    const letters = [...String(text || "")].filter((ch) => /\p{Letter}/u.test(ch));
+    if (!letters.length) return 1;
+    const latin = letters.filter((ch) => /\p{Script=Latin}/u.test(ch)).length;
+    return latin / letters.length;
+  }
+
+  function keepLatinTranscript(text) {
+    let out = String(text || "").replace(
+      /[^\p{Script=Latin}\p{Number}\p{Punctuation}\p{Separator}\p{Symbol}\s]/gu,
+      " ",
+    );
+    out = out.replace(/[ \t]+/g, " ");
+    out = out.replace(/\s+([,.!?;:])/g, "$1");
+    out = out.replace(/(?:^|\s)['"`´]+(?=\s|$)/g, " ");
+    return out.replace(/\s+/g, " ").trim();
+  }
+
+  function filterTranscriptByLang(text, lang) {
+    const raw = String(text || "").replace(/\s+/g, " ").trim();
+    if (!raw) return "";
+    const code = String(lang || "pt").toLowerCase();
+    const latinLang = code === "pt" || code === "en" || code === "es" || code === "pt-br";
+    if (code === "auto") {
+      if (latinLetterShare(raw) >= 0.55) return keepLatinTranscript(raw);
+      return raw;
+    }
+    if (latinLang) return keepLatinTranscript(raw);
+    return raw;
+  }
+
+  function isLangCleaned(original, cleaned) {
+    const raw = String(original || "");
+    const out = String(cleaned || "");
+    if (!raw || raw === out) return false;
+    return /[^\p{Script=Latin}\p{Number}\p{Punctuation}\p{Separator}\p{Symbol}\s]/u.test(raw);
+  }
+
   function isRepeatLoop(original, cleaned) {
     const raw = String(original || "");
     const out = String(cleaned || "");
@@ -396,6 +434,14 @@
     return String(last.text || "").replace(/\s+/g, " ").trim();
   }
 
+  function shouldAttachVoiceCard(info) {
+    const i = info && typeof info === "object" ? info : {};
+    if (i.video || i.gif || i.sticker) return false;
+    if (i.quotedOnly) return false;
+    if (i.bigPicture && !i.audioIcon) return false;
+    return Boolean(i.audioIcon || (i.slimWaveform && !i.bigPicture));
+  }
+
   globalThis.VCShared = {
     normalizeKind,
     parseHfRepo,
@@ -414,8 +460,12 @@
     motorView,
     collapseRepeats,
     isRepeatLoop,
+    filterTranscriptByLang,
+    keepLatinTranscript,
+    isLangCleaned,
     setQualityFallback,
     takeQualityFallback,
     formatSuggestPrompt,
+    shouldAttachVoiceCard,
   };
 })();

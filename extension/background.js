@@ -130,7 +130,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
   if (msg?.type === "VOZCLARA_SUGGEST") {
-    suggestReplies(msg.text)
+    suggestReplies(msg.text, {
+      context: msg.context,
+      tone: msg.tone,
+      outgoing: msg.outgoing,
+    })
       .then(sendResponse)
       .catch((err) =>
         sendResponse({
@@ -1600,7 +1604,7 @@ async function loadGemmaMotor(kind) {
   }
 }
 
-async function suggestReplies(text) {
+async function suggestReplies(text, opts = {}) {
   const stored = await chrome.storage.local.get([
     "gemmaOn",
     "gemmaKind",
@@ -1656,8 +1660,10 @@ async function suggestReplies(text) {
     text: raw,
     kind: "qwen",
     who: stored.gemmaWho || "",
-    tone: stored.gemmaTone || "cliente",
+    tone: opts.tone || stored.gemmaTone || "cliente",
     notes: stored.gemmaNotes || "",
+    context: String(opts.context || "").trim(),
+    outgoing: Boolean(opts.outgoing),
   });
   const sendSuggest = () =>
     fetch(`${root}/v1/suggest`, {
@@ -2055,9 +2061,15 @@ async function transcribe(msg, tabId) {
   const cached = await chrome.storage.local.get(cacheKey);
   const cachedText = txText(cached[cacheKey]);
   if (cachedText && !msg.fresh) {
-    const cleanedCache = collapseRepeats(cachedText);
-    if (!isRepeatLoop(cachedText, cleanedCache)) {
-      return { ok: true, text: cleanedCache, provider, cached: true };
+    const cleanedCache = tidyTranscript(cachedText, language);
+    if (cleanedCache && !isRepeatLoop(cachedText, collapseRepeats(cachedText))) {
+      return {
+        ok: true,
+        text: cleanedCache,
+        provider,
+        cached: true,
+        langCleaned: isLangCleaned(cachedText, cleanedCache),
+      };
     }
   }
 
@@ -2134,8 +2146,9 @@ async function transcribe(msg, tabId) {
   }
 
   const rawText = text;
-  text = collapseRepeats(text);
-  const cleaned = isRepeatLoop(rawText, text);
+  text = tidyTranscript(text, language);
+  const cleaned = isRepeatLoop(rawText, collapseRepeats(rawText));
+  const langCleaned = isLangCleaned(rawText, text);
   if (!cleaned) {
     try {
       await chrome.storage.local.set({ [cacheKey]: { t: Date.now(), text } });
@@ -2154,7 +2167,7 @@ async function transcribe(msg, tabId) {
       /* ignore */
     }
   }
-  return { ok: true, text, provider, model, device, cleaned };
+  return { ok: true, text, provider, model, device, cleaned, langCleaned };
 }
 
 const TX_PREFIX = "tx:";
@@ -2193,6 +2206,48 @@ function collapseRepeats(text) {
     words.splice(0, words.length, ...out);
   }
   return words.join(" ").replace(/\s+,/g, ",").replace(/,\s*,+/g, ",").trim();
+}
+
+function latinLetterShare(text) {
+  const letters = [...String(text || "")].filter((ch) => /\p{Letter}/u.test(ch));
+  if (!letters.length) return 1;
+  const latin = letters.filter((ch) => /\p{Script=Latin}/u.test(ch)).length;
+  return latin / letters.length;
+}
+
+function keepLatinTranscript(text) {
+  let out = String(text || "").replace(
+    /[^\p{Script=Latin}\p{Number}\p{Punctuation}\p{Separator}\p{Symbol}\s]/gu,
+    " ",
+  );
+  out = out.replace(/[ \t]+/g, " ");
+  out = out.replace(/\s+([,.!?;:])/g, "$1");
+  out = out.replace(/(?:^|\s)['"`´]+(?=\s|$)/g, " ");
+  return out.replace(/\s+/g, " ").trim();
+}
+
+function filterTranscriptByLang(text, lang) {
+  const raw = String(text || "").replace(/\s+/g, " ").trim();
+  if (!raw) return "";
+  const code = String(lang || "pt").toLowerCase();
+  const latinLang = code === "pt" || code === "en" || code === "es" || code === "pt-br";
+  if (code === "auto") {
+    if (latinLetterShare(raw) >= 0.55) return keepLatinTranscript(raw);
+    return raw;
+  }
+  if (latinLang) return keepLatinTranscript(raw);
+  return raw;
+}
+
+function isLangCleaned(original, cleaned) {
+  const raw = String(original || "");
+  const out = String(cleaned || "");
+  if (!raw || raw === out) return false;
+  return /[^\p{Script=Latin}\p{Number}\p{Punctuation}\p{Separator}\p{Symbol}\s]/u.test(raw);
+}
+
+function tidyTranscript(text, language) {
+  return filterTranscriptByLang(collapseRepeats(text), language);
 }
 
 function isRepeatLoop(original, cleaned) {

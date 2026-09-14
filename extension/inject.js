@@ -43,7 +43,8 @@
       media.removeAttribute("muted");
       const vol = s && s.volume > 0 ? s.volume : 1;
       media.volume = vol;
-      if (media.playbackRate > 2) media.playbackRate = s?.rate > 0 && s.rate <= 2 ? s.rate : 1;
+      const rate = s?.rate > 0 && s.rate <= 2 ? s.rate : 1;
+      if (media.playbackRate > 2 || media.playbackRate === 0) media.playbackRate = rate;
     } catch {
       /* ignore */
     }
@@ -57,7 +58,7 @@
       else touched.delete(m);
     }
     document.querySelectorAll("audio, video").forEach((m) => {
-      if (m.muted && m.volume === 0) hear(m);
+      if (m.muted || m.defaultMuted || m.volume === 0 || m.playbackRate > 2) hear(m);
     });
   }
 

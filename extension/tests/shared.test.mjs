@@ -192,6 +192,18 @@ test("gemmaAction pede motor e marca pronto", () => {
   assert.match(VC.formatGemmaSize(1120000000), /GB/);
 });
 
+test("filterTranscriptByLang tira alfabeto estranho no português", () => {
+  const mixed = "ऐसा पैसा क É a residência porque é de a namorada de Lipp também vai fazer.";
+  const out = VC.filterTranscriptByLang(mixed, "pt");
+  assert.match(out, /residência/);
+  assert.equal(/[\u0900-\u097F]/.test(out), false);
+  const cjk = "你好 これは teste em português";
+  const clean = VC.filterTranscriptByLang(cjk, "pt");
+  assert.equal(clean, "teste em português");
+  assert.equal(VC.filterTranscriptByLang("oi tudo bem", "pt"), "oi tudo bem");
+  assert.equal(VC.isLangCleaned(mixed, out), true);
+});
+
 test("formatSuggestPrompt usa só o áudio transcrito", () => {
   const prompt = VC.formatSuggestPrompt([
     { outgoing: false, voice: false, text: "Vai no mercado?" },
@@ -201,6 +213,20 @@ test("formatSuggestPrompt usa só o áudio transcrito", () => {
   assert.equal(prompt, "Leite e pão");
   assert.equal(VC.formatSuggestPrompt("  Recado só  "), "Recado só");
   assert.equal(VC.formatSuggestPrompt([]), "");
+});
+
+test("shouldAttachVoiceCard ignora GIF, figurinha e foto", () => {
+  assert.equal(VC.shouldAttachVoiceCard({ gif: true, audioIcon: false }), false);
+  assert.equal(VC.shouldAttachVoiceCard({ sticker: true }), false);
+  assert.equal(VC.shouldAttachVoiceCard({ bigPicture: true }), false);
+  assert.equal(
+    VC.shouldAttachVoiceCard({ bigPicture: true, slimWaveform: true }),
+    false,
+  );
+  assert.equal(VC.shouldAttachVoiceCard({ video: true, audioIcon: true }), false);
+  assert.equal(VC.shouldAttachVoiceCard({ quotedOnly: true, audioIcon: true }), false);
+  assert.equal(VC.shouldAttachVoiceCard({ audioIcon: true }), true);
+  assert.equal(VC.shouldAttachVoiceCard({ slimWaveform: true }), true);
 });
 
 test("gemmaMeta aponta para Qwen 1.5B Q4", () => {
