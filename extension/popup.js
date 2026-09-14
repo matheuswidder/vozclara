@@ -27,7 +27,7 @@ function watchMotor(state) {
     (Boolean(state?.downloading) || (Boolean(state?.motorAlive) && !state?.motorUp));
   const gBusy = Boolean(state?.gemma?.loading || state?.gemmaWaiting || state?.gemmaPending);
   if ((busy || gBusy) && !motorPoll) {
-    motorPoll = setInterval(() => void queryLocal(), 1500);
+    motorPoll = setInterval(() => void queryLocal(), 700);
   } else if (!busy && !gBusy && motorPoll) {
     clearInterval(motorPoll);
     motorPoll = null;
@@ -179,6 +179,7 @@ function selectedGemma() {
 
 function renderGemma(state) {
   const btn = $("gemma-download");
+  const del = $("gemma-delete");
   const status = $("gemma-status");
   const meter = $("gemma-meter");
   const bar = $("gemma-bar");
@@ -201,6 +202,10 @@ function renderGemma(state) {
     btn.disabled = action.disabled;
     btn.dataset.action = action.id;
     btn.textContent = action.label;
+  }
+  if (del) {
+    del.hidden = !action.canDelete;
+    del.disabled = action.id === "wait";
   }
   if (meter && bar) {
     meter.hidden = action.id !== "wait";
@@ -239,7 +244,39 @@ async function startGemma() {
   void queryLocal();
 }
 
-async function queryLocal() {
+async function deleteGemma() {
+  const ok = window.confirm(
+    "Apagar o Qwen deste PC? Libera cerca de 1,1 GB. Dá para baixar de novo depois.",
+  );
+  if (!ok) return;
+  const del = $("gemma-delete");
+  if (del) {
+    del.disabled = true;
+    del.textContent = "…";
+  }
+  try {
+    const result = await chrome.runtime.sendMessage({ type: "VOZCLARA_GEMMA_DELETE" });
+    if (!result?.ok) {
+      throw new Error(result?.error || "Não apaguei o Qwen.");
+    }
+  } catch (err) {
+    const status = $("gemma-status");
+    if (status) {
+      status.textContent = friendly(err);
+      status.dataset.kind = "warn";
+    }
+  }
+  if (del) del.textContent = "Excluir";
+  void queryLocal();
+}
+
+function maybeKickGemma(state) {
+  if (!$("gemma-on")?.checked) return;
+  const action = globalThis.VCShared.gemmaAction(state, selectedGemma());
+  if (action.id === "download" || action.id === "retry") void startGemma();
+}
+
+async function queryLocal(opts) {
   try {
     const state = await chrome.runtime.sendMessage({
       type: "VOZCLARA_MODEL_VERIFY",
@@ -247,6 +284,7 @@ async function queryLocal() {
     if (state && typeof state === "object") {
       renderLocal(state);
       void showQualityFallback();
+      if (opts?.autoGemma) maybeKickGemma(state);
       return;
     }
   } catch {
@@ -313,7 +351,7 @@ async function load() {
     loadGemma(stored);
     syncFields();
     paint();
-    if (isLocal()) void queryLocal();
+    if (isLocal()) void queryLocal({ autoGemma: true });
   } catch (err) {
     paint({ text: friendly(err), kind: "warn" });
   }
@@ -543,8 +581,10 @@ document.addEventListener("DOMContentLoaded", () => {
   $("gemma-on")?.addEventListener("change", () => {
     syncGemma();
     void save();
+    if ($("gemma-on")?.checked) void startGemma();
   });
   $("gemma-download")?.addEventListener("click", () => void startGemma());
+  $("gemma-delete")?.addEventListener("click", () => void deleteGemma());
   $("gemma-who")?.addEventListener("change", () => void save());
   $("gemma-tone")?.addEventListener("change", () => void save());
   $("gemma-notes")?.addEventListener("change", () => void save());
@@ -567,7 +607,12 @@ chrome.storage.onChanged.addListener((changes, area) => {
     changes.localProgress ||
     changes.localModelReady ||
     changes.localModelId ||
-    changes.cachedKinds
+    changes.cachedKinds ||
+    changes.gemmaLoading ||
+    changes.gemmaPercent ||
+    changes.gemmaDetail ||
+    changes.gemmaReady ||
+    changes.gemmaCached
   ) {
     void queryLocal();
   }

@@ -102,7 +102,7 @@
           <i></i>
         </label>
       </div>
-      <p class="status">Só no card do áudio, depois de Transcrever. Lê a conversa e os áudios anteriores. Usa Qwen 1.5B Q4 no PC (~1,1 GB).</p>
+      <p class="status">Ao ligar, baixa sozinho o Qwen 1.5B Q4 (~1,1 GB) no PC. A barra mostra o progresso. Excluir apaga o arquivo e libera o espaço.</p>
       <div id="gemma-panel" hidden>
       <div class="split">
         <div class="pill">
@@ -118,6 +118,7 @@
       <div class="meter" id="gemma-meter" hidden><span id="gemma-bar"></span></div>
       <div class="actions">
         <button id="gemma-download" type="button">Baixar</button>
+        <button id="gemma-delete" type="button" class="ghost" hidden>Excluir</button>
       </div>
       <div id="gemma-extra" hidden>
         <label>Quem você é

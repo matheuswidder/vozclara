@@ -47,11 +47,22 @@
     return `${parts[0]}/${parts[1]}`;
   }
 
+  function formatGemmaSize(bytes) {
+    const n = Number(bytes) || 0;
+    if (n < 1024 * 1024) return "~1,1 GB";
+    const gb = n / 1024 ** 3;
+    if (gb >= 0.1) return `${gb.toFixed(1).replace(".", ",")} GB`;
+    return `${Math.round(n / (1024 * 1024))} MB`;
+  }
+
   function gemmaAction(state, selected) {
     const want = normalizeGemma(selected);
     const meta = gemmaMeta(want);
     const g = state?.gemma && typeof state.gemma === "object" ? state.gemma : {};
     const motorUp = Boolean(state?.motorUp || state?.motorAlive);
+    const cached = Boolean(g.cached) || (Number(g.bytes) || 0) > 8 * 1024 * 1024;
+    const size = formatGemmaSize(g.bytes);
+    const canDelete = Boolean((g.ready || cached) && !g.loading);
     if (g.error && !g.loading && !g.ready) {
       return {
         id: "retry",
@@ -59,6 +70,7 @@
         disabled: false,
         status: explainGemmaError(g.error),
         kind: "warn",
+        canDelete,
       };
     }
     if (g.stale || state?.gemmaStale || state?.gemmaWaiting) {
@@ -68,6 +80,7 @@
         disabled: false,
         status: "Motor antigo — o Setup já está em engine/",
         kind: "warn",
+        canDelete: false,
       };
     }
     if (!motorUp) {
@@ -77,6 +90,7 @@
         disabled: false,
         status: "Bandeja desligada",
         kind: "warn",
+        canDelete: false,
       };
     }
     if (g.loading) {
@@ -85,9 +99,10 @@
         id: "wait",
         label: pct ? `${pct}%` : "Baixando…",
         disabled: true,
-        status: g.detail || "Baixando…",
+        status: g.detail || "Baixando o Qwen (~1,1 GB)…",
         kind: "warn",
         percent: pct,
+        canDelete: false,
       };
     }
     if (g.ready) {
@@ -95,16 +110,28 @@
         id: "ready",
         label: "Pronto",
         disabled: true,
-        status: `Pronto · ${meta.name}`,
+        status: `Pronto · ${meta.name} · ${size} no disco`,
         kind: "ok",
+        canDelete: true,
+      };
+    }
+    if (cached) {
+      return {
+        id: "download",
+        label: "Carregar",
+        disabled: false,
+        status: `${size} no disco — clique para usar na memória`,
+        kind: "warn",
+        canDelete: true,
       };
     }
     return {
       id: "download",
       label: `Baixar ${meta.name}`,
       disabled: false,
-      status: "Não baixou",
+      status: "Ainda não baixou. Ao ligar as sugestões, o download começa sozinho (~1,1 GB).",
       kind: "warn",
+      canDelete: false,
     };
   }
 
@@ -134,6 +161,8 @@
       };
     } else if (g.ready) {
       model = { kind: "ok", text: "Pronto", percent: 100, indeterminate: false };
+    } else if (g.cached) {
+      model = { kind: "ok", text: "No disco", percent: 100, indeterminate: false };
     } else if (waiting || stale) {
       model = {
         kind: "warn",
@@ -358,24 +387,13 @@
   }
 
   function formatSuggestPrompt(thread) {
-    const rows = Array.isArray(thread) ? thread : [];
-    const lines = [];
-    for (let i = 0; i < rows.length; i++) {
-      const item = rows[i] || {};
-      const body = String(item.text || "").replace(/\s+/g, " ").trim();
-      const last = i === rows.length - 1;
-      if (!body && !item.voice && !last) continue;
-      const who = item.outgoing ? "você" : "eles";
-      const kind = item.voice ? "áudio" : "texto";
-      const tag = last && item.voice ? `${who} (${kind}, esta mensagem)` : `${who} (${kind})`;
-      lines.push(`${tag}: ${body || "(sem texto)"}`);
+    if (typeof thread === "string") {
+      return String(thread).replace(/\s+/g, " ").trim();
     }
-    if (!lines.length) return "";
-    return (
-      "Responda ao último áudio. Use o resto da conversa só como contexto.\n\n" +
-      lines.join("\n") +
-      "\n\nTrês respostas prontas para colar:"
-    );
+    const rows = Array.isArray(thread) ? thread : [];
+    if (!rows.length) return "";
+    const last = rows[rows.length - 1] || {};
+    return String(last.text || "").replace(/\s+/g, " ").trim();
   }
 
   globalThis.VCShared = {
@@ -385,6 +403,7 @@
     gemmaMeta,
     gemmaView,
     gemmaAction,
+    formatGemmaSize,
     explainGemmaError,
     normalizeGemma,
     stateLabel,

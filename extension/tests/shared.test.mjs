@@ -172,27 +172,34 @@ test("gemmaAction pede motor e marca pronto", () => {
   );
   assert.equal(wait.id, "wait");
   const ready = VC.gemmaAction(
-    { motorAlive: true, motorUp: true, gemma: { ready: true, kind: "qwen" } },
+    { motorAlive: true, motorUp: true, gemma: { ready: true, kind: "qwen", bytes: 1120000000 } },
     "qwen",
   );
   assert.equal(ready.id, "ready");
+  assert.equal(ready.canDelete, true);
+  assert.match(ready.status, /disco/i);
+  const cached = VC.gemmaAction(
+    { motorAlive: true, motorUp: true, gemma: { cached: true, bytes: 900000000 } },
+    "qwen",
+  );
+  assert.equal(cached.id, "download");
+  assert.equal(cached.label, "Carregar");
+  assert.equal(cached.canDelete, true);
   const dl = VC.gemmaAction({ motorAlive: true, motorUp: true, gemma: {} }, "qwen");
   assert.equal(dl.id, "download");
+  assert.equal(dl.canDelete, false);
   assert.match(dl.label, /Qwen/i);
+  assert.match(VC.formatGemmaSize(1120000000), /GB/);
 });
 
-test("formatSuggestPrompt usa conversa e marca o áudio atual", () => {
+test("formatSuggestPrompt usa só o áudio transcrito", () => {
   const prompt = VC.formatSuggestPrompt([
     { outgoing: false, voice: false, text: "Vai no mercado?" },
-    { outgoing: true, voice: false, text: "   " },
     { outgoing: true, voice: false, text: "Tô saindo" },
     { outgoing: false, voice: true, text: "Leite e pão" },
   ]);
-  assert.match(prompt, /eles \(texto\): Vai no mercado\?/);
-  assert.match(prompt, /você \(texto\): Tô saindo/);
-  assert.match(prompt, /eles \(áudio, esta mensagem\): Leite e pão/);
-  assert.match(prompt, /último áudio/);
-  assert.doesNotMatch(prompt, /\(texto\): \(sem texto\)/);
+  assert.equal(prompt, "Leite e pão");
+  assert.equal(VC.formatSuggestPrompt("  Recado só  "), "Recado só");
   assert.equal(VC.formatSuggestPrompt([]), "");
 });
 
