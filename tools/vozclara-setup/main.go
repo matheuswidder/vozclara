@@ -25,6 +25,15 @@ var serverPy []byte
 var neededLibs = []string{
 	"transformers", "torch", "torchaudio", "accelerate", "soundfile",
 	"librosa", "scipy", "numpy", "soxr", "einops",
+	"llama-cpp-python",
+}
+
+// pip name → importlib name (llama-cpp-python instala o módulo llama_cpp)
+func libImportName(pipName string) string {
+	if pipName == "llama-cpp-python" {
+		return "llama_cpp"
+	}
+	return pipName
 }
 
 func destDir() string {
@@ -190,6 +199,7 @@ func handleInstall(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		args := append([]string{"-m", "pip", "install", "--user"}, neededLibs...)
+		args = append(args, "--extra-index-url", "https://abetlen.github.io/llama-cpp-python/whl/cpu")
 		if err := runLogged(send, dest, py, args...); err != nil {
 			send("error", "Não instalei as bibliotecas: "+err.Error())
 			return
@@ -233,7 +243,7 @@ func libsPresent(py string) bool {
 	}
 	quoted := make([]string, len(neededLibs))
 	for i, m := range neededLibs {
-		quoted[i] = "'" + m + "'"
+		quoted[i] = "'" + libImportName(m) + "'"
 	}
 	code := "import importlib.util, sys\nneed=[" + strings.Join(quoted, ",") + "]\n" +
 		"sys.exit(0 if all(importlib.util.find_spec(m) for m in need) else 1)"

@@ -239,6 +239,7 @@ func startPythonHidden() error {
 	logf, _ := os.OpenFile(filepath.Join(dest, "engine.log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	cmd := exec.Command(py, "server.py", "--model", "nemotron")
 	cmd.Dir = dest
+	cmd.Env = append(os.Environ(), "VOZCLARA_PACKAGED=1")
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 	if logf != nil {
 		cmd.Stdout = logf

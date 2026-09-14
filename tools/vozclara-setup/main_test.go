@@ -41,4 +41,17 @@ func TestNeededLibs(t *testing.T) {
 	if len(neededLibs) < 8 {
 		t.Fatalf("missing libs: %v", neededLibs)
 	}
+	found := false
+	for _, m := range neededLibs {
+		if m == "llama-cpp-python" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("neededLibs must include llama-cpp-python for Qwen: %v", neededLibs)
+	}
+	if libImportName("llama-cpp-python") != "llama_cpp" {
+		t.Fatal("llama-cpp-python import name should be llama_cpp")
+	}
 }

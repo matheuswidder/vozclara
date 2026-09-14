@@ -1,5 +1,6 @@
 #!/bin/bash
 cd "$(dirname "$0")"
+export VOZCLARA_PACKAGED=1
 DEST="$HOME/Library/Application Support/VozClara"
 if [ -f "$DEST/server.py" ]; then
   cd "$DEST"

@@ -1,6 +1,7 @@
 @echo off
 chcp 65001 >nul
 setlocal
+set VOZCLARA_PACKAGED=1
 if exist "%LOCALAPPDATA%\VozClara\server.py" (
   cd /d "%LOCALAPPDATA%\VozClara"
 ) else (

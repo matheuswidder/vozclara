@@ -63,6 +63,40 @@ def token_path() -> Path:
     return base / "VozClara" / "motor.token"
 
 
+def claimed_path() -> Path:
+    return token_path().parent / "motor.paired"
+
+
+def is_token_claimed() -> bool:
+    try:
+        return claimed_path().is_file()
+    except Exception:
+        return False
+
+
+def mark_token_claimed() -> None:
+    path = claimed_path()
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("1\n", encoding="utf-8")
+        if os.name == "posix":
+            path.chmod(stat.S_IRUSR | stat.S_IWUSR)
+    except Exception as exc:
+        log(f"Aviso: não consegui gravar pareamento ({exc}).")
+
+
+def clear_token_claim() -> None:
+    try:
+        claimed_path().unlink(missing_ok=True)
+    except Exception:
+        pass
+
+
+def unauthorized_payload() -> dict:
+    """Após --reset-token / token novo, unpaired=true para a extensão re-parear."""
+    return {"error": "bad token", "unpaired": not is_token_claimed()}
+
+
 def load_or_create_token() -> str:
     path = token_path()
     try:
@@ -72,6 +106,7 @@ def load_or_create_token() -> str:
                 return token
     except Exception as exc:
         log(f"Não li o token existente ({exc}); vou gerar outro.")
+    clear_token_claim()
     token = secrets.token_hex(16)
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -802,7 +837,7 @@ class Handler(BaseHTTPRequestHandler):
         ctype = self.headers.get("Content-Type") or ""
         fields, files = parse_multipart(body, ctype)
         if not self._authorized(fields):
-            self._json(401, {"error": "bad token", "unpaired": False})
+            self._json(401, unauthorized_payload())
             return
         audio = files.get("file") or files.get("audio")
         if not audio:
@@ -821,6 +856,7 @@ class Handler(BaseHTTPRequestHandler):
         if origin and not origin.startswith("chrome-extension://"):
             self._json(403, {"error": "Origem não permitida para parear.", "unpaired": False})
             return
+        mark_token_claimed()
         self._json(200, {"token": TOKEN})
 
     def _suggest(self) -> None:
@@ -835,7 +871,7 @@ class Handler(BaseHTTPRequestHandler):
         if not self._authorized({}):
             header = self.headers.get("Authorization") or ""
             if header.strip() != f"Bearer {TOKEN}":
-                self._json(401, {"error": "bad token", "unpaired": False})
+                self._json(401, unauthorized_payload())
                 return
         text = str(payload.get("text") or "").strip()
         if not text:
@@ -859,7 +895,7 @@ class Handler(BaseHTTPRequestHandler):
             payload = {}
         header = self.headers.get("Authorization") or ""
         if header.strip() != f"Bearer {TOKEN}" and not self._authorized({}):
-            self._json(401, {"error": "bad token", "unpaired": False})
+            self._json(401, unauthorized_payload())
             return
         if SUGGEST.get("ready") and SUGGEST.get("llm") is not None:
             self._json(200, {"ok": True, "ready": True, "kind": "qwen"})
@@ -880,7 +916,7 @@ class Handler(BaseHTTPRequestHandler):
             self.rfile.read(length)
         header = self.headers.get("Authorization") or ""
         if header.strip() != f"Bearer {TOKEN}" and not self._authorized({}):
-            self._json(401, {"error": "bad token", "unpaired": False})
+            self._json(401, unauthorized_payload())
             return
         try:
             delete_qwen()
@@ -911,6 +947,7 @@ def main() -> int:
             token_path().unlink(missing_ok=True)
         except Exception:
             pass
+        clear_token_claim()
         globals()["TOKEN"] = load_or_create_token()
         log("Token novo gerado. Pareie de novo pelo painel VozClara.")
     STATE["model_id"] = args.model
