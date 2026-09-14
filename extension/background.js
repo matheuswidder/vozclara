@@ -1371,7 +1371,7 @@ async function postGemmaLoad(kind) {
   let res = await send("/v1/suggest/load");
   if (res.status === 404) res = await send("/v1/gemma/load");
   let json = await res.json().catch(() => null);
-  if (res.status === 401) {
+  if (res.status === 401 && json?.unpaired === true) {
     try {
       token = await pairMotor(extra.localUrl);
     } catch {
@@ -1480,7 +1480,7 @@ async function postGemmaDelete() {
   let res = await send("/v1/suggest/delete");
   if (res.status === 404) res = await send("/v1/gemma/delete");
   let json = await res.json().catch(() => null);
-  if (res.status === 401) {
+  if (res.status === 401 && json?.unpaired === true) {
     try {
       token = await pairMotor(extra.localUrl);
     } catch {
@@ -1652,22 +1652,34 @@ async function suggestReplies(text) {
   } catch {
     token = "";
   }
-  const res = await fetch(`${root}/v1/suggest`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify({
-      text: raw,
-      kind: "qwen",
-      who: stored.gemmaWho || "",
-      tone: stored.gemmaTone || "cliente",
-      notes: stored.gemmaNotes || "",
-    }),
+  const body = JSON.stringify({
+    text: raw,
+    kind: "qwen",
+    who: stored.gemmaWho || "",
+    tone: stored.gemmaTone || "cliente",
+    notes: stored.gemmaNotes || "",
   });
-  const json = await res.json().catch(() => null);
+  const sendSuggest = () =>
+    fetch(`${root}/v1/suggest`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body,
+    });
+  let res = await sendSuggest();
+  let json = await res.json().catch(() => null);
+  if (res.status === 401 && json?.unpaired === true) {
+    try {
+      token = await pairMotor(stored.localUrl);
+    } catch {
+      token = "";
+    }
+    res = await sendSuggest();
+    json = await res.json().catch(() => null);
+  }
   if (res.status === 404) {
     return { ok: false, error: "Motor antigo. A transcrição segue; para sugerir respostas, rode de novo o instalador." };
   }
