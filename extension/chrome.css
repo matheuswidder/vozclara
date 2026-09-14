@@ -373,6 +373,50 @@ button.danger {
   to { background: transparent; }
 }
 
+.help {
+  margin: 12px 0 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.help summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 10px 12px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--fg);
+}
+.help summary::-webkit-details-marker { display: none; }
+.help summary::after {
+  content: "";
+  float: right;
+  width: 6px;
+  height: 6px;
+  margin-top: 5px;
+  border-right: 1.5px solid var(--muted);
+  border-bottom: 1.5px solid var(--muted);
+  transform: rotate(45deg);
+}
+.help[open] summary::after { transform: rotate(-135deg); margin-top: 8px; }
+.help dl {
+  margin: 0;
+  padding: 0 12px 12px;
+  border-top: 1px solid var(--line);
+}
+.help dt {
+  margin: 10px 0 2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg);
+}
+.help dd {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
 }

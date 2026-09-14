@@ -144,6 +144,23 @@
     @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
     .light { --bg:#fff; --fg:#111b21; --muted:#667781; --line:#e9edef; --field:#f0f2f5; --hover:#f0f2f5; }
     .dark { --bg:#202c33; --fg:#e9edef; --muted:#8696a0; --line:#3b4a54; --field:#111b21; --hover:#2a3942; }
+    .help {
+      margin: 12px 0 0; border: 1px solid var(--line); border-radius: 8px; background: var(--field);
+    }
+    .help summary {
+      list-style: none; cursor: pointer; padding: 10px 12px;
+      font-size: 12.5px; font-weight: 600; color: var(--fg);
+    }
+    .help summary::-webkit-details-marker { display: none; }
+    .help summary::after {
+      content: ""; float: right; width: 6px; height: 6px; margin-top: 5px;
+      border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted);
+      transform: rotate(45deg);
+    }
+    .help[open] summary::after { transform: rotate(-135deg); margin-top: 8px; }
+    .help dl { margin: 0; padding: 0 12px 12px; border-top: 1px solid var(--line); }
+    .help dt { margin: 10px 0 2px; font-size: 12px; font-weight: 600; color: var(--fg); }
+    .help dd { margin: 0; font-size: 12px; line-height: 1.45; color: var(--muted); }
   `;
 
   let shadow = null;
@@ -396,7 +413,7 @@
               <strong>Sugestões no áudio</strong>
               <label class="switch"><input type="checkbox" id="gemma-on" /><i></i></label>
             </div>
-            <p class="status">Ao ligar, baixa sozinho o Qwen 1.5B Q4 (~1,1 GB) no PC. A barra mostra o progresso. Excluir apaga o arquivo e libera o espaço.</p>
+            <p class="status">Ao ligar, baixa o Qwen (~1,1 GB). Excluir apaga o arquivo.</p>
             <div id="gemma-panel" hidden>
             <div class="split">
               <div class="pill">
@@ -439,6 +456,19 @@
               <p class="status" id="test-status"></p>
               <div class="out" id="test-out" hidden></div>
             </div>
+            <details class="help">
+              <summary>Ajuda</summary>
+              <dl>
+                <dt>Extensão e motor</dt>
+                <dd>A extensão é o botão no WhatsApp. O motor é o ícone na bandeja do Windows, ao lado do relógio. Whisper no Chrome não usa motor. Nemotron e sugestões Qwen usam.</dd>
+                <dt>Bandeja Ligado ou Desligado</dt>
+                <dd>Verde: pode transcrever. Cinza: clique em Ligar. “Não instalado”: rode o Setup do zip, uma vez.</dd>
+                <dt>Preciso do Setup de novo?</dt>
+                <dd>Não, se só recarregou a extensão — transcrever segue. Sim, se o painel pedir Atualize, ou se quiser o modelo sair da memória depois do clique (PC com pouca RAM).</dd>
+                <dt>Os dois pontos</dt>
+                <dd>Bandeja = o programa. Modelo/Qwen = o arquivo no disco. Sobe na memória só no clique e sai no fim.</dd>
+              </dl>
+            </details>
           </div>
         </aside>
       </div>`;

@@ -103,7 +103,7 @@
           <i></i>
         </label>
       </div>
-      <p class="status">Ao ligar, baixa sozinho o Qwen 1.5B Q4 (~1,1 GB) no PC. A barra mostra o progresso. Excluir apaga o arquivo e libera o espaço.</p>
+      <p class="status">Ao ligar, baixa o Qwen (~1,1 GB). Excluir apaga o arquivo.</p>
       <div id="gemma-panel" hidden>
       <div class="split">
         <div class="pill">
@@ -147,6 +147,19 @@
         <div class="out" id="test-out" hidden></div>
       </div>
       <p id="status" class="status" hidden></p>
+      <details class="help">
+        <summary>Ajuda</summary>
+        <dl>
+          <dt>Extensão e motor</dt>
+          <dd>A extensão é o botão no WhatsApp. O motor é o ícone na bandeja do Windows, ao lado do relógio. Whisper no Chrome não usa motor. Nemotron e sugestões Qwen usam.</dd>
+          <dt>Bandeja Ligado ou Desligado</dt>
+          <dd>Verde: pode transcrever. Cinza: clique em Ligar. “Não instalado”: rode o Setup do zip, uma vez.</dd>
+          <dt>Preciso do Setup de novo?</dt>
+          <dd>Não, se só recarregou a extensão — transcrever segue. Sim, se o painel pedir Atualize, ou se quiser o modelo sair da memória depois do clique (PC com pouca RAM).</dd>
+          <dt>Os dois pontos</dt>
+          <dd>Bandeja = o programa. Modelo/Qwen = o arquivo no disco. Sobe na memória só no clique e sai no fim.</dd>
+        </dl>
+      </details>
     </main>
     <script src="shared.js"></script>
     <script src="popup.js"></script>
