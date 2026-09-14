@@ -1,5 +1,13 @@
 # WORKLOG
 
+## 2026-09-14 — Qwen 1.5B Q4 no lugar do Gemma
+
+- Transcrição continua no Nemotron ASR.
+- Sugestão de resposta: `Qwen2.5-1.5B-Instruct` GGUF Q4_K_M (~1,1 GB) via
+  llama-cpp-python em CPU. Gemma 4 E2B saiu (estourava 8 GB em float32).
+- Painel: um botão Baixar, sem rádios E2B/it/assistant. Extensão 1.13.2.
+- Motor antigo: rode de novo o Setup do zip (ele sobrescreve `server.py`).
+
 ## 2026-09-14 — Gemma: mostrar o motivo da falha
 
 - O painel dizia só “Não baixou” porque o erro sumia depois do clique e

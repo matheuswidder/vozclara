@@ -22,8 +22,8 @@
 6. **Dock**: botão na rail do WhatsApp abre painel; teste de arquivo local funciona.
 7. **Conflito de mídia** (Parte 4): vídeo reproduzindo em outra conversa não é
    afetado durante a transcrição.
-8. **Sugestão Gemma**: sem barra “Sugerir resposta” no campo de texto; sem mini
-   em mensagem escrita. Transcrever um áudio (Gemma ligada) → “Sugerir resposta”
+8. **Sugestão Qwen**: sem barra “Sugerir resposta” no campo de texto; sem mini
+   em mensagem escrita. Transcrever um áudio (sugestão ligada) → “Sugerir resposta”
    no card. Clicar → transcreve áudios anteriores sem texto (até 5) + lê
    mensagens enviadas/recebidas → chips no card e coláveis acima do compose.
 
@@ -53,8 +53,8 @@
   **só abre** (sem pip, sem “Baixando bibliotecas”).
 - Depois do Setup: Verificar → bandeja verde.
 - `/health` sem campo `paired` → tratar como motor desatualizado.
-- Gemma falhou: pill “Falhou”, status com o motivo, botão “Tentar de novo”.
-  Motor que cai no meio do download (RAM) não volta mais para “Não baixou”.
+- Qwen falhou: pill “Falhou”, status com o motivo, botão “Tentar de novo”.
+  Motor que cai no meio do download não volta mais para “Não baixou”.
 
 ### Parte 1 (estados)
 - Fases ① / ③ (e ② no primeiro download). O cronômetro **não** apaga a % de

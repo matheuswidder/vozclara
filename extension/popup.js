@@ -174,9 +174,7 @@ function renderLocal(state) {
 }
 
 function selectedGemma() {
-  return globalThis.VCShared.normalizeGemma(
-    document.querySelector('input[name="gemma-kind"]:checked')?.value || "it",
-  );
+  return "qwen";
 }
 
 function renderGemma(state) {
@@ -228,7 +226,7 @@ async function startGemma() {
       kind,
     });
     if (!result?.ok) {
-      throw new Error(result?.error || "Não baixei o Gemma.");
+      throw new Error(result?.error || "Não baixei o Qwen.");
     }
   } catch (err) {
     const status = $("gemma-status");
@@ -333,11 +331,9 @@ async function save() {
 }
 
 function gemmaPayload() {
-  const kind =
-    document.querySelector('input[name="gemma-kind"]:checked')?.value || "it";
   return {
     gemmaOn: Boolean($("gemma-on")?.checked),
-    gemmaKind: globalThis.VCShared.normalizeGemma(kind),
+    gemmaKind: "qwen",
     gemmaWho: $("gemma-who")?.value.trim() || "",
     gemmaTone: $("gemma-tone")?.value || "cliente",
     gemmaNotes: $("gemma-notes")?.value.trim() || "",
@@ -354,10 +350,6 @@ function syncGemma() {
 
 function loadGemma(stored) {
   if ($("gemma-on")) $("gemma-on").checked = Boolean(stored.gemmaOn);
-  const want = globalThis.VCShared.normalizeGemma(stored.gemmaKind);
-  document.querySelectorAll('input[name="gemma-kind"]').forEach((el) => {
-    el.checked = el.value === want;
-  });
   if ($("gemma-who")) $("gemma-who").value = stored.gemmaWho || "";
   if ($("gemma-tone")) $("gemma-tone").value = stored.gemmaTone || "cliente";
   if ($("gemma-notes")) $("gemma-notes").value = stored.gemmaNotes || "";
@@ -551,14 +543,6 @@ document.addEventListener("DOMContentLoaded", () => {
   $("gemma-on")?.addEventListener("change", () => {
     syncGemma();
     void save();
-  });
-  document.querySelectorAll('input[name="gemma-kind"]').forEach((el) => {
-    el.addEventListener("change", () => {
-      if ($("gemma-on")) $("gemma-on").checked = true;
-      syncGemma();
-      void save();
-      void queryLocal();
-    });
   });
   $("gemma-download")?.addEventListener("click", () => void startGemma());
   $("gemma-who")?.addEventListener("change", () => void save());

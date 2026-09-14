@@ -102,13 +102,8 @@
           <i></i>
         </label>
       </div>
-      <p class="status">Só no card do áudio, depois de Transcrever. Lê a conversa e os áudios anteriores.</p>
+      <p class="status">Só no card do áudio, depois de Transcrever. Lê a conversa e os áudios anteriores. Usa Qwen 1.5B Q4 no PC (~1,1 GB).</p>
       <div id="gemma-panel" hidden>
-      <div class="seg">
-        <label title="Base. Não conversa."><input type="radio" name="gemma-kind" value="e2b" />E2B</label>
-        <label title="Responde no tom da conversa."><input type="radio" name="gemma-kind" value="it" checked />E2B-it</label>
-        <label title="Mesmo E2B-it, mais rápido."><input type="radio" name="gemma-kind" value="assistant" />+rápido</label>
-      </div>
       <div class="split">
         <div class="pill">
           <i id="g-motor-dot" class="dot" aria-hidden="true"></i>
@@ -116,7 +111,7 @@
         </div>
         <div class="pill">
           <i id="g-model-dot" class="dot" aria-hidden="true"></i>
-          <span id="g-model-text">Gemma</span>
+          <span id="g-model-text">Qwen</span>
         </div>
       </div>
       <p id="gemma-status" class="status" aria-live="polite"></p>

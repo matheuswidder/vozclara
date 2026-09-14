@@ -13,30 +13,14 @@
     custom: { name: "Este Whisper", size: "" },
   };
 
-  const GEMMA_META = {
-    e2b: {
-      id: "e2b",
-      name: "E2B",
-      tag: "base · não conversa",
-      repo: "google/gemma-4-E2B",
-      tipTitle: "E2B — modelo cru",
-      tip: "Aprendeu a língua, mas não foi treinado para atender. Completa frase; não sugere resposta de WhatsApp. Deixe para pesquisa.",
-    },
-    it: {
-      id: "it",
-      name: "E2B-it",
-      tag: "recomendado · conversa",
-      repo: "google/gemma-4-E2B-it",
-      tipTitle: "E2B-it — o que responde",
-      tip: "O mesmo E2B, treinado para seguir instruções. Lê a transcrição, o tom e o texto da empresa, e propõe 3 respostas prontas.",
-    },
-    assistant: {
-      id: "assistant",
-      name: "E2B-it + acelerador",
-      tag: "mais rápido · 78 MB extra",
-      repo: "google/gemma-4-E2B-it-assistant",
-      tipTitle: "Acelerador, não o cérebro",
-      tip: "O -assistant sozinho não entende a conversa. É um rascunho de 78 MB que adivinha tokens na frente do E2B-it (~2–3×). O VozClara liga os dois juntos.",
+  const SUGGEST_META = {
+    qwen: {
+      id: "qwen",
+      name: "Qwen 1.5B Q4",
+      tag: "~1,1 GB · CPU",
+      repo: "Qwen/Qwen2.5-1.5B-Instruct-GGUF",
+      tipTitle: "Qwen2.5-1.5B-Instruct Q4",
+      tip: "Modelo leve no PC. Lê a transcrição e propõe 3 respostas para colar no WhatsApp.",
     },
   };
 
@@ -68,7 +52,6 @@
     const meta = gemmaMeta(want);
     const g = state?.gemma && typeof state.gemma === "object" ? state.gemma : {};
     const motorUp = Boolean(state?.motorUp || state?.motorAlive);
-    const readyKind = normalizeGemma(g.kind);
     if (g.error && !g.loading && !g.ready) {
       return {
         id: "retry",
@@ -107,22 +90,13 @@
         percent: pct,
       };
     }
-    if (g.ready && readyKind === want) {
+    if (g.ready) {
       return {
         id: "ready",
         label: "Pronto",
         disabled: true,
         status: `Pronto · ${meta.name}`,
         kind: "ok",
-      };
-    }
-    if (g.ready) {
-      return {
-        id: "switch",
-        label: `Usar ${meta.name}`,
-        disabled: false,
-        status: meta.name,
-        kind: "warn",
       };
     }
     return {
@@ -177,10 +151,10 @@
     const low = s.toLowerCase();
     if (/reiniciou|caiu no meio|falta de ram|bastante ram/i.test(s)) return s;
     if (/gated|403|401|restricted|license|access to model|cannot access/i.test(low)) {
-      return "A Hugging Face bloqueou o Gemma 4. Abra huggingface.co/google/gemma-4-E2B-it, aceite o termo da Google e clique de novo.";
+      return "A Hugging Face recusou o download. Confira a internet e tente de novo.";
     }
     if (/no space|enospc|espaço em disco|disk quota/i.test(low)) {
-      return "Falta espaço em disco para o Gemma (cerca de 4 GB).";
+      return "Falta espaço em disco para o Qwen (cerca de 1,2 GB).";
     }
     if (/out of memory|can't allocate|cannot allocate|paged|winerror 1455|memoryerror/i.test(low)) {
       return "Faltou memória RAM. Feche outros programas e clique em Tentar de novo.";
@@ -194,16 +168,11 @@
 
   function gemmaMeta(kind) {
     const k = normalizeGemma(kind);
-    return GEMMA_META[k] || GEMMA_META.it;
+    return SUGGEST_META[k] || SUGGEST_META.qwen;
   }
 
-  function normalizeGemma(kind) {
-    const k = String(kind || "").toLowerCase();
-    if (k === "e2b" || k === "base" || k === "gemma-4-e2b") return "e2b";
-    if (k === "assistant" || k === "e2b-it-assistant" || k === "turbo-gemma") {
-      return "assistant";
-    }
-    return "it";
+  function normalizeGemma(_kind) {
+    return "qwen";
   }
 
   function modelMeta(kind) {

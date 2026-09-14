@@ -34,18 +34,19 @@ STATE = {
     "detail": "",
 }
 
-GEMMA = {
+SUGGEST = {
     "ready": False,
     "loading": False,
-    "kind": "it",
-    "model": None,
-    "processor": None,
-    "assistant": None,
+    "kind": "qwen",
+    "llm": None,
     "error": "",
     "percent": 0,
     "detail": "",
     "lock": threading.Lock(),
 }
+
+QWEN_REPO = "Qwen/Qwen2.5-1.5B-Instruct-GGUF"
+QWEN_FILE = "qwen2.5-1.5b-instruct-q4_k_m.gguf"
 
 
 def token_path() -> Path:
@@ -159,13 +160,13 @@ def patch_hf_progress() -> None:
                 if total > 0:
                     pct = max(1, min(99, int(now * 100 / total)))
                     set_phase("download", pct, f"Baixando {desc} · {pct}%")
-                    if GEMMA.get("loading"):
-                        GEMMA["percent"] = pct
-                        GEMMA["detail"] = f"Baixando {desc} · {pct}%"
+                    if SUGGEST.get("loading"):
+                        SUGGEST["percent"] = pct
+                        SUGGEST["detail"] = f"Baixando {desc} · {pct}%"
                 else:
                     set_phase("download", STATE.get("percent") or 8, f"Baixando {desc}…")
-                    if GEMMA.get("loading"):
-                        GEMMA["detail"] = f"Baixando {desc}…"
+                    if SUGGEST.get("loading"):
+                        SUGGEST["detail"] = f"Baixando {desc}…"
             except Exception:
                 pass
             return out
@@ -322,16 +323,13 @@ def load_model(model_id: str) -> None:
         log(f"Falha ao carregar o modelo: {exc}")
 
 
-def explain_gemma_exc(exc: BaseException) -> str:
+def explain_suggest_exc(exc: BaseException) -> str:
     s = str(exc or "").strip()
     low = s.lower()
     if any(x in low for x in ("gated", "401", "403", "restricted", "cannot access gated")):
-        return (
-            "A Hugging Face bloqueou o Gemma 4. Abra huggingface.co/google/gemma-4-E2B-it, "
-            "aceite o termo da Google e clique de novo."
-        )
+        return "A Hugging Face recusou o download. Confira a internet e tente de novo."
     if any(x in low for x in ("no space", "enospc", "espaço em disco")):
-        return "Falta espaço em disco para o Gemma (cerca de 4 GB)."
+        return "Falta espaço em disco para o Qwen (cerca de 1,2 GB)."
     if any(
         x in low
         for x in ("out of memory", "can't allocate", "cannot allocate", "memoryerror")
@@ -339,83 +337,116 @@ def explain_gemma_exc(exc: BaseException) -> str:
         return "Faltou memória RAM. Feche outros programas e clique em Tentar de novo."
     if any(x in low for x in ("timed out", "timeout", "failed to resolve", "connection reset")):
         return "A Hugging Face não respondeu. Confira a internet e tente de novo."
-    return s[:400] if s else "Não carreguei o Gemma."
-
-
-def gemma_repo(kind: str) -> str:
-    if kind == "e2b":
-        return "google/gemma-4-E2B"
-    return "google/gemma-4-E2B-it"
-
-
-def ensure_gemma_deps() -> None:
-    try:
-        import torch  # noqa: F401
-        import transformers  # noqa: F401
-    except Exception:
-        log("Instalando torch e transformers para o Gemma…")
-        GEMMA["detail"] = "Instalando bibliotecas do Gemma…"
-        GEMMA["percent"] = 8
-        pip_install("transformers", "accelerate", "sentencepiece", "torch")
-
-
-def load_gemma(kind: str) -> None:
-    want = kind if kind in ("e2b", "it", "assistant") else "it"
-    with GEMMA["lock"]:
-        if GEMMA["ready"] and GEMMA["kind"] == want and GEMMA.get("model") is not None:
-            return
-        GEMMA["loading"] = True
-        GEMMA["error"] = ""
-        GEMMA["kind"] = want
-        GEMMA["percent"] = 5
-        GEMMA["detail"] = f"Baixando {gemma_repo(want)}…"
-    try:
-        ensure_gemma_deps()
-        patch_hf_progress()
-        import torch
-        from transformers import AutoModelForCausalLM, AutoTokenizer
-
-        repo = gemma_repo(want)
-        log(f"Carregando Gemma {repo}…")
-        tok = AutoTokenizer.from_pretrained(repo)
-        model = AutoModelForCausalLM.from_pretrained(
-            repo,
-            torch_dtype=torch.float32,
-            low_cpu_mem_usage=True,
+    if "llama" in low and any(x in low for x in ("error", "failed", "building", "cmake", "cl.exe")):
+        return (
+            "Não instalei o llama-cpp-python neste Python. "
+            "Feche o motor, rode o Setup de novo e tente Baixar outra vez."
         )
-        assistant = None
-        if want == "assistant":
-            log("Carregando acelerador gemma-4-E2B-it-assistant…")
-            try:
-                assistant = AutoModelForCausalLM.from_pretrained(
-                    "google/gemma-4-E2B-it-assistant",
-                    torch_dtype=torch.float32,
-                    low_cpu_mem_usage=True,
-                )
-            except Exception as exc:
-                log(f"Acelerador não carregou ({exc}). Sigo só com o E2B-it.")
-                assistant = None
-        with GEMMA["lock"]:
-            GEMMA["processor"] = tok
-            GEMMA["model"] = model
-            GEMMA["assistant"] = assistant
-            GEMMA["ready"] = True
-            GEMMA["loading"] = False
-            GEMMA["error"] = ""
-            GEMMA["kind"] = want
-            GEMMA["percent"] = 100
-            GEMMA["detail"] = "Pronto"
-        log("Gemma pronto para sugerir respostas.")
+    return s[:400] if s else "Não carreguei o Qwen."
+
+
+def suggest_status() -> dict:
+    return {
+        "ready": bool(SUGGEST.get("ready")),
+        "loading": bool(SUGGEST.get("loading")),
+        "kind": SUGGEST.get("kind") or "qwen",
+        "error": SUGGEST.get("error") or None,
+        "percent": int(SUGGEST.get("percent") or 0),
+        "detail": SUGGEST.get("detail") or "",
+        "name": "Qwen2.5-1.5B-Instruct Q4",
+    }
+
+
+def ensure_llama() -> None:
+    try:
+        import llama_cpp  # noqa: F401
+        return
+    except Exception:
+        pass
+    SUGGEST["detail"] = "Instalando llama-cpp-python…"
+    SUGGEST["percent"] = 8
+    log("Instalando llama-cpp-python (CPU)…")
+    if not PACKAGED:
+        raise RuntimeError(
+            "Falta llama-cpp-python. Rode o Setup do zip para instalar as bibliotecas."
+        )
+    try:
+        subprocess.check_call(
+            [
+                sys.executable,
+                "-m",
+                "pip",
+                "install",
+                "--user",
+                "llama-cpp-python",
+                "--extra-index-url",
+                "https://abetlen.github.io/llama-cpp-python/whl/cpu",
+            ]
+        )
+        import llama_cpp  # noqa: F401
+        return
+    except Exception:
+        pip_install("llama-cpp-python")
+
+
+def load_qwen(_kind: str = "qwen") -> None:
+    with SUGGEST["lock"]:
+        if SUGGEST["ready"] and SUGGEST.get("llm") is not None:
+            return
+        SUGGEST["loading"] = True
+        SUGGEST["error"] = ""
+        SUGGEST["kind"] = "qwen"
+        SUGGEST["percent"] = 5
+        SUGGEST["detail"] = f"Baixando {QWEN_FILE}…"
+    try:
+        ensure_llama()
+        patch_hf_progress()
+        try:
+            from huggingface_hub import hf_hub_download
+        except Exception:
+            pip_install("huggingface_hub")
+            from huggingface_hub import hf_hub_download
+        from llama_cpp import Llama
+
+        SUGGEST["detail"] = f"Baixando {QWEN_FILE}…"
+        SUGGEST["percent"] = max(int(SUGGEST.get("percent") or 0), 10)
+        log(f"Baixando {QWEN_REPO}/{QWEN_FILE}…")
+        cache = token_path().parent / "hf"
+        cache.mkdir(parents=True, exist_ok=True)
+        path = hf_hub_download(
+            repo_id=QWEN_REPO,
+            filename=QWEN_FILE,
+            cache_dir=str(cache),
+        )
+        SUGGEST["detail"] = "Carregando Qwen 1.5B Q4 na memória…"
+        SUGGEST["percent"] = 92
+        n_threads = max(1, min(4, os.cpu_count() or 2))
+        log(f"Carregando Qwen em CPU ({n_threads} threads)…")
+        llm = Llama(
+            model_path=path,
+            n_ctx=2048,
+            n_threads=n_threads,
+            n_gpu_layers=0,
+            verbose=False,
+        )
+        with SUGGEST["lock"]:
+            SUGGEST["llm"] = llm
+            SUGGEST["ready"] = True
+            SUGGEST["loading"] = False
+            SUGGEST["error"] = ""
+            SUGGEST["kind"] = "qwen"
+            SUGGEST["percent"] = 100
+            SUGGEST["detail"] = "Pronto"
+        log("Qwen pronto para sugerir respostas.")
     except Exception as exc:
-        with GEMMA["lock"]:
-            GEMMA["ready"] = False
-            GEMMA["loading"] = False
-            GEMMA["error"] = explain_gemma_exc(exc)
-            GEMMA["model"] = None
-            GEMMA["assistant"] = None
-            GEMMA["percent"] = 0
-            GEMMA["detail"] = GEMMA["error"]
-        log(f"Falha ao carregar o Gemma: {exc}")
+        with SUGGEST["lock"]:
+            SUGGEST["ready"] = False
+            SUGGEST["loading"] = False
+            SUGGEST["error"] = explain_suggest_exc(exc)
+            SUGGEST["llm"] = None
+            SUGGEST["percent"] = 0
+            SUGGEST["detail"] = SUGGEST["error"]
+        log(f"Falha ao carregar o Qwen: {exc}")
 
 
 def parse_replies(raw: str) -> list[str]:
@@ -440,14 +471,10 @@ def parse_replies(raw: str) -> list[str]:
 
 
 def suggest_replies(payload: dict) -> list[str]:
-    kind = payload.get("kind") or "it"
-    if kind not in ("e2b", "it", "assistant"):
-        kind = "it"
-    load_gemma(kind)
-    tok = GEMMA.get("processor")
-    model = GEMMA.get("model")
-    if tok is None or model is None:
-        raise RuntimeError(GEMMA.get("error") or "O Gemma ainda não carregou.")
+    load_qwen("qwen")
+    llm = SUGGEST.get("llm")
+    if llm is None:
+        raise RuntimeError(SUGGEST.get("error") or "O Qwen ainda não carregou.")
     who = str(payload.get("who") or "").strip() or "Atendimento no WhatsApp"
     tone = str(payload.get("tone") or "cliente")
     notes = str(payload.get("notes") or "").strip()
@@ -466,45 +493,32 @@ def suggest_replies(payload: dict) -> list[str]:
     )
     if notes:
         system += " Consulte isto se couber: " + notes[:3500]
-    if kind == "e2b":
-        prompt = (
-            system
-            + "\n\nMensagem recebida:\n"
-            + text
-            + "\n\nTrês respostas:\n"
-        )
-        inputs = tok(prompt, return_tensors="pt")
-        extra = {}
-        out_ids = model.generate(
-            **inputs,
-            max_new_tokens=180,
-            do_sample=True,
+    messages = [
+        {"role": "system", "content": system},
+        {"role": "user", "content": "Mensagem recebida:\n" + text},
+    ]
+    try:
+        out = llm.create_chat_completion(
+            messages=messages,
+            max_tokens=180,
             temperature=0.7,
-            **extra,
         )
-        raw = tok.decode(out_ids[0][inputs["input_ids"].shape[-1]:], skip_special_tokens=True)
-    else:
-        messages = [
-            {"role": "system", "content": system},
-            {"role": "user", "content": "Mensagem recebida:\n" + text},
-        ]
-        try:
-            prompt = tok.apply_chat_template(
-                messages, tokenize=False, add_generation_prompt=True
-            )
-        except Exception:
-            prompt = system + "\n\n" + text + "\n\nTrês respostas:\n"
-        inputs = tok(prompt, return_tensors="pt")
-        gen_kw = dict(max_new_tokens=180, do_sample=True, temperature=0.7)
-        assistant = GEMMA.get("assistant") if kind == "assistant" else None
-        if assistant is not None:
-            gen_kw["assistant_model"] = assistant
-        try:
-            out_ids = model.generate(**inputs, **gen_kw)
-        except TypeError:
-            gen_kw.pop("assistant_model", None)
-            out_ids = model.generate(**inputs, **gen_kw)
-        raw = tok.decode(out_ids[0][inputs["input_ids"].shape[-1]:], skip_special_tokens=True)
+        raw = str(out["choices"][0]["message"]["content"] or "")
+    except Exception:
+        prompt = (
+            "<|im_start|>system\n"
+            + system
+            + "<|im_end|>\n<|im_start|>user\nMensagem recebida:\n"
+            + text
+            + "<|im_end|>\n<|im_start|>assistant\n"
+        )
+        out = llm(
+            prompt,
+            max_tokens=180,
+            temperature=0.7,
+            stop=["<|im_end|>", "<|endoftext|>"],
+        )
+        raw = str(out["choices"][0].get("text") or "")
     replies = parse_replies(raw)
     if len(replies) < 2:
         replies = [text[:120], "Pode falar mais um pouco?", "Já te retorno."][:3]
@@ -626,14 +640,8 @@ class Handler(BaseHTTPRequestHandler):
                     "percent": int(STATE.get("percent") or (100 if STATE["ready"] else 0)),
                     "detail": STATE.get("detail") or "",
                     "alive": True,
-                    "gemma": {
-                        "ready": bool(GEMMA.get("ready")),
-                        "loading": bool(GEMMA.get("loading")),
-                        "kind": GEMMA.get("kind") or "it",
-                        "error": GEMMA.get("error") or None,
-                        "percent": int(GEMMA.get("percent") or 0),
-                        "detail": GEMMA.get("detail") or "",
-                    },
+                    "suggest": suggest_status(),
+                    "gemma": suggest_status(),
                 },
             )
             return
@@ -647,8 +655,8 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/v1/suggest":
             self._suggest()
             return
-        if path == "/v1/gemma/load":
-            self._gemma_load()
+        if path in ("/v1/suggest/load", "/v1/gemma/load"):
+            self._suggest_load()
             return
         if path not in ("/v1/audio/transcriptions", "/inference"):
             self._json(404, {"error": "not found"})
@@ -702,9 +710,9 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as exc:
             self._json(500, {"error": str(exc)})
             return
-        self._json(200, {"replies": replies, "kind": GEMMA.get("kind") or "it"})
+        self._json(200, {"replies": replies, "kind": "qwen"})
 
-    def _gemma_load(self) -> None:
+    def _suggest_load(self) -> None:
         length = int(self.headers.get("Content-Length") or "0")
         body = self.rfile.read(length) if length else b""
         try:
@@ -717,21 +725,18 @@ class Handler(BaseHTTPRequestHandler):
         if header.strip() != f"Bearer {TOKEN}" and not self._authorized({}):
             self._json(401, {"error": "bad token", "unpaired": False})
             return
-        kind = payload.get("kind") or "it"
-        if kind not in ("e2b", "it", "assistant"):
-            kind = "it"
-        if GEMMA.get("ready") and GEMMA.get("kind") == kind and GEMMA.get("model") is not None:
-            self._json(200, {"ok": True, "ready": True, "kind": kind})
+        if SUGGEST.get("ready") and SUGGEST.get("llm") is not None:
+            self._json(200, {"ok": True, "ready": True, "kind": "qwen"})
             return
-        if not GEMMA.get("loading"):
+        if not SUGGEST.get("loading"):
             def _run() -> None:
                 try:
-                    load_gemma(kind)
+                    load_qwen("qwen")
                 except Exception as exc:
-                    log(f"Gemma parou: {exc}")
+                    log(f"Qwen parou: {exc}")
 
             threading.Thread(target=_run, args=(), daemon=True).start()
-        self._json(200, {"ok": True, "started": True, "ready": False, "kind": kind})
+        self._json(200, {"ok": True, "started": True, "ready": False, "kind": "qwen"})
 
 
 def main() -> int:
