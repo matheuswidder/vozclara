@@ -74,7 +74,7 @@
         id: "retry",
         label: "Tentar de novo",
         disabled: false,
-        status: String(g.error),
+        status: explainGemmaError(g.error),
         kind: "warn",
       };
     }
@@ -144,7 +144,12 @@
     else if (alive) motor = { kind: "ok", text: "Ligado" };
     let model = { kind: "off", text: "Não baixou", percent: 0, indeterminate: false };
     if (g.error && !g.loading && !g.ready) {
-      model = { kind: "warn", text: "Falhou", percent: 0, indeterminate: false };
+      model = {
+        kind: "warn",
+        text: "Falhou",
+        percent: 0,
+        indeterminate: false,
+      };
     } else if (g.loading) {
       const pct = Number(g.percent) || 0;
       model = {
@@ -164,6 +169,27 @@
       };
     }
     return { motor, model };
+  }
+
+  function explainGemmaError(raw) {
+    const s = String(raw || "").replace(/\s+/g, " ").trim();
+    if (!s) return "";
+    const low = s.toLowerCase();
+    if (/reiniciou|caiu no meio|falta de ram|bastante ram/i.test(s)) return s;
+    if (/gated|403|401|restricted|license|access to model|cannot access/i.test(low)) {
+      return "A Hugging Face bloqueou o Gemma 4. Abra huggingface.co/google/gemma-4-E2B-it, aceite o termo da Google e clique de novo.";
+    }
+    if (/no space|enospc|espaço em disco|disk quota/i.test(low)) {
+      return "Falta espaço em disco para o Gemma (cerca de 4 GB).";
+    }
+    if (/out of memory|can't allocate|cannot allocate|paged|winerror 1455|memoryerror/i.test(low)) {
+      return "Faltou memória RAM. Feche outros programas e clique em Tentar de novo.";
+    }
+    if (/timed out|timeout|failed to resolve|connection reset|network is unreachable|offline/i.test(low)) {
+      return "A Hugging Face não respondeu. Confira a internet e tente de novo.";
+    }
+    if (/motor antigo|não sabe baixar|rode o setup/i.test(low)) return s;
+    return s.length > 280 ? s.slice(0, 277) + "…" : s;
   }
 
   function gemmaMeta(kind) {
@@ -204,7 +230,7 @@
   }
 
   const MOTOR_SETUP_HINT =
-    "O instalador já veio no zip do site. Na pasta extraída, abra engine/VozClara-Motor-Setup.exe. Depois clique em Verificar.";
+    "Na primeira vez, rode engine/VozClara-Motor-Setup.exe do zip. Depois use Ligar o motor — o Setup só abre o que já está no PC, sem instalar de novo.";
 
   function downloadLabel(kind, repo) {
     const want = normalizeKind(kind);
@@ -390,6 +416,7 @@
     gemmaMeta,
     gemmaView,
     gemmaAction,
+    explainGemmaError,
     normalizeGemma,
     stateLabel,
     stateKind,

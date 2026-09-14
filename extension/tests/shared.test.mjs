@@ -88,7 +88,7 @@ test("primaryAction: um botão, ação óbvia", () => {
   assert.equal(VC.primaryAction({ downloading: true }, "nemotron").label, "Verificando…");
   assert.equal(VC.primaryAction({}, "nemotron").id, "install");
   assert.equal(VC.primaryAction({}, "nemotron").label, "Verificar o motor");
-  assert.match(VC.MOTOR_SETUP_HINT, /zip/);
+  assert.match(VC.MOTOR_SETUP_HINT, /Ligar o motor/);
   assert.match(VC.primaryAction({}, "tiny").label, /40 MB/);
 });
 
@@ -141,6 +141,25 @@ test("gemmaAction pede motor e marca pronto", () => {
   );
   assert.equal(waiting.id, "update");
   assert.equal(waiting.disabled, false);
+  const fail = VC.gemmaAction(
+    {
+      motorAlive: true,
+      motorUp: true,
+      gemma: { error: "401 Client Error gated repo for url huggingface" },
+    },
+    "it",
+  );
+  assert.equal(fail.id, "retry");
+  assert.match(fail.status, /Hugging Face|termo|Gemma/i);
+  const crash = VC.explainGemmaError(
+    "O motor reiniciou no meio do download. O E2B-it usa bastante RAM.",
+  );
+  assert.match(crash, /RAM/);
+  const viewFail = VC.gemmaView({
+    motorAlive: true,
+    gemma: { error: "boom" },
+  });
+  assert.equal(viewFail.model.text, "Falhou");
   const view = VC.gemmaView({
     motorAlive: true,
     gemma: { loading: true, percent: 22 },
