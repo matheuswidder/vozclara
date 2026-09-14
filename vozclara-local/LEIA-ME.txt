@@ -4,7 +4,7 @@ VozClara Motor — o que é isso?
 computador e vira texto. Nada vai para a internet.
 
 Como instalar
-1. Dê dois cliques em VozClara-Motor-Setup.exe
+1. Dê dois cliques em VozClara-Motor-Setup.exe **uma vez**
 2. Se o Windows mostrar tela azul: Mais informações → Executar assim mesmo
    (é o nosso arquivo, ainda sem certificado pago)
 3. Clique em Instalar neste computador e espere
@@ -13,7 +13,8 @@ Como instalar
 Como saber se está ligado
 O ícone da VozClara fica no canto inferior direito. Clique com o
 botão direito → Sair, se quiser desligar. Para ligar de novo, use o
-atalho na área de trabalho ou o início do Windows.
+atalho na área de trabalho, “Ligar o motor” no painel, ou o próprio
+Setup — se já instalou, ele só abre, sem baixar biblioteca de novo.
 
 No WhatsApp
 Escolha Nemotron no painel da extensão. Tem que aparecer
@@ -22,5 +23,6 @@ clicar em Transcrever no áudio. O play do WhatsApp continua
 funcionando para você conferir.
 
 Atualizar
-Feche o ícone da bandeja (Sair). Rode o Setup de novo.
+Feche o ícone da bandeja (Sair). Rode o Setup com a opção
+Atualizar arquivos, ou o atalho para só ligar.
 O áudio nunca sai deste computador.

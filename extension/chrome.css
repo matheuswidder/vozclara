@@ -147,6 +147,8 @@ button.ghost {
   margin: 0 0 8px;
   font-size: 12px;
   color: var(--muted);
+  line-height: 1.4;
+  white-space: pre-wrap;
   transition: color 0.2s ease;
 }
 .status[data-kind="ok"] { color: var(--accent); }

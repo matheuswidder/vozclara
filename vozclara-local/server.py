@@ -322,6 +322,26 @@ def load_model(model_id: str) -> None:
         log(f"Falha ao carregar o modelo: {exc}")
 
 
+def explain_gemma_exc(exc: BaseException) -> str:
+    s = str(exc or "").strip()
+    low = s.lower()
+    if any(x in low for x in ("gated", "401", "403", "restricted", "cannot access gated")):
+        return (
+            "A Hugging Face bloqueou o Gemma 4. Abra huggingface.co/google/gemma-4-E2B-it, "
+            "aceite o termo da Google e clique de novo."
+        )
+    if any(x in low for x in ("no space", "enospc", "espaço em disco")):
+        return "Falta espaço em disco para o Gemma (cerca de 4 GB)."
+    if any(
+        x in low
+        for x in ("out of memory", "can't allocate", "cannot allocate", "memoryerror")
+    ):
+        return "Faltou memória RAM. Feche outros programas e clique em Tentar de novo."
+    if any(x in low for x in ("timed out", "timeout", "failed to resolve", "connection reset")):
+        return "A Hugging Face não respondeu. Confira a internet e tente de novo."
+    return s[:400] if s else "Não carreguei o Gemma."
+
+
 def gemma_repo(kind: str) -> str:
     if kind == "e2b":
         return "google/gemma-4-E2B"
@@ -390,12 +410,12 @@ def load_gemma(kind: str) -> None:
         with GEMMA["lock"]:
             GEMMA["ready"] = False
             GEMMA["loading"] = False
-            GEMMA["error"] = str(exc)
+            GEMMA["error"] = explain_gemma_exc(exc)
             GEMMA["model"] = None
             GEMMA["assistant"] = None
             GEMMA["percent"] = 0
+            GEMMA["detail"] = GEMMA["error"]
         log(f"Falha ao carregar o Gemma: {exc}")
-        raise
 
 
 def parse_replies(raw: str) -> list[str]:
@@ -704,7 +724,13 @@ class Handler(BaseHTTPRequestHandler):
             self._json(200, {"ok": True, "ready": True, "kind": kind})
             return
         if not GEMMA.get("loading"):
-            threading.Thread(target=load_gemma, args=(kind,), daemon=True).start()
+            def _run() -> None:
+                try:
+                    load_gemma(kind)
+                except Exception as exc:
+                    log(f"Gemma parou: {exc}")
+
+            threading.Thread(target=_run, args=(), daemon=True).start()
         self._json(200, {"ok": True, "started": True, "ready": False, "kind": kind})
 
 

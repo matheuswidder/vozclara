@@ -36,6 +36,9 @@ A extensão não baixa mais o `.exe` via `chrome.downloads`.
 2026-09-13: Gemma sugere **só no áudio**, depois de Transcrever. Contexto =
 mensagens da conversa + até 5 áudios anteriores ainda sem texto.
 
+2026-09-14: Setup detecta instalação em AppData e **só liga** o motor. Pip só
+na primeira vez (ou “Atualizar arquivos”).
+
 ## Fora de escopo
 
 - Reescrever a técnica de captura (sequestro de APIs MAIN world permanece — é o que

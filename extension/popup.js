@@ -25,7 +25,7 @@ function watchMotor(state) {
   const busy =
     selected === "nemotron" &&
     (Boolean(state?.downloading) || (Boolean(state?.motorAlive) && !state?.motorUp));
-  const gBusy = Boolean(state?.gemma?.loading || state?.gemmaWaiting);
+  const gBusy = Boolean(state?.gemma?.loading || state?.gemmaWaiting || state?.gemmaPending);
   if ((busy || gBusy) && !motorPoll) {
     motorPoll = setInterval(() => void queryLocal(), 1500);
   } else if (!busy && !gBusy && motorPoll) {
@@ -227,7 +227,7 @@ async function startGemma() {
       type: "VOZCLARA_GEMMA_LOAD",
       kind,
     });
-    if (!result?.ok && !result?.waiting) {
+    if (!result?.ok) {
       throw new Error(result?.error || "Não baixei o Gemma.");
     }
   } catch (err) {

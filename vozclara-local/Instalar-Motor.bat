@@ -36,6 +36,13 @@ if not defined PY (
   exit /b 1
 )
 
+echo  Python: %PY%
+%PY% -c "import importlib.util,sys; need='transformers torch torchaudio accelerate soundfile librosa scipy numpy soxr einops'.split(); sys.exit(0 if all(importlib.util.find_spec(m) for m in need) else 1)"
+if not errorlevel 1 (
+  echo  Bibliotecas ja estao neste PC. Nada para baixar.
+  goto :launch
+)
+
 echo  Instalando as bibliotecas (uma vez^)...
 %PY% -m pip install --user --upgrade pip
 %PY% -m pip install --user -r requirements.txt
@@ -45,6 +52,7 @@ if errorlevel 1 (
   exit /b 1
 )
 
+:launch
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "$s=(New-Object -ComObject WScript.Shell); $p=[Environment]::GetFolderPath('Desktop')+'\VozClara Motor.lnk'; $l=$s.CreateShortcut($p); $l.TargetPath=$env:LOCALAPPDATA+'\VozClara\Iniciar-Motor.bat'; $l.WorkingDirectory=$env:LOCALAPPDATA+'\VozClara'; $l.Save()"
 

@@ -104,6 +104,12 @@
       button:active:not(:disabled) { transform: translateY(1px); }
       button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
       button:disabled { opacity: 0.55; cursor: default; filter: none; }
+      #update {
+        margin-top: 8px;
+        background: transparent;
+        color: var(--muted);
+        border: 1px solid var(--line);
+      }
       .steps { list-style: none; margin: 0 0 18px; padding: 0; }
       .steps li {
         display: grid;
@@ -149,7 +155,8 @@
       <p class="lead" id="lead">
         Um programa pequeno no seu Windows. Ele transcreve os áudios
         do WhatsApp sem enviar nada para a internet. Fica escondido
-        ao lado do relógio, como o antivírus.
+        ao lado do relógio, como o antivírus. Instala uma vez; depois
+        só liga o que já está neste PC.
       </p>
       <ol class="steps" id="steps">
         <li data-k="copy"><span class="dot"></span> Copiar o programa nesta pasta</li>
@@ -163,6 +170,7 @@
       <p class="fine" id="fine" hidden></p>
       <div class="bar" aria-hidden="true"><span></span></div>
       <button type="button" id="go">Instalar neste computador</button>
+      <button type="button" id="update" hidden>Atualizar arquivos</button>
       <p class="note">
         O Windows pode mostrar um aviso azul na primeira vez — o arquivo
         ainda não tem certificado pago. Clique em <strong>Mais informações</strong>
@@ -173,6 +181,7 @@
     <script>
       const $ = (id) => document.getElementById(id);
       const go = $("go");
+      const update = $("update");
       const logEl = $("log");
       const err = $("err");
       const fine = $("fine");
@@ -187,49 +196,85 @@
         logEl.textContent += t + "\n";
         logEl.scrollTop = logEl.scrollHeight;
       }
-      go.addEventListener("click", async () => {
+      function doneOk(msg) {
+        document.querySelectorAll(".steps li").forEach((li) => (li.className = "ok"));
+        lead.textContent = msg || "Pronto. Olhe o canto inferior direito, perto do relógio. O ícone da VozClara fica lá (às vezes escondido no ^). Volte no WhatsApp e transcreva.";
+        fine.hidden = false;
+        fine.textContent = "Pode fechar esta página. O motor continua ligado.";
+        go.textContent = "Concluído";
         go.disabled = true;
-        go.textContent = "Instalando…";
+        if (update) update.hidden = true;
+        document.body.classList.remove("busy");
+      }
+      async function runInstall() {
+        const res = await fetch("/api/install", { method: "POST" });
+        if (!res.ok || !res.body) throw new Error("O instalador não respondeu.");
+        const reader = res.body.getReader();
+        const dec = new TextDecoder();
+        let buf = "";
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buf += dec.decode(value, { stream: true });
+          const parts = buf.split("\n\n");
+          buf = parts.pop() || "";
+          for (const block of parts) {
+            const ev = (block.match(/^event: (.*)$/m) || [])[1];
+            const data = (block.match(/^data: (.*)$/m) || [])[1] || "";
+            if (ev === "step") setStep(data, "on");
+            if (ev === "ok") setStep(data, "ok");
+            if (ev === "log") line(data);
+            if (ev === "done") {
+              doneOk();
+            }
+            if (ev === "error") throw new Error(data);
+          }
+        }
+      }
+      async function runStart() {
+        const res = await fetch("/api/start", { method: "POST" });
+        const json = await res.json().catch(() => null);
+        if (!res.ok) throw new Error((json && json.error) || "Não liguei o motor.");
+        doneOk("Já estava neste PC. Liguei o motor na bandeja.");
+      }
+      async function onGo() {
+        go.disabled = true;
+        if (update) update.disabled = true;
+        go.textContent = go.dataset.mode === "start" ? "Ligando…" : "Instalando…";
         document.body.classList.add("busy");
         err.hidden = true;
         fine.hidden = true;
         try {
-          const res = await fetch("/api/install", { method: "POST" });
-          if (!res.ok || !res.body) throw new Error("O instalador não respondeu.");
-          const reader = res.body.getReader();
-          const dec = new TextDecoder();
-          let buf = "";
-          while (true) {
-            const { value, done } = await reader.read();
-            if (done) break;
-            buf += dec.decode(value, { stream: true });
-            const parts = buf.split("\n\n");
-            buf = parts.pop() || "";
-            for (const block of parts) {
-              const ev = (block.match(/^event: (.*)$/m) || [])[1];
-              const data = (block.match(/^data: (.*)$/m) || [])[1] || "";
-              if (ev === "step") setStep(data, "on");
-              if (ev === "ok") setStep(data, "ok");
-              if (ev === "log") line(data);
-              if (ev === "done") {
-                document.querySelectorAll(".steps li").forEach((li) => (li.className = "ok"));
-                lead.textContent = "Pronto. Olhe o canto inferior direito, perto do relógio. O ícone da VozClara fica lá (às vezes escondido no ^). Volte no WhatsApp e transcreva.";
-                fine.hidden = false;
-                fine.textContent = "Pode fechar esta página. O motor continua ligado.";
-                go.textContent = "Concluído";
-                document.body.classList.remove("busy");
-              }
-              if (ev === "error") throw new Error(data);
-            }
-          }
+          if (go.dataset.mode === "start") await runStart();
+          else await runInstall();
         } catch (e) {
           err.hidden = false;
           err.textContent = e.message || String(e);
           go.disabled = false;
-          go.textContent = "Tentar de novo";
+          if (update) update.disabled = false;
+          go.textContent = go.dataset.mode === "start" ? "Ligar o motor" : "Tentar de novo";
           document.body.classList.remove("busy");
         }
+      }
+      go.addEventListener("click", () => void onGo());
+      update?.addEventListener("click", () => {
+        go.dataset.mode = "install";
+        void onGo();
       });
+      fetch("/api/status")
+        .then((r) => r.json())
+        .then((s) => {
+          if (!s || !s.installed || !s.libs) return;
+          go.dataset.mode = "start";
+          go.textContent = "Ligar o motor";
+          lead.textContent = "Já está neste PC. Vou só ligar o motor na bandeja — sem baixar de novo.";
+          document.querySelectorAll(".steps li").forEach((li) => (li.className = "ok"));
+          if (update) {
+            update.hidden = false;
+            update.textContent = "Atualizar arquivos";
+          }
+        })
+        .catch(() => {});
     </script>
   </body>
 </html>

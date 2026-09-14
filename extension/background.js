@@ -1,6 +1,6 @@
 const MENU_ID = "vozclara-transcribe";
 const MOTOR_SETUP_HINT =
-  "O instalador já veio no zip do site. Na pasta extraída, abra engine/VozClara-Motor-Setup.exe. Depois clique em Verificar.";
+  "Na primeira vez, rode engine/VozClara-Motor-Setup.exe do zip. Depois use Ligar o motor — o Setup só abre o que já está no PC, sem instalar de novo.";
 
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({
@@ -1266,6 +1266,8 @@ async function withGemma(status) {
     "gemmaWaitingMotor",
     "gemmaError",
     "gemmaSetupOk",
+    "gemmaSawLoading",
+    "gemmaLoadStartedAt",
   ]);
   let probe = { ok: false };
   if (extra.gemmaOn || extra.gemmaWaitingMotor || status.motorAlive) {
@@ -1285,11 +1287,24 @@ async function withGemma(status) {
     });
     postGemmaLoad(extra.gemmaKind || "it").catch(() => {});
   }
+  const saw = Boolean(extra.gemmaSawLoading) || Boolean(g.loading);
+  const startedAt = Number(extra.gemmaLoadStartedAt) || 0;
+  const waited = startedAt > 0 && Date.now() - startedAt > 4000;
+  let crash = "";
+  if (saw && waited && probe?.ok && !g.loading && !g.ready && !g.error && !stale) {
+    crash =
+      "O motor reiniciou no meio do download. O E2B-it usa bastante RAM junto com o Nemotron. Feche outros programas e clique em Tentar de novo.";
+  }
+  const keepErr = g.ready || g.loading
+    ? ""
+    : String(g.error || crash || extra.gemmaError || "").trim();
   await chrome.storage.local.set({
     gemmaReady: Boolean(g.ready),
     gemmaLoading: Boolean(g.loading) || Boolean(extra.gemmaWaitingMotor && stale),
-    gemmaError: g.error || "",
+    gemmaError: keepErr,
     gemmaStale: stale,
+    gemmaSawLoading: Boolean(g.loading),
+    gemmaLoadStartedAt: g.ready ? 0 : extra.gemmaLoadStartedAt || 0,
   });
   return {
     ...status,
@@ -1298,13 +1313,14 @@ async function withGemma(status) {
     gemmaStale: stale,
     gemmaWaiting: Boolean(extra.gemmaWaitingMotor) && stale,
     gemmaSetupOk: Boolean(extra.gemmaSetupOk),
+    gemmaPending: Boolean(g.loading) || (saw && !g.ready && !keepErr),
     gemma: {
       ready: Boolean(g.ready),
       loading: Boolean(g.loading),
       kind: g.kind || extra.gemmaKind || "it",
       percent: Number(g.percent) || 0,
       detail: g.detail || "",
-      error: g.error || extra.gemmaError || "",
+      error: keepErr,
       stale,
     },
   };
@@ -1355,39 +1371,61 @@ async function postGemmaLoad(kind) {
 async function loadGemmaMotor(kind) {
   const want = String(kind || "it");
   await chrome.storage.local.set({ gemmaOn: true, gemmaKind: want, gemmaLoading: true });
-  const extra = await chrome.storage.local.get(["localUrl", "gemmaSetupAt"]);
-  let probe = await probeLocal(extra.localUrl);
-  if (!probe?.ok) {
-    try {
-      await wakeMotor();
-    } catch {
-      /* still try */
+  try {
+    const extra = await chrome.storage.local.get(["localUrl", "gemmaSetupAt"]);
+    let probe = await probeLocal(extra.localUrl);
+    if (!probe?.ok) {
+      try {
+        await wakeMotor();
+      } catch {
+        /* still try */
+      }
+      probe = await probeLocal(extra.localUrl);
     }
-    probe = await probeLocal(extra.localUrl);
-  }
-  if (!probe?.ok) {
-    throw new Error("Ligue o motor na bandeja.");
-  }
-  if (probe.gemma == null) {
+    if (!probe?.ok) {
+      throw new Error("Ligue o motor na bandeja.");
+    }
+    if (probe.gemma == null) {
+      const error =
+        "Este motor ainda não sabe baixar o Gemma. Feche o ícone da bandeja (Sair) e abra o Setup — se já instalou, ele só atualiza e liga.";
+      await chrome.storage.local.set({
+        gemmaSetupOk: true,
+        gemmaError: error,
+        gemmaWaitingMotor: true,
+        gemmaStale: true,
+        gemmaLoading: false,
+      });
+      throw new Error(error);
+    }
+    const posted = await postGemmaLoad(want);
+    if (posted.missing) {
+      const error =
+        "Este motor ainda não sabe baixar o Gemma. Feche o ícone da bandeja (Sair) e abra o Setup — se já instalou, ele só atualiza e liga.";
+      await chrome.storage.local.set({
+        gemmaWaitingMotor: true,
+        gemmaStale: true,
+        gemmaLoading: false,
+        gemmaError: error,
+        gemmaSawLoading: false,
+      });
+      return { ok: false, waiting: true, error };
+    }
     await chrome.storage.local.set({
-      gemmaSetupOk: true,
-      gemmaError: MOTOR_SETUP_HINT,
-      gemmaWaitingMotor: true,
-      gemmaStale: true,
-      gemmaLoading: false,
+      gemmaSawLoading: true,
+      gemmaLoading: true,
+      gemmaError: "",
+      gemmaLoadStartedAt: Date.now(),
     });
-    throw new Error(MOTOR_SETUP_HINT);
-  }
-  const posted = await postGemmaLoad(want);
-  if (posted.missing) {
+    return posted;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Não baixei o Gemma.";
     await chrome.storage.local.set({
-      gemmaWaitingMotor: true,
-      gemmaStale: true,
       gemmaLoading: false,
+      gemmaError: msg,
+      gemmaSawLoading: false,
     });
-    return { ok: true, waiting: true };
+    throw err;
   }
-  return posted;
 }
 
 async function suggestReplies(text) {
@@ -1511,7 +1549,7 @@ async function probeLocal(url) {
         alive: false,
         ready: false,
         error:
-          "Não alcanço o motor. Rode engine/VozClara-Motor-Setup.exe do zip e clique em Verificar.",
+          "Não alcanço o motor. Se já instalou, clique em Ligar o motor ou no atalho VozClara Motor da área de trabalho.",
       };
     } finally {
       clearTimeout(timer);
@@ -1576,7 +1614,7 @@ async function wakeMotor() {
     ready: false,
     motorUp: false,
     error:
-      "Não alcanço o motor. Rode engine/VozClara-Motor-Setup.exe do zip e clique em Verificar.",
+      "Não alcanço o motor. Se já instalou, clique em Ligar o motor ou no atalho VozClara Motor da área de trabalho.",
   };
 }
 
@@ -1703,9 +1741,26 @@ async function beginNemotron() {
       }
       throw new Error(MOTOR_SETUP_HINT);
     }
+    const extra = await chrome.storage.local.get(["motorInstalled"]);
+    if (extra.motorInstalled) {
+      const woken = await wakeMotor();
+      if (woken?.ok) return;
+      const error =
+        "O motor já está neste PC, mas desligado. Use Ligar o motor ou o atalho VozClara Motor na área de trabalho.";
+      await chrome.storage.local.set({
+        localProgress: {
+          downloading: false,
+          percent: 0,
+          label: error,
+          error,
+        },
+      });
+      updateBadge({ error });
+      return;
+    }
     const offered = await offerSetup();
     const label = offered.reused
-      ? "Setup já estava em Downloads. Dê dois cliques nele, depois Verificar."
+      ? "Setup já estava em Downloads. Se o motor já foi instalado, o Setup só liga — sem baixar de novo."
       : MOTOR_SETUP_HINT;
     await chrome.storage.local.set({
       localProgress: {

@@ -102,7 +102,7 @@
     .dot.warn { background: #e9c46a; animation: vc-pulse 1.2s ease-in-out infinite; }
     .dot.off { background: #667781; }
     @keyframes vc-pulse { 50% { opacity: .35; } }
-    .status { margin: 0 0 8px; font-size: 12px; color: var(--muted); }
+    .status { margin: 0 0 8px; font-size: 12px; line-height: 1.4; color: var(--muted); white-space: pre-wrap; }
     .status.ok { color: #00a884; }
     .status.warn { color: #e9c46a; }
     .confirm { margin: 0 0 10px; padding: 10px; border-radius: 8px; background: var(--field); }
@@ -331,7 +331,7 @@
               </div>
               <div class="meter" id="motor-meter" hidden><span id="motor-bar"></span></div>
               <p class="hint" id="motor-hint" hidden>
-                O Setup já veio no zip. Na pasta extraída: <span class="mono">engine/VozClara-Motor-Setup.exe</span>
+                O Setup do zip instala uma vez. Depois: Ligar o motor (atalho na área de trabalho).
               </p>
             </div>
             <div class="meter" id="meter" hidden><span id="bar"></span></div>
@@ -679,7 +679,7 @@
     const busy =
       selected === "nemotron" &&
       (Boolean(state?.downloading) || (Boolean(state?.motorAlive) && !state?.motorUp));
-    const gBusy = Boolean(state?.gemma?.loading || state?.gemmaWaiting);
+    const gBusy = Boolean(state?.gemma?.loading || state?.gemmaWaiting || state?.gemmaPending);
     if ((busy || gBusy) && !motorPoll) {
       motorPoll = setInterval(() => void refreshLocal(), 1500);
     } else if (!busy && !gBusy && motorPoll) {
@@ -783,7 +783,7 @@
     if (modelDot) modelDot.className = `dot ${view.model.kind || "off"}`;
     if (status) {
       status.textContent = action.status;
-      status.className = action.kind === "ok" ? "ok" : "warn";
+      status.className = action.kind === "ok" ? "status ok" : "status warn";
     }
     if (btn) {
       btn.disabled = action.disabled;
@@ -814,14 +814,15 @@
         type: "VOZCLARA_GEMMA_LOAD",
         kind,
       });
-      if (!result?.ok && !result?.waiting) {
+      if (!result?.ok) {
         throw new Error(result?.error || "Não baixei o Gemma.");
       }
     } catch (err) {
       const status = $p("gemma-status");
       if (status) {
         status.textContent = err instanceof Error ? err.message : "Não baixei o Gemma.";
-        status.className = "warn";
+        status.dataset.kind = "warn";
+        status.className = "status warn";
       }
       if (btn) btn.disabled = false;
     }

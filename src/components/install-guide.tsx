@@ -15,7 +15,7 @@ const STEPS = [
   {
     n: "3",
     title: "Rode o Setup uma vez",
-    body: "Na pasta extraída, abra engine/VozClara-Motor-Setup.exe. O Chrome recusa baixar o mesmo .exe de novo — por isso ele já veio no zip.",
+    body: "Na pasta extraída, abra engine/VozClara-Motor-Setup.exe uma vez. Depois o atalho VozClara Motor (ou Ligar o motor) só abre o que já está no PC — sem instalar de novo.",
   },
   {
     n: "4",
@@ -34,7 +34,7 @@ export function InstallGuide() {
           </h2>
           <p className="mt-1 max-w-xl text-sm text-fg-muted">
             Chrome, Brave ou Edge no computador. Um zip, uma instalação do
-            motor, depois só verificar.
+            motor, depois só ligar.
           </p>
         </div>
         <Button asChild>

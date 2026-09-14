@@ -1,5 +1,18 @@
 # WORKLOG
 
+## 2026-09-14 — Gemma: mostrar o motivo da falha
+
+- O painel dizia só “Não baixou” porque o erro sumia depois do clique e
+  porque o motor reiniciava no meio do download (RAM) sem avisar.
+- Agora: “Tentar de novo” + texto (Hugging Face, disco, internet, RAM).
+
+## 2026-09-14 — Setup já instalado só liga o motor
+
+- Sem `pip` de novo: se `%LOCALAPPDATA%\VozClara\server.py` e as libs existem,
+  o Setup abre a bandeja (`/run`). `/install` força a UI de atualizar.
+- Atalho e `vozclara://` apontam para a cópia em AppData com `/run`.
+- Extensão: motor já instalado e desligado → Ligar, não “rode o Setup do zip”.
+
 ## 2026-09-13 — Sugestão só no áudio, com contexto
 
 - A barra “Sugerir resposta / da última mensagem recebida” saiu do campo de texto.

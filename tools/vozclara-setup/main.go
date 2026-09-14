@@ -2,6 +2,7 @@ package main
 
 import (
 	_ "embed"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -21,6 +22,11 @@ var uiHTML []byte
 //go:embed server.py
 var serverPy []byte
 
+var neededLibs = []string{
+	"transformers", "torch", "torchaudio", "accelerate", "soundfile",
+	"librosa", "scipy", "numpy", "soxr", "einops",
+}
+
 func destDir() string {
 	base := os.Getenv("LOCALAPPDATA")
 	if base == "" {
@@ -29,14 +35,53 @@ func destDir() string {
 	return filepath.Join(base, "VozClara")
 }
 
+func destExePath(dest string) string {
+	return filepath.Join(dest, "VozClara-Motor-Setup.exe")
+}
+
+func hasFlag(name string) bool {
+	for _, a := range os.Args[1:] {
+		if strings.EqualFold(a, name) {
+			return true
+		}
+	}
+	return false
+}
+
+func fileExists(path string) bool {
+	st, err := os.Stat(path)
+	return err == nil && !st.IsDir()
+}
+
+func samePath(a, b string) bool {
+	aa, err1 := filepath.Abs(a)
+	bb, err2 := filepath.Abs(b)
+	if err1 != nil || err2 != nil {
+		return strings.EqualFold(filepath.Clean(a), filepath.Clean(b))
+	}
+	return strings.EqualFold(aa, bb)
+}
+
 func main() {
-	if len(os.Args) > 1 && (os.Args[1] == "/run" || os.Args[1] == "--run") {
+	if hasFlag("/run") || hasFlag("--run") {
 		if err := runMotor(); err != nil {
 			msgBox("VozClara Motor", err.Error())
 		}
 		return
 	}
+	forceUI := hasFlag("/install") || hasFlag("--install")
+	if !forceUI && motorReady() {
+		if err := openInstalled(); err != nil {
+			msgBox("VozClara Motor", "Não liguei o motor: "+err.Error())
+			serveInstaller()
+			return
+		}
+		return
+	}
+	serveInstaller()
+}
 
+func serveInstaller() {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		msgBox("VozClara Motor", "Não abri o instalador: "+err.Error())
@@ -47,14 +92,39 @@ func main() {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		_, _ = w.Write(uiHTML)
 	})
+	mux.HandleFunc("/api/status", handleStatus)
+	mux.HandleFunc("/api/start", handleStart)
 	mux.HandleFunc("/api/install", handleInstall)
 	go http.Serve(ln, mux)
 
 	url := "http://" + ln.Addr().String() + "/"
 	_ = exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
 
-	// Keep the process alive while the page talks to it.
 	select {}
+}
+
+func handleStatus(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	py, pyErr := findPython()
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"installed": fileExists(filepath.Join(destDir(), "server.py")),
+		"libs":      pyErr == nil && libsPresent(py),
+		"python":    py,
+	})
+}
+
+func handleStart(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	if err := openInstalled(); err != nil {
+		w.WriteHeader(500)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
+	go func() {
+		time.Sleep(800 * time.Millisecond)
+		os.Exit(0)
+	}()
 }
 
 func handleInstall(w http.ResponseWriter, r *http.Request) {
@@ -83,8 +153,11 @@ func handleInstall(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	self, _ := os.Executable()
-	if self != "" {
-		_ = copyFile(self, filepath.Join(dest, "VozClara-Motor-Setup.exe"))
+	destExe := destExePath(dest)
+	if self != "" && !samePath(self, destExe) {
+		_ = copyFile(self, destExe)
+	} else if self != "" {
+		destExe = self
 	}
 	send("ok", "copy")
 	send("log", "Arquivos em "+dest)
@@ -108,25 +181,30 @@ func handleInstall(w http.ResponseWriter, r *http.Request) {
 	send("ok", "python")
 
 	send("step", "libs")
-	send("log", "Baixando bibliotecas. Na primeira vez demora.")
-	if err := runLogged(send, dest, py, "-m", "pip", "install", "--user", "--upgrade", "pip"); err != nil {
-		send("error", "Não atualizei o pip: "+err.Error())
-		return
-	}
-	if err := runLogged(send, dest, py, "-m", "pip", "install", "--user", "transformers", "torch", "torchaudio", "accelerate", "soundfile", "librosa", "scipy", "numpy", "soxr", "einops"); err != nil {
-		send("error", "Não instalei as bibliotecas: "+err.Error())
-		return
+	if libsPresent(py) {
+		send("log", "Bibliotecas já estão neste PC. Nada para baixar.")
+	} else {
+		send("log", "Baixando bibliotecas. Na primeira vez demora.")
+		if err := runLogged(send, dest, py, "-m", "pip", "install", "--user", "--upgrade", "pip"); err != nil {
+			send("error", "Não atualizei o pip: "+err.Error())
+			return
+		}
+		args := append([]string{"-m", "pip", "install", "--user"}, neededLibs...)
+		if err := runLogged(send, dest, py, args...); err != nil {
+			send("error", "Não instalei as bibliotecas: "+err.Error())
+			return
+		}
 	}
 	send("ok", "libs")
 
 	send("step", "shortcut")
-	if err := writeShortcuts(dest, self); err != nil {
+	if err := writeShortcuts(dest, destExe); err != nil {
 		send("log", "Atalho: "+err.Error())
 	}
 	send("ok", "shortcut")
 
 	send("step", "start")
-	if err := startMotor(dest, py); err != nil {
+	if err := spawnRun(destExe); err != nil {
 		send("error", "Não liguei o motor: "+err.Error())
 		return
 	}
@@ -136,6 +214,68 @@ func handleInstall(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(1500 * time.Millisecond)
 		os.Exit(0)
 	}()
+}
+
+func motorReady() bool {
+	if !fileExists(filepath.Join(destDir(), "server.py")) {
+		return false
+	}
+	py, err := findPython()
+	if err != nil {
+		return false
+	}
+	return libsPresent(py)
+}
+
+func libsPresent(py string) bool {
+	if py == "" {
+		return false
+	}
+	quoted := make([]string, len(neededLibs))
+	for i, m := range neededLibs {
+		quoted[i] = "'" + m + "'"
+	}
+	code := "import importlib.util, sys\nneed=[" + strings.Join(quoted, ",") + "]\n" +
+		"sys.exit(0 if all(importlib.util.find_spec(m) for m in need) else 1)"
+	cmd := exec.Command(py, "-c", code)
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	return cmd.Run() == nil
+}
+
+func openInstalled() error {
+	dest := destDir()
+	if err := os.MkdirAll(dest, 0755); err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(dest, "server.py"), serverPy, 0644); err != nil {
+		return err
+	}
+	destExe := destExePath(dest)
+	self, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	exe := self
+	if !samePath(self, destExe) {
+		if copyErr := copyFile(self, destExe); copyErr == nil {
+			exe = destExe
+		}
+	}
+	_ = writeShortcuts(dest, exe)
+	return spawnRun(exe)
+}
+
+func spawnRun(exe string) error {
+	if exe == "" {
+		self, err := os.Executable()
+		if err != nil {
+			return err
+		}
+		exe = self
+	}
+	registerProtocol(exe)
+	cmd := exec.Command(exe, "/run")
+	return cmd.Start()
 }
 
 func findPython() (string, error) {
@@ -210,12 +350,11 @@ func runLogged(send func(string, string), dir, name string, args ...string) erro
 	return cmd.Wait()
 }
 
-func writeShortcuts(dest, self string) error {
-	target := self
-	if target == "" {
-		target = filepath.Join(dest, "VozClara-Motor-Setup.exe")
+func writeShortcuts(dest, exe string) error {
+	if exe == "" {
+		exe = destExePath(dest)
 	}
-	registerProtocol(target)
+	registerProtocol(exe)
 	ps := fmt.Sprintf(`
 $ws = New-Object -ComObject WScript.Shell
 $desktop = [Environment]::GetFolderPath('Desktop')
@@ -230,7 +369,7 @@ foreach ($dir in @($desktop, $start, $startup)) {
   $l.Description = 'Motor Nemotron da VozClara (bandeja)'
   $l.Save()
 }
-`, target, dest)
+`, exe, dest)
 	cmd := exec.Command("powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps)
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 	out, err := cmd.CombinedOutput()
@@ -252,18 +391,6 @@ func registerProtocol(exe string) {
 		c.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 		_ = c.Run()
 	}
-}
-
-func startMotor(dest, py string) error {
-	_ = dest
-	_ = py
-	self, err := os.Executable()
-	if err != nil {
-		return err
-	}
-	registerProtocol(self)
-	cmd := exec.Command(self, "/run")
-	return cmd.Start()
 }
 
 func runMotor() error {
