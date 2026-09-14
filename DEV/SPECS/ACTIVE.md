@@ -39,8 +39,8 @@ mensagens da conversa + até 5 áudios anteriores ainda sem texto.
 2026-09-14: Setup detecta instalação em AppData e **só liga** o motor. Pip só
 na primeira vez (ou “Atualizar arquivos”).
 
-2026-09-14: Sugestão de resposta passou de Gemma 4 E2B para
-**Qwen2.5-1.5B-Instruct Q4** (GGUF, CPU). Nemotron só transcreve.
+2026-09-14: Sugestão usa **só o áudio transcrito** (sem thread). Card
+alinha à direita nos enviados; clique cola no compose sem enviar.
 
 ## Fora de escopo
 

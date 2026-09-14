@@ -118,6 +118,17 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       );
     return true;
   }
+  if (msg?.type === "VOZCLARA_GEMMA_DELETE") {
+    deleteGemmaMotor()
+      .then(sendResponse)
+      .catch((err) =>
+        sendResponse({
+          ok: false,
+          error: err instanceof Error ? err.message : "Não apaguei o Qwen.",
+        }),
+      );
+    return true;
+  }
   if (msg?.type === "VOZCLARA_SUGGEST") {
     suggestReplies(msg.text)
       .then(sendResponse)
@@ -1308,7 +1319,13 @@ async function withGemma(status) {
     gemmaStale: stale,
     gemmaSawLoading: Boolean(g.loading),
     gemmaLoadStartedAt: g.ready ? 0 : extra.gemmaLoadStartedAt || 0,
+    gemmaPercent: Number(g.percent) || 0,
+    gemmaDetail: g.detail || "",
+    gemmaCached: Boolean(g.cached),
+    gemmaBytes: Number(g.bytes) || 0,
   });
+  if (g.ready) stopGemmaWatch(true);
+  else if (g.loading || extra.gemmaLoading) startGemmaWatch();
   return {
     ...status,
     motorAlive: Boolean(probe?.ok) || Boolean(status.motorAlive),
@@ -1325,6 +1342,8 @@ async function withGemma(status) {
       detail: g.detail || "",
       error: keepErr,
       stale,
+      cached: Boolean(g.cached),
+      bytes: Number(g.bytes) || 0,
     },
   };
 }
@@ -1371,6 +1390,153 @@ async function postGemmaLoad(kind) {
     );
   }
   return { ok: true, started: true, ready: Boolean(json?.ready), kind: want };
+}
+
+let gemmaWatch = null;
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function startGemmaWatch() {
+  if (gemmaWatch) return;
+  gemmaWatch = setInterval(() => {
+    chrome.runtime.getPlatformInfo(() => {});
+    void tickGemmaWatch();
+  }, 800);
+  void tickGemmaWatch();
+}
+
+function stopGemmaWatch(ready) {
+  if (gemmaWatch) {
+    clearInterval(gemmaWatch);
+    gemmaWatch = null;
+  }
+  chrome.storage.local.get(["localProgress"]).then((stored) => {
+    if (stored.localProgress?.downloading) return;
+    try {
+      if (ready) {
+        chrome.action.setBadgeBackgroundColor({ color: "#5dcaa0" });
+        chrome.action.setBadgeText({ text: "OK" });
+        setTimeout(() => chrome.action.setBadgeText({ text: "" }), 4000);
+      }
+    } catch {
+      /* ignore */
+    }
+  });
+}
+
+async function tickGemmaWatch() {
+  try {
+    const extra = await chrome.storage.local.get(["localUrl", "gemmaLoading", "localProgress"]);
+    const probe = await probeLocal(extra.localUrl);
+    const g = probe?.suggest || probe?.gemma || {};
+    await chrome.storage.local.set({
+      gemmaReady: Boolean(g.ready),
+      gemmaLoading: Boolean(g.loading),
+      gemmaPercent: Number(g.percent) || 0,
+      gemmaDetail: g.detail || "",
+      gemmaError: g.error || "",
+      gemmaCached: Boolean(g.cached),
+      gemmaBytes: Number(g.bytes) || 0,
+    });
+    if (!extra.localProgress?.downloading) {
+      try {
+        if (g.loading) {
+          chrome.action.setBadgeBackgroundColor({ color: "#5dcaa0" });
+          chrome.action.setBadgeText({
+            text: String(Math.max(1, Math.min(99, Number(g.percent) || 1))),
+          });
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+    if (!g.loading) stopGemmaWatch(Boolean(g.ready));
+  } catch {
+    /* keep ticking */
+  }
+}
+
+async function postGemmaDelete() {
+  const extra = await chrome.storage.local.get(["localUrl"]);
+  const root = localRoot(extra.localUrl) || "http://127.0.0.1:8173";
+  let token = "";
+  try {
+    token = await motorToken();
+  } catch {
+    token = "";
+  }
+  const send = (path) =>
+    fetch(`${root}${path}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({}),
+    });
+  let res = await send("/v1/suggest/delete");
+  if (res.status === 404) res = await send("/v1/gemma/delete");
+  let json = await res.json().catch(() => null);
+  if (res.status === 401) {
+    try {
+      token = await pairMotor(extra.localUrl);
+    } catch {
+      token = "";
+    }
+    res = await send("/v1/suggest/delete");
+    if (res.status === 404) res = await send("/v1/gemma/delete");
+    json = await res.json().catch(() => null);
+  }
+  if (res.status === 404) {
+    return { ok: false, missing: true };
+  }
+  if (!res.ok) {
+    throw new Error(
+      (typeof json?.error === "string" && json.error) || "Não apaguei o Qwen.",
+    );
+  }
+  return { ok: true, deleted: true };
+}
+
+async function deleteGemmaMotor() {
+  stopGemmaWatch(false);
+  try {
+    const extra = await chrome.storage.local.get(["localUrl"]);
+    let probe = await probeLocal(extra.localUrl);
+    if (!probe?.ok) {
+      throw new Error("Ligue o motor na bandeja para apagar o modelo.");
+    }
+    const posted = await postGemmaDelete();
+    if (posted.missing) {
+      throw new Error(
+        "Este motor ainda não sabe apagar o Qwen. Feche a bandeja (Sair) e rode o Setup de novo.",
+      );
+    }
+    await chrome.storage.local.set({
+      gemmaReady: false,
+      gemmaLoading: false,
+      gemmaError: "",
+      gemmaPercent: 0,
+      gemmaDetail: "Modelo apagado",
+      gemmaCached: false,
+      gemmaBytes: 0,
+      gemmaSawLoading: false,
+      gemmaLoadStartedAt: 0,
+    });
+    try {
+      chrome.action.setBadgeText({ text: "" });
+    } catch {
+      /* ignore */
+    }
+    return posted;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Não apaguei o Qwen.";
+    await chrome.storage.local.set({ gemmaError: msg });
+    throw err;
+  }
 }
 
 async function loadGemmaMotor(kind) {
@@ -1421,6 +1587,7 @@ async function loadGemmaMotor(kind) {
       gemmaError: "",
       gemmaLoadStartedAt: Date.now(),
     });
+    startGemmaWatch();
     return posted;
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Não baixei o Qwen.";
@@ -1459,10 +1626,24 @@ async function suggestReplies(text) {
         error: err instanceof Error ? err.message : "Baixe o Qwen no painel.",
       };
     }
-    return {
-      ok: false,
-      error: "Baixando o Qwen no PC. Espere o Pronto no painel (~1,1 GB).",
-    };
+    const deadline = Date.now() + 45 * 60 * 1000;
+    while (Date.now() < deadline) {
+      await sleep(900);
+      const again = await probeLocal(stored.localUrl);
+      const g = again?.suggest || again?.gemma || {};
+      if (g.ready) break;
+      if (g.error && !g.loading) {
+        return { ok: false, error: String(g.error) };
+      }
+    }
+    const last = await probeLocal(stored.localUrl);
+    const ready = Boolean((last?.suggest || last?.gemma || {}).ready);
+    if (!ready) {
+      return {
+        ok: false,
+        error: "O Qwen ainda está baixando. Deixe o painel aberto — a barra mostra o progresso.",
+      };
+    }
   }
   const root = localRoot(stored.localUrl) || "http://127.0.0.1:8173";
   let token = "";

@@ -48,7 +48,9 @@
       box-sizing: border-box;
       font-family: Segoe UI, Helvetica, Arial, sans-serif;
       overflow-anchor: none;
+      pointer-events: none;
     }
+    .panel { pointer-events: auto; }
     .box {
       margin: 2px 0 4px;
       padding: 6px 10px 8px;
@@ -70,12 +72,18 @@
     }
     button.tx:hover { filter: brightness(1.06); }
     button.tx:disabled { opacity: .6; cursor: default; filter: none; }
-    .copy {
+    .copy, .retry, .again, .iconbtn {
       appearance: none; border: 0; background: transparent;
       color: var(--vc-muted, #8696a0); cursor: pointer; font-size: 11px;
       padding: 0;
     }
-    .copy:hover { color: var(--vc-fg, #e9edef); }
+    .copy:hover, .retry:hover, .again:hover, .iconbtn:hover { color: var(--vc-fg, #e9edef); }
+    .iconbtn, .ok, .again {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    }
+    .ok { color: var(--vc-accent, #00a884); }
+    .iconbtn.copied { color: var(--vc-accent, #00a884); }
+    .ok svg, .iconbtn svg, .again svg { width: 14px; height: 14px; display: block; }
     .tools { display: flex; gap: 10px; align-items: center; }
     .text {
       margin: 0;
@@ -141,7 +149,23 @@
     }
     button.sug:hover { filter: brightness(1.06); }
     button.sug:disabled { opacity: .55; cursor: default; filter: none; }
+    .again { margin-top: 8px; }
   `;
+
+  const CHECK_SVG =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" aria-hidden="true"><path d="M5 12.5 10 17.5 19 7"/></svg>';
+  const COPY_SVG =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="8" y="8" width="12" height="14" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h2"/></svg>';
+  const REFRESH_SVG =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.6-6.3"/><path d="M21 3v6h-6"/></svg>';
+
+  function resultToolsHtml() {
+    return `<span class="tools">
+      <span class="ok" title="Pronto" aria-label="Pronto">${CHECK_SVG}</span>
+      <button class="retry" type="button" data-retry="1">Re-transcrever</button>
+      <button class="iconbtn" type="button" data-copy="1" aria-label="Copiar" title="Copiar">${COPY_SVG}</button>
+    </span>`;
+  }
 
   /** @type {Array<{ t: number; mime: string; size: number; buffer: ArrayBuffer; requestId: string }>} */
   const recentMedia = [];
@@ -412,7 +436,6 @@
     const start = play || root;
     let el = start instanceof Element ? start.parentElement : null;
     let best = null;
-    let bestW = 0;
     for (let i = 0; i < 20 && el && el !== root.parentElement; i++) {
       if (el.classList?.contains("vozclara-wrap") || el.classList?.contains("vozclara-card")) {
         el = el.parentElement;
@@ -422,9 +445,9 @@
       const cs = getComputedStyle(el);
       const rad = parseFloat(cs.borderTopLeftRadius) || 0;
       const w = el.getBoundingClientRect().width;
-      if (rad >= 4 && w >= 110 && w <= 720 && w >= bestW) {
+      if (rad >= 4 && w >= 110 && w <= 520) {
         best = el;
-        bestW = w;
+        break;
       }
       el = el.parentElement;
     }
@@ -531,7 +554,8 @@
         const text = el.shadowRoot?.querySelector(".text")?.textContent || "";
         try {
           await navigator.clipboard.writeText(text);
-          copyBtn.textContent = "Copiado";
+          copyBtn.classList.add("copied");
+          window.setTimeout(() => copyBtn.classList.remove("copied"), 1600);
         } catch {
           /* ignore */
         }
@@ -557,6 +581,15 @@
         void suggestFromAudio(root);
       });
     }
+    el.shadowRoot?.querySelectorAll("button.reply").forEach((btn) => {
+      if (btn.dataset.bound) return;
+      btn.dataset.bound = "1";
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        fillCompose(btn.textContent || "");
+      });
+    });
   }
 
   function bindTx(root, el) {
@@ -593,23 +626,33 @@
     const br = bubble.getBoundingClientRect();
     const rr = row.getBoundingClientRect();
     if (br.width < 40) return;
-    const outgoing = br.left - rr.left > rr.right - br.right;
+    const outgoing =
+      isOutgoing(root) || br.left - rr.left > rr.right - br.right;
     const left = Math.max(0, Math.round(br.left - rr.left));
+    const right = Math.max(0, Math.round(rr.right - br.right));
     const width = Math.round(br.width);
     const compact = cardEl.classList.contains("vozclara-mini");
-    const gap = compact ? "2px 0 8px" : "6px 0 12px";
-    const margin = outgoing ? `${gap} auto` : `${gap} ${left}px`;
-    if (cardEl.dataset.vcW === String(width) && cardEl.dataset.vcM === margin) return;
-    cardEl.dataset.vcW = String(width);
-    cardEl.dataset.vcM = margin;
+    const top = compact ? "2px" : "6px";
+    const bot = compact ? "8px" : "12px";
+    const place = outgoing ? `out:${width}:${right}` : `in:${width}:${left}`;
+    if (cardEl.dataset.vcPlace === place) return;
+    cardEl.dataset.vcPlace = place;
     cardEl.style.display = "block";
     cardEl.style.position = "relative";
     cardEl.style.boxSizing = "border-box";
     cardEl.style.width = `${width}px`;
-    cardEl.style.margin = margin;
     cardEl.style.maxWidth = "100%";
-    cardEl.style.pointerEvents = "auto";
-    cardEl.style.zIndex = "5";
+    cardEl.style.marginTop = top;
+    cardEl.style.marginBottom = bot;
+    if (outgoing) {
+      cardEl.style.marginLeft = "auto";
+      cardEl.style.marginRight = `${right}px`;
+    } else {
+      cardEl.style.marginLeft = `${left}px`;
+      cardEl.style.marginRight = "auto";
+    }
+    cardEl.style.pointerEvents = "none";
+    cardEl.style.zIndex = "";
     cardEl.style.overflowAnchor = "none";
     paintTheme(bubble, cardEl);
   }
@@ -626,11 +669,15 @@
     }
     const audio = findAudioCard(root);
     const key = keyFor(root);
+    const inner = [...root.children].find((n) => n.classList?.contains("vozclara-card"));
     const sib = root.nextElementSibling;
     let cardEl = cardByKey.get(key);
-    if (sib?.classList.contains("vozclara-card") && sib !== cardEl) {
-      if (cardEl && cardEl !== sib) cardEl.remove();
-      cardEl = sib;
+    const found =
+      (inner && inner !== cardEl ? inner : null) ||
+      (sib?.classList.contains("vozclara-card") && sib !== cardEl ? sib : null);
+    if (found) {
+      if (cardEl && cardEl !== found) cardEl.remove();
+      cardEl = found;
       cardEl.dataset.vcKey = key;
       cardByKey.set(key, cardEl);
       bindTx(root, cardEl);
@@ -644,15 +691,15 @@
         const panel = cardEl.shadowRoot?.querySelector(".panel");
         if (panel) {
           panel.innerHTML = kept;
+          panel.querySelectorAll("[data-bound]").forEach((n) => n.removeAttribute("data-bound"));
           bindTx(root, cardEl);
           bindResultTools(root, cardEl);
         }
       }
       cardByKey.set(key, cardEl);
     }
-    const host = root.parentElement;
-    if (host && (cardEl.parentElement !== host || cardEl.previousElementSibling !== root)) {
-      root.insertAdjacentElement("afterend", cardEl);
+    if (cardEl.parentElement !== root) {
+      root.appendChild(cardEl);
     }
     placeCard(audio || root, cardEl, root);
   }
@@ -699,9 +746,10 @@
     if (ae && el.contains(ae)) ae.blur();
     runMutate(() => {
       panel.innerHTML = html || idleHtml();
+      panel.querySelectorAll("[data-bound]").forEach((n) => n.removeAttribute("data-bound"));
       htmlByKey.set(keyFor(root), panel.innerHTML);
       el.style.display = "block";
-      if (!html || /button class="tx"|data-retry|data-copy|data-suggest/.test(html)) {
+      if (!html || /button class="tx"|data-retry|data-copy|data-suggest|button class="reply"/.test(html)) {
         bindTx(root, el);
         bindResultTools(root, el);
       }
@@ -1237,12 +1285,9 @@
         );
         return "";
       }
-      const spent = clock();
-      const device = result.device ? ` · ${escapeHtml(result.device)}` : "";
-      const model = result.model ? ` · ${escapeHtml(result.model)}` : "";
       const safe = escapeHtml(result.text);
       const note = result.cleaned
-        ? `<p class="micro">O tiny repetiu demais — texto limpo. Troque o modelo e clique em De novo.</p>`
+        ? `<p class="micro">O tiny repetiu demais — texto limpo. Troque o modelo e clique em Re-transcrever.</p>`
         : "";
       const gemmaOn = Boolean((await chrome.storage.local.get(["gemmaOn"])).gemmaOn);
       gemmaEnabled = gemmaOn;
@@ -1254,13 +1299,9 @@
         root,
         `<div class="box">
            <div class="label"><span>VozClara</span>
-             <span class="tools">
-               <button class="copy" type="button" data-retry="1">De novo</button>
-               <button class="copy" type="button" data-copy="1" aria-label="Copiar">Copiar</button>
-             </span>
+             ${resultToolsHtml()}
            </div>
            <p class="text">${safe}</p>
-           <p class="micro">✓ Pronto${model}${device} · ${spent}</p>
            ${note}
            ${suggest}
          </div>`,
@@ -1312,34 +1353,38 @@
     return !String(box.innerText || "").replace(/\u00a0/g, " ").trim();
   }
 
-  function insertCompose(text) {
+  function fillCompose(text) {
     const box = composeBox();
-    if (!box) return false;
+    const line = String(text || "");
+    if (!box || !line) return false;
     box.focus();
     try {
       const sel = window.getSelection();
       const range = document.createRange();
       range.selectNodeContents(box);
-      range.collapse(false);
       sel.removeAllRanges();
       sel.addRange(range);
     } catch {
-      /* segue */
+      try {
+        document.execCommand("selectAll", false, undefined);
+      } catch {
+        /* segue */
+      }
     }
-    const ok = document.execCommand("insertText", false, text);
+    const ok = document.execCommand("insertText", false, line);
     try {
       box.dispatchEvent(
         new InputEvent("input", {
           bubbles: true,
           composed: true,
-          data: text,
+          data: line,
           inputType: "insertText",
         }),
       );
     } catch {
       /* ignore */
     }
-    return Boolean(ok) || Boolean(box.innerText);
+    return Boolean(ok) || Boolean(String(box.innerText || "").trim());
   }
 
   function conversationRoots() {
@@ -1469,11 +1514,8 @@
       btn.addEventListener("click", (e) => {
         e.preventDefault();
         const line = btn.textContent || "";
-        if (insertCompose(line)) hideSmartBar();
-        else {
-          navigator.clipboard.writeText(line).catch(() => {});
-          btn.textContent = "Copiado";
-        }
+        fillCompose(line);
+        hideSmartBar();
       });
     });
     row.querySelector(".x")?.addEventListener("click", () => hideSmartBar());
@@ -1535,6 +1577,25 @@
     );
   }
 
+  function paintSuggestWait(root, kept, stored) {
+    const loading = Boolean(stored?.gemmaLoading);
+    const pct = Number(stored?.gemmaPercent) || 0;
+    const detail = String(stored?.gemmaDetail || "").trim();
+    let label = "Sugerindo…";
+    if (loading) {
+      label = pct
+        ? `Baixando Qwen ${pct}%`
+        : detail || "Baixando Qwen…";
+    } else if (detail && !stored?.gemmaReady) {
+      label = detail;
+    }
+    renderTranscript(
+      root,
+      kept,
+      `<button class="sug" type="button" disabled>${escapeHtml(label)}</button>`,
+    );
+  }
+
   async function suggestFromAudio(root) {
     if (suggestBusy) return;
     const kept = keepTranscript(root);
@@ -1548,63 +1609,53 @@
       return;
     }
     suggestBusy = true;
-    try {
-      renderTranscript(
-        root,
-        kept,
-        `<button class="sug" type="button" disabled>Ouvindo o contexto…</button>`,
-      );
-      let thread = collectThread(root);
-      const missing = thread
-        .slice(0, -1)
-        .filter((item) => item.voice && !item.text)
-        .slice(-5);
-      for (let i = 0; i < missing.length; i++) {
-        renderTranscript(
-          root,
-          kept,
-          `<button class="sug" type="button" disabled>Ouvindo áudios anteriores… ${i + 1}/${missing.length}</button>`,
-        );
-        await transcribeRoot(missing[i].root, { forContext: true });
+    hideSmartBar();
+    paintSuggestWait(root, kept, { gemmaLoading: true, gemmaPercent: 0, gemmaDetail: "Sugerindo…" });
+    const onProgress = (changes, area) => {
+      if (area !== "local" || !suggestBusy) return;
+      if (
+        !changes.gemmaLoading &&
+        !changes.gemmaPercent &&
+        !changes.gemmaDetail &&
+        !changes.gemmaReady
+      ) {
+        return;
       }
-      thread = collectThread(root);
-      const format = globalThis.VCShared?.formatSuggestPrompt;
-      const rows = thread.map(({ outgoing, voice, text }) => ({ outgoing, voice, text }));
-      const prompt = format ? format(rows) : current;
-      paintSmartBusy("Sugerindo com o contexto da conversa…");
-      renderTranscript(
-        root,
-        kept,
-        `<button class="sug" type="button" disabled>Sugerindo…</button>`,
-      );
-      const replies = await askGemma(prompt || current);
+      chrome.storage.local
+        .get(["gemmaLoading", "gemmaPercent", "gemmaDetail", "gemmaReady"])
+        .then((stored) => {
+          if (!suggestBusy) return;
+          paintSuggestWait(root, kept, stored);
+        });
+    };
+    chrome.storage.onChanged.addListener(onProgress);
+    const tick = window.setInterval(() => {
+      if (!suggestBusy) return;
+      chrome.storage.local
+        .get(["gemmaLoading", "gemmaPercent", "gemmaDetail", "gemmaReady"])
+        .then((stored) => {
+          if (!suggestBusy) return;
+          paintSuggestWait(root, kept, stored);
+        });
+    }, 800);
+    try {
+      const replies = await askGemma(current);
       const chips = `<div class="replies">${replies
         .map((line) => `<button class="reply" type="button">${escapeHtml(line)}</button>`)
         .join("")}</div>
-         <button class="copy" type="button" data-suggest="1" style="margin-top:8px">Outras sugestões</button>`;
+         <button class="again" type="button" data-suggest="1" aria-label="Outras sugestões">${REFRESH_SVG} Outras sugestões</button>`;
       renderTranscript(root, kept, chips);
-      panelOf(root)?.querySelectorAll("button.reply").forEach((btn) => {
-        btn.addEventListener("click", (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          const line = btn.textContent || "";
-          if (insertCompose(line)) hideSmartBar();
-          else {
-            navigator.clipboard.writeText(line).catch(() => {});
-            btn.textContent = "Copiado";
-          }
-        });
-      });
-      showSmartChips(replies);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Não sugeri.";
       renderTranscript(
         root,
         kept,
-        `<p class="micro">${escapeHtml(msg)}</p><button class="sug" type="button" data-suggest="1">Sugerir de novo</button>`,
+        `<p class="micro">${escapeHtml(msg)}</p><button class="again" type="button" data-suggest="1" aria-label="Sugerir de novo">${REFRESH_SVG} Sugerir de novo</button>`,
       );
       hideSmartBar();
     } finally {
+      window.clearInterval(tick);
+      chrome.storage.onChanged.removeListener(onProgress);
       suggestBusy = false;
     }
   }

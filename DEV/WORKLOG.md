@@ -1,5 +1,19 @@
 # WORKLOG
 
+## 2026-09-14 — Terceiro áudio clicável
+
+- O card ia como irmão da mensagem (`afterend` + z-index 5). Depois de 1–2
+  transcrições o WhatsApp desenhava o próximo áudio **por baixo** do card.
+- Agora o card fica **dentro** do `[data-id]`; host não captura clique fora do painel.
+
+## 2026-09-14 — Sugestão só do áudio + card mais limpo
+
+- Prompt deixa de mandar a conversa; Qwen responde só à transcrição.
+- Clique na sugestão cola no campo, sem enviar. Sem chips acima do compose.
+- Card: check no lugar de Pronto/Nemotron/motor; Re-transcrever; copiar ícone
+  (fica verde ao clicar); Outras sugestões com ícone de atualizar.
+- Áudio enviado (direita) alinha o card com o bubble.
+
 ## 2026-09-14 — Qwen 1.5B Q4 no lugar do Gemma
 
 - Transcrição continua no Nemotron ASR.

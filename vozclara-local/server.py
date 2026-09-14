@@ -8,15 +8,18 @@ Nada sai da máquina. Primeira execução baixa o modelo.
 from __future__ import annotations
 
 import argparse
+import gc
 import json
 import os
 import re
 import secrets
+import shutil
 import stat
 import subprocess
 import sys
 import tempfile
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
@@ -47,6 +50,7 @@ SUGGEST = {
 
 QWEN_REPO = "Qwen/Qwen2.5-1.5B-Instruct-GGUF"
 QWEN_FILE = "qwen2.5-1.5b-instruct-q4_k_m.gguf"
+QWEN_BYTES = 1_120_000_000
 
 
 def token_path() -> Path:
@@ -143,12 +147,16 @@ def set_phase(phase: str, percent: int | None = None, detail: str = "") -> None:
         STATE["detail"] = detail
 
 
-def patch_hf_progress() -> None:
-    """Espelha o tqdm da Hugging Face em STATE.percent / STATE.detail."""
+def patch_hf_progress():
+    """Espelha o tqdm da Hugging Face em STATE/SUGGEST.percent.
+
+    O downloader Xet da Hugging Face ignora o tqdm; por isso o watcher de
+    arquivo em disco é o progresso que a extensão realmente mostra.
+    """
     try:
         from tqdm.auto import tqdm as BaseTqdm
     except Exception:
-        return
+        return None
 
     class HubTqdm(BaseTqdm):
         def update(self, n=1):
@@ -161,7 +169,7 @@ def patch_hf_progress() -> None:
                     pct = max(1, min(99, int(now * 100 / total)))
                     set_phase("download", pct, f"Baixando {desc} · {pct}%")
                     if SUGGEST.get("loading"):
-                        SUGGEST["percent"] = pct
+                        SUGGEST["percent"] = max(int(SUGGEST.get("percent") or 0), pct)
                         SUGGEST["detail"] = f"Baixando {desc} · {pct}%"
                 else:
                     set_phase("download", STATE.get("percent") or 8, f"Baixando {desc}…")
@@ -183,6 +191,7 @@ def patch_hf_progress() -> None:
         tqdm_mod.tqdm = HubTqdm
     except Exception:
         pass
+    return HubTqdm
 
 
 def pip_install(*packages: str) -> None:
@@ -345,7 +354,44 @@ def explain_suggest_exc(exc: BaseException) -> str:
     return s[:400] if s else "Não carreguei o Qwen."
 
 
+def hf_cache_dir() -> Path:
+    return token_path().parent / "hf"
+
+
+def qwen_repo_dir() -> Path:
+    return hf_cache_dir() / f"models--{QWEN_REPO.replace('/', '--')}"
+
+
+def dir_bytes(root: Path) -> int:
+    if not root.exists():
+        return 0
+    total = 0
+    for path in root.rglob("*"):
+        if path.is_file():
+            try:
+                total += path.stat().st_size
+            except OSError:
+                pass
+    return total
+
+
+def qwen_cached_bytes() -> int:
+    return dir_bytes(qwen_repo_dir())
+
+
+def format_bytes(n: int) -> str:
+    if n <= 0:
+        return "0 B"
+    if n < 1024 * 1024:
+        return f"{max(1, n // 1024)} KB"
+    gb = n / (1024**3)
+    if gb >= 0.95:
+        return f"{gb:.1f}".replace(".", ",") + " GB"
+    return f"{int(round(n / (1024**2)))} MB"
+
+
 def suggest_status() -> dict:
+    cached_bytes = qwen_cached_bytes()
     return {
         "ready": bool(SUGGEST.get("ready")),
         "loading": bool(SUGGEST.get("loading")),
@@ -354,7 +400,79 @@ def suggest_status() -> dict:
         "percent": int(SUGGEST.get("percent") or 0),
         "detail": SUGGEST.get("detail") or "",
         "name": "Qwen2.5-1.5B-Instruct Q4",
+        "cached": cached_bytes > 8 * 1024 * 1024,
+        "bytes": int(cached_bytes),
     }
+
+
+def watch_qwen_bytes() -> None:
+    """Percentual pelo tamanho do cache — funciona mesmo sem tqdm/Xet."""
+    while SUGGEST.get("loading") and not SUGGEST.get("ready"):
+        n = qwen_cached_bytes()
+        if n > 4 * 1024 * 1024:
+            pct = max(10, min(90, int(n * 80 / QWEN_BYTES) + 10))
+            with SUGGEST["lock"]:
+                if SUGGEST.get("loading") and not SUGGEST.get("ready"):
+                    cur = int(SUGGEST.get("percent") or 0)
+                    if pct >= cur:
+                        SUGGEST["percent"] = pct
+                        SUGGEST["detail"] = (
+                            f"Baixando Qwen · {format_bytes(n)} de ~1,1 GB ({pct}%)"
+                        )
+        time.sleep(0.45)
+
+
+def unload_qwen() -> None:
+    llm = SUGGEST.get("llm")
+    SUGGEST["llm"] = None
+    SUGGEST["ready"] = False
+    if llm is None:
+        gc.collect()
+        return
+    closer = getattr(llm, "close", None)
+    if callable(closer):
+        try:
+            closer()
+        except Exception:
+            pass
+    try:
+        del llm
+    except Exception:
+        pass
+    gc.collect()
+
+
+def delete_qwen() -> None:
+    with SUGGEST["lock"]:
+        SUGGEST["loading"] = False
+        SUGGEST["error"] = ""
+        SUGGEST["percent"] = 0
+        SUGGEST["detail"] = "Apagando o Qwen…"
+        unload_qwen()
+    root = qwen_repo_dir()
+    last = None
+    for _ in range(8):
+        gc.collect()
+        try:
+            if root.exists():
+                shutil.rmtree(root)
+            last = None
+            break
+        except Exception as exc:
+            last = exc
+            time.sleep(0.35)
+    if last is not None and root.exists():
+        raise RuntimeError(
+            "Não apaguei o arquivo (ainda em uso). Feche o motor na bandeja "
+            f"e tente de novo. {last}"
+        )
+    with SUGGEST["lock"]:
+        SUGGEST["ready"] = False
+        SUGGEST["loading"] = False
+        SUGGEST["llm"] = None
+        SUGGEST["error"] = ""
+        SUGGEST["percent"] = 0
+        SUGGEST["detail"] = "Modelo apagado"
 
 
 def ensure_llama() -> None:
@@ -398,9 +516,12 @@ def load_qwen(_kind: str = "qwen") -> None:
         SUGGEST["kind"] = "qwen"
         SUGGEST["percent"] = 5
         SUGGEST["detail"] = f"Baixando {QWEN_FILE}…"
+    threading.Thread(target=watch_qwen_bytes, daemon=True).start()
     try:
+        os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
+        os.environ.setdefault("HF_HUB_ENABLE_HF_TRANSFER", "0")
         ensure_llama()
-        patch_hf_progress()
+        tqdm_cls = patch_hf_progress()
         try:
             from huggingface_hub import hf_hub_download
         except Exception:
@@ -408,16 +529,28 @@ def load_qwen(_kind: str = "qwen") -> None:
             from huggingface_hub import hf_hub_download
         from llama_cpp import Llama
 
-        SUGGEST["detail"] = f"Baixando {QWEN_FILE}…"
-        SUGGEST["percent"] = max(int(SUGGEST.get("percent") or 0), 10)
+        cached = qwen_cached_bytes()
+        if cached > 80 * 1024 * 1024:
+            SUGGEST["detail"] = f"Arquivo no disco ({format_bytes(cached)}) — carregando…"
+            SUGGEST["percent"] = max(int(SUGGEST.get("percent") or 0), 70)
+        else:
+            SUGGEST["detail"] = f"Baixando {QWEN_FILE} (~1,1 GB)…"
+            SUGGEST["percent"] = max(int(SUGGEST.get("percent") or 0), 10)
         log(f"Baixando {QWEN_REPO}/{QWEN_FILE}…")
-        cache = token_path().parent / "hf"
+        cache = hf_cache_dir()
         cache.mkdir(parents=True, exist_ok=True)
-        path = hf_hub_download(
-            repo_id=QWEN_REPO,
-            filename=QWEN_FILE,
-            cache_dir=str(cache),
-        )
+        kwargs = {
+            "repo_id": QWEN_REPO,
+            "filename": QWEN_FILE,
+            "cache_dir": str(cache),
+        }
+        if tqdm_cls is not None:
+            kwargs["tqdm_class"] = tqdm_cls
+        try:
+            path = hf_hub_download(**kwargs)
+        except TypeError:
+            kwargs.pop("tqdm_class", None)
+            path = hf_hub_download(**kwargs)
         SUGGEST["detail"] = "Carregando Qwen 1.5B Q4 na memória…"
         SUGGEST["percent"] = 92
         n_threads = max(1, min(4, os.cpu_count() or 2))
@@ -486,8 +619,8 @@ def suggest_replies(payload: dict) -> list[str]:
     }.get(tone, "Espelhe o clima de quem falou.")
     system = (
         "Você sugere respostas prontas para colar no WhatsApp. "
-        "Responda ao áudio marcado como esta mensagem. "
-        "O resto da conversa (textos enviados, recebidos e áudios anteriores) é só contexto. "
+        "Responda só ao recado de voz transcrito. Não use outra conversa. "
+        "Não invente assunto (parabéns, notícia, convite) que não esteja no texto. "
         f"Quem responde: {who}. {tone_line} "
         "Só 3 linhas, cada uma uma mensagem pronta. Sem numerar, sem aspas, sem explicação."
     )
@@ -501,7 +634,7 @@ def suggest_replies(payload: dict) -> list[str]:
         out = llm.create_chat_completion(
             messages=messages,
             max_tokens=180,
-            temperature=0.7,
+            temperature=0.45,
         )
         raw = str(out["choices"][0]["message"]["content"] or "")
     except Exception:
@@ -515,7 +648,7 @@ def suggest_replies(payload: dict) -> list[str]:
         out = llm(
             prompt,
             max_tokens=180,
-            temperature=0.7,
+            temperature=0.45,
             stop=["<|im_end|>", "<|endoftext|>"],
         )
         raw = str(out["choices"][0].get("text") or "")
@@ -658,6 +791,9 @@ class Handler(BaseHTTPRequestHandler):
         if path in ("/v1/suggest/load", "/v1/gemma/load"):
             self._suggest_load()
             return
+        if path in ("/v1/suggest/delete", "/v1/gemma/delete"):
+            self._suggest_delete()
+            return
         if path not in ("/v1/audio/transcriptions", "/inference"):
             self._json(404, {"error": "not found"})
             return
@@ -737,6 +873,22 @@ class Handler(BaseHTTPRequestHandler):
 
             threading.Thread(target=_run, args=(), daemon=True).start()
         self._json(200, {"ok": True, "started": True, "ready": False, "kind": "qwen"})
+
+    def _suggest_delete(self) -> None:
+        length = int(self.headers.get("Content-Length") or "0")
+        if length:
+            self.rfile.read(length)
+        header = self.headers.get("Authorization") or ""
+        if header.strip() != f"Bearer {TOKEN}" and not self._authorized({}):
+            self._json(401, {"error": "bad token", "unpaired": False})
+            return
+        try:
+            delete_qwen()
+        except Exception as exc:
+            self._json(500, {"error": str(exc), "ok": False})
+            return
+        log("Qwen apagado do disco.")
+        self._json(200, {"ok": True, "deleted": True, "ready": False, "kind": "qwen"})
 
 
 def main() -> int:

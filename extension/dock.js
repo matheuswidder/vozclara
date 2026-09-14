@@ -73,6 +73,11 @@
       border: 1px solid var(--line); background: transparent; color: var(--fg);
       border-radius: 8px; padding: 9px 12px; cursor: pointer; font-size: 13px;
     }
+    button.danger {
+      border: 1px solid color-mix(in srgb, #c45c5c 50%, var(--line));
+      background: transparent; color: #c45c5c;
+      border-radius: 8px; padding: 9px 12px; cursor: pointer; font-size: 13px;
+    }
     .meter { height: 4px; background: var(--line); border-radius: 99px; overflow: hidden; margin: 0 0 10px; }
     .meter[hidden], #motor-panel[hidden], #custom-fields[hidden], #cloud-fields[hidden],
     #local-fields[hidden], #confirm[hidden], #gemma-extra[hidden], #gemma-panel[hidden], #motor-hint[hidden] { display: none; }
@@ -390,7 +395,7 @@
               <strong>Sugestões no áudio</strong>
               <label class="switch"><input type="checkbox" id="gemma-on" /><i></i></label>
             </div>
-            <p class="status">Só no card do áudio, depois de Transcrever. Lê a conversa e os áudios anteriores. Usa Qwen 1.5B Q4 no PC (~1,1 GB).</p>
+            <p class="status">Ao ligar, baixa sozinho o Qwen 1.5B Q4 (~1,1 GB) no PC. A barra mostra o progresso. Excluir apaga o arquivo e libera o espaço.</p>
             <div id="gemma-panel" hidden>
             <div class="split">
               <div class="pill">
@@ -406,6 +411,7 @@
             <div class="meter" id="gemma-meter" hidden><span id="gemma-bar"></span></div>
             <div class="actions">
               <button class="act" id="gemma-download" type="button">Baixar</button>
+              <button class="ghost" id="gemma-delete" type="button" hidden>Excluir</button>
             </div>
             <div id="gemma-extra" hidden>
               <label>Quem você é
@@ -468,8 +474,10 @@
     $p("gemma-on")?.addEventListener("change", () => {
       syncGemmaPanel();
       void save();
+      if ($p("gemma-on")?.checked) void startGemma();
     });
     $p("gemma-download")?.addEventListener("click", () => void startGemma());
+    $p("gemma-delete")?.addEventListener("click", () => void deleteGemma());
     $p("gemma-who")?.addEventListener("change", () => void save());
     $p("gemma-tone")?.addEventListener("change", () => void save());
     $p("gemma-notes")?.addEventListener("change", () => void save());
@@ -640,7 +648,7 @@
     if (extra) extra.hidden = !$p("gemma-on")?.checked;
     syncGemmaPanel();
     syncFields();
-    await refreshLocal();
+    await refreshLocal({ autoGemma: true });
   }
 
   function showQualityFallback() {
@@ -662,7 +670,7 @@
       (Boolean(state?.downloading) || (Boolean(state?.motorAlive) && !state?.motorUp));
     const gBusy = Boolean(state?.gemma?.loading || state?.gemmaWaiting || state?.gemmaPending);
     if ((busy || gBusy) && !motorPoll) {
-      motorPoll = setInterval(() => void refreshLocal(), 1500);
+      motorPoll = setInterval(() => void refreshLocal(), 700);
     } else if (!busy && !gBusy && motorPoll) {
       clearInterval(motorPoll);
       motorPoll = null;
@@ -746,6 +754,7 @@
 
   function paintGemma(state) {
     const btn = $p("gemma-download");
+    const del = $p("gemma-delete");
     const status = $p("gemma-status");
     const meter = $p("gemma-meter");
     const bar = $p("gemma-bar");
@@ -768,6 +777,10 @@
       btn.disabled = action.disabled;
       btn.dataset.action = action.id;
       btn.textContent = action.label;
+    }
+    if (del) {
+      del.hidden = !action.canDelete;
+      del.disabled = action.id === "wait";
     }
     if (meter && bar) {
       meter.hidden = action.id !== "wait";
@@ -808,12 +821,46 @@
     void refreshLocal();
   }
 
-  async function refreshLocal() {
+  async function deleteGemma() {
+    const ok = window.confirm(
+      "Apagar o Qwen deste PC? Libera cerca de 1,1 GB. Dá para baixar de novo depois.",
+    );
+    if (!ok) return;
+    const del = $p("gemma-delete");
+    if (del) {
+      del.disabled = true;
+      del.textContent = "…";
+    }
+    try {
+      const result = await chrome.runtime.sendMessage({ type: "VOZCLARA_GEMMA_DELETE" });
+      if (!result?.ok) {
+        throw new Error(result?.error || "Não apaguei o Qwen.");
+      }
+    } catch (err) {
+      const status = $p("gemma-status");
+      if (status) {
+        status.textContent = err instanceof Error ? err.message : "Não apaguei o Qwen.";
+        status.dataset.kind = "warn";
+        status.className = "status warn";
+      }
+    }
+    if (del) del.textContent = "Excluir";
+    void refreshLocal();
+  }
+
+  function maybeKickGemma(state) {
+    if (!$p("gemma-on")?.checked) return;
+    const action = globalThis.VCShared.gemmaAction(state, selectedGemma());
+    if (action.id === "download" || action.id === "retry") void startGemma();
+  }
+
+  async function refreshLocal(opts) {
     try {
       const state = await chrome.runtime.sendMessage({ type: "VOZCLARA_MODEL_VERIFY" });
       if (state && typeof state === "object") {
         paintLocal(state);
         void showQualityFallback();
+        if (opts?.autoGemma) maybeKickGemma(state);
         return;
       }
     } catch {
@@ -1006,7 +1053,16 @@
 
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== "local") return;
-    if (changes.localProgress || changes.localModelReady || changes.localModelId) {
+    if (
+      changes.localProgress ||
+      changes.localModelReady ||
+      changes.localModelId ||
+      changes.gemmaLoading ||
+      changes.gemmaPercent ||
+      changes.gemmaDetail ||
+      changes.gemmaReady ||
+      changes.gemmaCached
+    ) {
       if ($p("layer")?.classList.contains("open")) void refreshLocal();
       paintDot(document.getElementById(BTN_ID));
     }

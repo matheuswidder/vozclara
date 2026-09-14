@@ -135,6 +135,13 @@ button.ghost {
   font-weight: 500;
 }
 
+button.danger {
+  border: 1px solid color-mix(in srgb, #c45c5c 50%, var(--line));
+  background: transparent;
+  color: #c45c5c;
+  font-weight: 500;
+}
+
 .actions {
   display: flex;
   gap: 8px;
