@@ -362,6 +362,27 @@
     }
   }
 
+  function formatSuggestPrompt(thread) {
+    const rows = Array.isArray(thread) ? thread : [];
+    const lines = [];
+    for (let i = 0; i < rows.length; i++) {
+      const item = rows[i] || {};
+      const body = String(item.text || "").replace(/\s+/g, " ").trim();
+      const last = i === rows.length - 1;
+      if (!body && !item.voice && !last) continue;
+      const who = item.outgoing ? "você" : "eles";
+      const kind = item.voice ? "áudio" : "texto";
+      const tag = last && item.voice ? `${who} (${kind}, esta mensagem)` : `${who} (${kind})`;
+      lines.push(`${tag}: ${body || "(sem texto)"}`);
+    }
+    if (!lines.length) return "";
+    return (
+      "Responda ao último áudio. Use o resto da conversa só como contexto.\n\n" +
+      lines.join("\n") +
+      "\n\nTrês respostas prontas para colar:"
+    );
+  }
+
   globalThis.VCShared = {
     normalizeKind,
     parseHfRepo,
@@ -380,5 +401,6 @@
     isRepeatLoop,
     setQualityFallback,
     takeQualityFallback,
+    formatSuggestPrompt,
   };
 })();

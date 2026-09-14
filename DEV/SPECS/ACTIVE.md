@@ -33,6 +33,9 @@ Correções da verificação 2026-09-11 aplicadas. Checklist WhatsApp Web ainda 
 2026-09-13: fluxo do motor passou a **zip no site + Setup uma vez + verificar**.
 A extensão não baixa mais o `.exe` via `chrome.downloads`.
 
+2026-09-13: Gemma sugere **só no áudio**, depois de Transcrever. Contexto =
+mensagens da conversa + até 5 áudios anteriores ainda sem texto.
+
 ## Fora de escopo
 
 - Reescrever a técnica de captura (sequestro de APIs MAIN world permanece — é o que

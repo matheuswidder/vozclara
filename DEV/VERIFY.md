@@ -22,6 +22,10 @@
 6. **Dock**: botão na rail do WhatsApp abre painel; teste de arquivo local funciona.
 7. **Conflito de mídia** (Parte 4): vídeo reproduzindo em outra conversa não é
    afetado durante a transcrição.
+8. **Sugestão Gemma**: sem barra “Sugerir resposta” no campo de texto; sem mini
+   em mensagem escrita. Transcrever um áudio (Gemma ligada) → “Sugerir resposta”
+   no card. Clicar → transcreve áudios anteriores sem texto (até 5) + lê
+   mensagens enviadas/recebidas → chips no card e coláveis acima do compose.
 
 ## Validações por parte
 

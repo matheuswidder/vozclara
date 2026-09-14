@@ -1,5 +1,13 @@
 # WORKLOG
 
+## 2026-09-13 — Sugestão só no áudio, com contexto
+
+- A barra “Sugerir resposta / da última mensagem recebida” saiu do campo de texto.
+- Mini “Sugerir” em mensagem escrita também saiu.
+- Depois de Transcrever, o card ganha “Sugerir resposta”. Ao clicar, transcreve
+  até 5 áudios anteriores sem texto e manda a conversa (enviadas + recebidas)
+  junto com o áudio atual para o Gemma.
+
 ## 2026-09-13 — Motor no zip + UI (auditoria de fluxo)
 
 - Chrome recusava o Setup porque a extensão baixava o `.exe` (às vezes duas vezes).

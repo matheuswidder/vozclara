@@ -439,6 +439,8 @@ def suggest_replies(payload: dict) -> list[str]:
     }.get(tone, "Espelhe o clima de quem falou.")
     system = (
         "Você sugere respostas prontas para colar no WhatsApp. "
+        "Responda ao áudio marcado como esta mensagem. "
+        "O resto da conversa (textos enviados, recebidos e áudios anteriores) é só contexto. "
         f"Quem responde: {who}. {tone_line} "
         "Só 3 linhas, cada uma uma mensagem pronta. Sem numerar, sem aspas, sem explicação."
     )

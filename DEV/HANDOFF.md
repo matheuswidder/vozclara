@@ -7,7 +7,8 @@ Fluxo do motor: **um zip no site** (`/vozclara.zip`) com
 se o motor responde — não baixa o `.exe` (o Chrome recusava o segundo download).
 
 Popup/dock: “Verificar o motor”, hint do zip, Gemma recolhida até ligar.
-Landing alinhada. Setup com spinner/barra.
+Sugestão do Gemma **só depois de Transcrever** um áudio; usa conversa + áudios
+anteriores como contexto. Sem barra permanente no campo de mensagem.
 
 As 7 partes da auditoria de 11/09 continuam no código (cancelar, cache,
 WebGPU, captura, token, VCShared, polimento).

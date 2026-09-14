@@ -161,6 +161,21 @@ test("gemmaAction pede motor e marca pronto", () => {
   assert.equal(dl.id, "download");
 });
 
+test("formatSuggestPrompt usa conversa e marca o áudio atual", () => {
+  const prompt = VC.formatSuggestPrompt([
+    { outgoing: false, voice: false, text: "Vai no mercado?" },
+    { outgoing: true, voice: false, text: "   " },
+    { outgoing: true, voice: false, text: "Tô saindo" },
+    { outgoing: false, voice: true, text: "Leite e pão" },
+  ]);
+  assert.match(prompt, /eles \(texto\): Vai no mercado\?/);
+  assert.match(prompt, /você \(texto\): Tô saindo/);
+  assert.match(prompt, /eles \(áudio, esta mensagem\): Leite e pão/);
+  assert.match(prompt, /último áudio/);
+  assert.doesNotMatch(prompt, /\(texto\): \(sem texto\)/);
+  assert.equal(VC.formatSuggestPrompt([]), "");
+});
+
 test("gemmaMeta distingue base, it e assistant", () => {
   assert.equal(VC.normalizeGemma("e2b"), "e2b");
   assert.equal(VC.normalizeGemma("it"), "it");
