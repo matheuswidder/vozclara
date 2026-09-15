@@ -155,6 +155,8 @@ test("gemmaAction pede motor e marca pronto", () => {
     "O motor reiniciou no meio do download. Faltou RAM.",
   );
   assert.match(crash, /RAM/);
+  assert.match(VC.explainGemmaError("bad token"), /pareamento/i);
+  assert.match(VC.explainMotorError("bad token"), /pareamento|Tentar de novo/i);
   const viewFail = VC.gemmaView({
     motorAlive: true,
     gemma: { error: "boom" },

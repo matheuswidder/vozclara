@@ -204,11 +204,23 @@
     return { motor, model };
   }
 
+  function explainMotorError(raw) {
+    const s = String(raw || "").replace(/\s+/g, " ").trim();
+    if (!s) return "";
+    if (/bad token/i.test(s)) {
+      return "A extensão perdeu o pareamento com o motor. Clique em Tentar de novo.";
+    }
+    return s;
+  }
+
   function explainGemmaError(raw) {
     const s = String(raw || "").replace(/\s+/g, " ").trim();
     if (!s) return "";
     const low = s.toLowerCase();
     if (/reiniciou|caiu no meio|falta de ram|bastante ram/i.test(s)) return s;
+    if (/bad token|não pareei|unpaired/i.test(low)) {
+      return "A extensão perdeu o pareamento com o motor. Clique em Tentar de novo — ela pede o token sozinha.";
+    }
     if (/gated|403|401|restricted|license|access to model|cannot access/i.test(low)) {
       return "A Hugging Face recusou o download. Confira a internet e tente de novo.";
     }
@@ -556,6 +568,7 @@
     gemmaView,
     gemmaAction,
     formatGemmaSize,
+    explainMotorError,
     explainGemmaError,
     normalizeGemma,
     stateLabel,

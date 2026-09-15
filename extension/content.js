@@ -1458,7 +1458,13 @@
           root,
           `<div class="box">
              <div class="label"><span>VozClara</span></div>
-             <p class="err">${escapeHtml(result?.error || "Falha ao transcrever.")}</p>
+             <p class="err">${escapeHtml(
+               (globalThis.VCShared && globalThis.VCShared.explainMotorError
+                 ? globalThis.VCShared.explainMotorError(result?.error)
+                 : "") ||
+                 result?.error ||
+                 "Falha ao transcrever.",
+             )}</p>
              <button class="tx" type="button" style="margin-top:8px">Tentar de novo</button>
            </div>`,
         );

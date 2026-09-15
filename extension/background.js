@@ -1294,11 +1294,53 @@ async function pairMotor(url) {
   return token;
 }
 
-async function motorToken() {
+async function motorToken(url) {
   const stored = await chrome.storage.local.get(["motorToken"]);
   const saved = typeof stored.motorToken === "string" ? stored.motorToken.trim() : "";
   if (saved) return saved;
-  return pairMotor(undefined);
+  return pairMotor(url);
+}
+
+async function refreshMotorToken(url) {
+  await chrome.storage.local.remove(["motorToken"]);
+  return pairMotor(url);
+}
+
+function motorAuthFailed(status, json) {
+  if (Number(status) !== 401) return false;
+  const err = String(json?.error || "").toLowerCase();
+  return json?.unpaired === true || json?.unpaired === false || /bad token|unauthorized/.test(err);
+}
+
+function publicMotorError(raw) {
+  const s = String(raw || "").replace(/\s+/g, " ").trim();
+  if (/bad token/i.test(s)) {
+    return "A extensão perdeu o pareamento com o motor. Clique em Tentar de novo.";
+  }
+  return s || "O motor recusou o pedido.";
+}
+
+async function authorizedMotorCall(url, send) {
+  let token = "";
+  try {
+    token = await motorToken(url);
+  } catch {
+    token = "";
+  }
+  let res = await send(token);
+  let json = await res.json().catch(() => null);
+  if (!motorAuthFailed(res.status, json)) return { res, json, token };
+  try {
+    token = await refreshMotorToken(url);
+  } catch (err) {
+    throw new Error(publicMotorError(err instanceof Error ? err.message : json?.error));
+  }
+  res = await send(token);
+  json = await res.json().catch(() => null);
+  if (motorAuthFailed(res.status, json)) {
+    throw new Error(publicMotorError(json?.error || "bad token"));
+  }
+  return { res, json, token };
 }
 
 async function withGemma(status) {
@@ -1353,9 +1395,23 @@ async function withGemma(status) {
   }
   const prevErr = String(extra.gemmaError || "").trim();
   const motorOffErr = /ligue o motor na bandeja/i.test(prevErr);
-  const keepErr = g.ready || g.loading
+  const holdLoad =
+    Boolean(extra.gemmaLoading) &&
+    !g.ready &&
+    !g.error &&
+    startedAt > 0 &&
+    Date.now() - startedAt < 20000;
+  const loadingNow =
+    Boolean(g.loading) || Boolean(extra.gemmaWaitingMotor && stale) || holdLoad;
+  const tokenErr = /bad token|pareamento/i.test(prevErr);
+  const keepErr = g.ready || loadingNow
     ? ""
-    : String(g.error || crash || (probe?.ok && motorOffErr ? "" : prevErr) || "").trim();
+    : String(
+        g.error ||
+          crash ||
+          (probe?.ok && (motorOffErr || tokenErr) ? "" : prevErr) ||
+          "",
+      ).trim();
   const alive = needMotor ? Boolean(probe?.ok) : Boolean(status.motorAlive);
   const up = needMotor ? Boolean(probe?.ok && probe.ready) : Boolean(status.motorUp);
   if (needMotor) {
@@ -1367,7 +1423,7 @@ async function withGemma(status) {
   }
   await chrome.storage.local.set({
     gemmaReady: Boolean(g.ready),
-    gemmaLoading: Boolean(g.loading) || Boolean(extra.gemmaWaitingMotor && stale),
+    gemmaLoading: loadingNow,
     gemmaError: keepErr,
     gemmaStale: stale,
     gemmaSawLoading: Boolean(g.loading) || (Boolean(extra.gemmaSawLoading) && !g.ready && !keepErr),
@@ -1389,7 +1445,7 @@ async function withGemma(status) {
     gemmaPending: Boolean(g.loading) || (sawLoading && !g.ready && !keepErr),
     gemma: {
       ready: Boolean(g.ready),
-      loading: Boolean(g.loading),
+      loading: loadingNow,
       kind: g.kind || extra.gemmaKind || "qwen",
       percent: Number(g.percent) || 0,
       detail: g.detail || "",
@@ -1405,42 +1461,31 @@ async function postGemmaLoad(kind) {
   const want = "qwen";
   const extra = await chrome.storage.local.get(["localUrl"]);
   const root = localRoot(extra.localUrl) || "http://127.0.0.1:8173";
-  let token = "";
-  try {
-    token = await motorToken();
-  } catch {
-    token = "";
-  }
-  const send = (path) =>
-    fetch(`${root}${path}`, {
+  const send = (token) => {
+    const headers = {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    };
+    return fetch(`${root}/v1/suggest/load`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
+      headers,
       body: JSON.stringify({ kind: want }),
+    }).then(async (res) => {
+      if (res.status !== 404) return res;
+      return fetch(`${root}/v1/gemma/load`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ kind: want }),
+      });
     });
-  let res = await send("/v1/suggest/load");
-  if (res.status === 404) res = await send("/v1/gemma/load");
-  let json = await res.json().catch(() => null);
-  if (res.status === 401 && json?.unpaired === true) {
-    try {
-      token = await pairMotor(extra.localUrl);
-    } catch {
-      token = "";
-    }
-    res = await send("/v1/suggest/load");
-    if (res.status === 404) res = await send("/v1/gemma/load");
-    json = await res.json().catch(() => null);
-  }
+  };
+  const { res, json } = await authorizedMotorCall(extra.localUrl, send);
   if (res.status === 404) {
     return { ok: false, missing: true };
   }
   if (!res.ok) {
-    throw new Error(
-      (typeof json?.error === "string" && json.error) || "Não comecei o download do Qwen.",
-    );
+    throw new Error(publicMotorError(json?.error || "Não comecei o download do Qwen."));
   }
   return { ok: true, started: true, ready: Boolean(json?.ready), kind: want };
 }
@@ -1514,42 +1559,31 @@ async function tickGemmaWatch() {
 async function postGemmaDelete() {
   const extra = await chrome.storage.local.get(["localUrl"]);
   const root = localRoot(extra.localUrl) || "http://127.0.0.1:8173";
-  let token = "";
-  try {
-    token = await motorToken();
-  } catch {
-    token = "";
-  }
-  const send = (path) =>
-    fetch(`${root}${path}`, {
+  const send = (token) => {
+    const headers = {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    };
+    return fetch(`${root}/v1/suggest/delete`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
+      headers,
       body: JSON.stringify({}),
+    }).then(async (res) => {
+      if (res.status !== 404) return res;
+      return fetch(`${root}/v1/gemma/delete`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({}),
+      });
     });
-  let res = await send("/v1/suggest/delete");
-  if (res.status === 404) res = await send("/v1/gemma/delete");
-  let json = await res.json().catch(() => null);
-  if (res.status === 401 && json?.unpaired === true) {
-    try {
-      token = await pairMotor(extra.localUrl);
-    } catch {
-      token = "";
-    }
-    res = await send("/v1/suggest/delete");
-    if (res.status === 404) res = await send("/v1/gemma/delete");
-    json = await res.json().catch(() => null);
-  }
+  };
+  const { res, json } = await authorizedMotorCall(extra.localUrl, send);
   if (res.status === 404) {
     return { ok: false, missing: true };
   }
   if (!res.ok) {
-    throw new Error(
-      (typeof json?.error === "string" && json.error) || "Não apaguei o Qwen.",
-    );
+    throw new Error(publicMotorError(json?.error || "Não apaguei o Qwen."));
   }
   return { ok: true, deleted: true };
 }
@@ -1594,7 +1628,13 @@ async function deleteGemmaMotor() {
 
 async function loadGemmaMotor(kind) {
   const want = "qwen";
-  await chrome.storage.local.set({ gemmaOn: true, gemmaKind: want, gemmaLoading: true });
+  await chrome.storage.local.set({
+    gemmaOn: true,
+    gemmaKind: want,
+    gemmaLoading: true,
+    gemmaError: "",
+    gemmaLoadStartedAt: Date.now(),
+  });
   try {
     const extra = await chrome.storage.local.get(["localUrl", "gemmaSetupAt"]);
     let probe = await probeLocal(extra.localUrl);
@@ -1699,12 +1739,6 @@ async function suggestReplies(text, opts = {}) {
     }
   }
   const root = localRoot(stored.localUrl) || "http://127.0.0.1:8173";
-  let token = "";
-  try {
-    token = await motorToken();
-  } catch {
-    token = "";
-  }
   const body = JSON.stringify({
     text: raw,
     kind: "qwen",
@@ -1714,7 +1748,7 @@ async function suggestReplies(text, opts = {}) {
     context: String(opts.context || "").trim(),
     outgoing: Boolean(opts.outgoing),
   });
-  const sendSuggest = () =>
+  const sendSuggest = (token) =>
     fetch(`${root}/v1/suggest`, {
       method: "POST",
       headers: {
@@ -1724,16 +1758,12 @@ async function suggestReplies(text, opts = {}) {
       },
       body,
     });
-  let res = await sendSuggest();
-  let json = await res.json().catch(() => null);
-  if (res.status === 401 && json?.unpaired === true) {
-    try {
-      token = await pairMotor(stored.localUrl);
-    } catch {
-      token = "";
-    }
-    res = await sendSuggest();
-    json = await res.json().catch(() => null);
+  let res;
+  let json;
+  try {
+    ({ res, json } = await authorizedMotorCall(stored.localUrl, sendSuggest));
+  } catch (err) {
+    return { ok: false, error: publicMotorError(err instanceof Error ? err.message : err) };
   }
   if (res.status === 404) {
     return { ok: false, error: "Motor antigo. A transcrição segue; para sugerir respostas, rode de novo o instalador." };
@@ -1741,7 +1771,7 @@ async function suggestReplies(text, opts = {}) {
   if (!res.ok) {
     return {
       ok: false,
-      error: (typeof json?.error === "string" && json.error) || "O Qwen não sugeriu.",
+      error: publicMotorError(json?.error || "O Qwen não sugeriu."),
     };
   }
   const replies = Array.isArray(json?.replies)
@@ -2044,39 +2074,38 @@ async function beginNemotron() {
 
 async function transcribeLocal(blob, name, language, url, probe) {
   const root = localRoot(url);
-  const form = new FormData();
-  form.append("file", new File([blob], name, { type: blob.type || "audio/ogg" }));
-  if (language) form.append("language", language);
   const paths = ["/v1/audio/transcriptions", "/inference"];
   let last = "Motor local não respondeu.";
-  let token = "";
-  try {
-    token = await motorToken();
-  } catch {
-    token = "";
-  }
-  for (const path of paths) {
-    const headers = token ? { Authorization: `Bearer ${token}` } : {};
-    const res = await fetch(`${root}${path}`, {
+  const postPath = (path, token) => {
+    const form = new FormData();
+    form.append("file", new File([blob], name, { type: blob.type || "audio/ogg" }));
+    if (language) form.append("language", language);
+    return fetch(`${root}${path}`, {
       method: "POST",
-      headers,
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
       body: form,
     });
-    const json = await res.json().catch(() => null);
+  };
+  for (const path of paths) {
+    let res;
+    let json;
+    try {
+      ({ res, json } = await authorizedMotorCall(url, (token) => postPath(path, token)));
+    } catch (err) {
+      last = publicMotorError(err instanceof Error ? err.message : err);
+      continue;
+    }
     if (res.ok) {
       const text = asText(json);
       if (text) return text;
       last = "O Whisper local devolveu uma transcrição vazia.";
       continue;
     }
-    if (res.status === 401 && json?.unpaired === true) {
-      token = await pairMotor(url);
-      continue;
-    }
-    last =
+    last = publicMotorError(
       (typeof json?.error === "string" && json.error) ||
-      json?.error?.message ||
-      `Motor local ${res.status}`;
+        json?.error?.message ||
+        `Motor local ${res.status}`,
+    );
   }
   throw new Error(last);
 }
