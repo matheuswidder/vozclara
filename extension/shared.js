@@ -24,29 +24,7 @@
     "motorAlive",
     "motorUp",
     "motorInstalled",
-    "gemmaReady",
-    "gemmaLoading",
-    "gemmaPercent",
-    "gemmaDetail",
-    "gemmaError",
-    "gemmaStale",
-    "gemmaCached",
-    "gemmaBytes",
-    "gemmaKind",
-    "gemmaWaitingMotor",
-    "gemmaOn",
   ];
-
-  const SUGGEST_META = {
-    qwen: {
-      id: "qwen",
-      name: "Qwen 1.5B Q4",
-      tag: "~1,1 GB · CPU",
-      repo: "Qwen/Qwen2.5-1.5B-Instruct-GGUF",
-      tipTitle: "Qwen2.5-1.5B-Instruct Q4",
-      tip: "Modelo leve no PC. Lê a transcrição e propõe 3 respostas para colar no WhatsApp.",
-    },
-  };
 
   function normalizeKind(kind) {
     const k = String(kind || "").toLowerCase();
@@ -71,139 +49,6 @@
     return `${parts[0]}/${parts[1]}`;
   }
 
-  function formatGemmaSize(bytes) {
-    const n = Number(bytes) || 0;
-    if (n < 1024 * 1024) return "~1,1 GB";
-    const gb = n / 1024 ** 3;
-    if (gb >= 0.1) return `${gb.toFixed(1).replace(".", ",")} GB`;
-    return `${Math.round(n / (1024 * 1024))} MB`;
-  }
-
-  function gemmaAction(state, selected) {
-    const want = normalizeGemma(selected);
-    const meta = gemmaMeta(want);
-    const g = state?.gemma && typeof state.gemma === "object" ? state.gemma : {};
-    const motorUp = Boolean(state?.motorUp || state?.motorAlive);
-    const cached = Boolean(g.cached) || (Number(g.bytes) || 0) > 8 * 1024 * 1024;
-    const size = formatGemmaSize(g.bytes);
-    const canDelete = Boolean((g.ready || cached) && !g.loading);
-    if (g.error && !g.loading && !g.ready) {
-      return {
-        id: "retry",
-        label: "Tentar de novo",
-        disabled: false,
-        status: explainGemmaError(g.error),
-        kind: "warn",
-        canDelete,
-      };
-    }
-    if (g.stale || state?.gemmaStale || state?.gemmaWaiting) {
-      return {
-        id: "update",
-        label: "Rodar o Setup do zip",
-        disabled: false,
-        status: "Motor antigo — o Setup já está em engine/",
-        kind: "warn",
-        canDelete: false,
-      };
-    }
-    if (!motorUp) {
-      return {
-        id: "wake",
-        label: "Ligar o motor",
-        disabled: false,
-        status: "Bandeja desligada",
-        kind: "warn",
-        canDelete: false,
-      };
-    }
-    if (g.loading) {
-      const pct = Number(g.percent) || 0;
-      const size = formatGemmaSize(g.bytes);
-      const detail = String(g.detail || "").trim();
-      return {
-        id: "wait",
-        label: pct ? `${pct}%` : "Baixando…",
-        disabled: true,
-        status:
-          detail ||
-          (pct
-            ? `Baixando o Qwen da Hugging Face… ${pct}% de ${size}`
-            : "Baixando o Qwen (~1,1 GB) da Hugging Face para este PC…"),
-        kind: "warn",
-        percent: pct,
-        canDelete: false,
-      };
-    }
-    if (g.ready) {
-      return {
-        id: "ready",
-        label: "Pronto",
-        disabled: true,
-        status: `No disco · ${meta.name} · sobe na memória só ao sugerir`,
-        kind: "ok",
-        canDelete: true,
-      };
-    }
-    if (cached) {
-      return {
-        id: "download",
-        label: "Carregar",
-        disabled: false,
-        status: `${size} no disco — clique para usar na memória`,
-        kind: "warn",
-        canDelete: true,
-      };
-    }
-    return {
-      id: "download",
-      label: `Baixar ${meta.name}`,
-      disabled: false,
-      status: "Ainda não baixou. Ao ligar as sugestões, o download começa sozinho (~1,1 GB).",
-      kind: "warn",
-      canDelete: false,
-    };
-  }
-
-  function gemmaView(state) {
-    const g = state?.gemma && typeof state.gemma === "object" ? state.gemma : {};
-    const alive = Boolean(state?.motorAlive || state?.motorUp);
-    const stale = Boolean(state?.gemmaStale || g.stale);
-    const waiting = Boolean(state?.gemmaWaiting);
-    let motor = { kind: "off", text: "Desligado" };
-    if (waiting || stale) motor = { kind: "warn", text: "Atualize" };
-    else if (alive) motor = { kind: "ok", text: "Ligado" };
-    let model = { kind: "off", text: "Não baixou", percent: 0, indeterminate: false };
-    if (g.error && !g.loading && !g.ready) {
-      model = {
-        kind: "warn",
-        text: "Falhou",
-        percent: 0,
-        indeterminate: false,
-      };
-    } else if (g.loading) {
-      const pct = Number(g.percent) || 0;
-      model = {
-        kind: "warn",
-        text: pct ? `${pct}%` : "Baixando",
-        percent: pct,
-        indeterminate: pct < 2,
-      };
-    } else if (g.ready) {
-      model = { kind: "ok", text: "Pronto", percent: 100, indeterminate: false };
-    } else if (g.cached) {
-      model = { kind: "ok", text: "No disco", percent: 100, indeterminate: false };
-    } else if (waiting || stale) {
-      model = {
-        kind: "warn",
-        text: "Rode o Setup do zip",
-        percent: 0,
-        indeterminate: false,
-      };
-    }
-    return { motor, model };
-  }
-
   function explainMotorError(raw) {
     const s = String(raw || "").replace(/\s+/g, " ").trim();
     if (!s) return "";
@@ -211,39 +56,6 @@
       return "A extensão perdeu o pareamento com o motor. Clique em Tentar de novo.";
     }
     return s;
-  }
-
-  function explainGemmaError(raw) {
-    const s = String(raw || "").replace(/\s+/g, " ").trim();
-    if (!s) return "";
-    const low = s.toLowerCase();
-    if (/reiniciou|caiu no meio|falta de ram|bastante ram/i.test(s)) return s;
-    if (/bad token|não pareei|unpaired/i.test(low)) {
-      return "A extensão perdeu o pareamento com o motor. Clique em Tentar de novo — ela pede o token sozinha.";
-    }
-    if (/gated|403|401|restricted|license|access to model|cannot access/i.test(low)) {
-      return "A Hugging Face recusou o download. Confira a internet e tente de novo.";
-    }
-    if (/no space|enospc|espaço em disco|disk quota/i.test(low)) {
-      return "Falta espaço em disco para o Qwen (cerca de 1,2 GB).";
-    }
-    if (/out of memory|can't allocate|cannot allocate|paged|winerror 1455|memoryerror/i.test(low)) {
-      return "Faltou memória RAM. Feche outros programas e clique em Tentar de novo.";
-    }
-    if (/timed out|timeout|failed to resolve|connection reset|network is unreachable|offline/i.test(low)) {
-      return "A Hugging Face não respondeu. Confira a internet e tente de novo.";
-    }
-    if (/motor antigo|não sabe baixar|rode o setup/i.test(low)) return s;
-    return s.length > 280 ? s.slice(0, 277) + "…" : s;
-  }
-
-  function gemmaMeta(kind) {
-    const k = normalizeGemma(kind);
-    return SUGGEST_META[k] || SUGGEST_META.qwen;
-  }
-
-  function normalizeGemma(_kind) {
-    return "qwen";
   }
 
   function modelMeta(kind) {
@@ -499,79 +311,6 @@
     }
   }
 
-  const SUGGEST_RETRY_ERROR =
-    "O Qwen não montou respostas desta vez. Clique de novo — às vezes ele só copia o áudio.";
-
-  const GENERIC_SUGGEST_STALLS = new Set([
-    "pode falar mais um pouco?",
-    "já te retorno.",
-    "ja te retorno.",
-    "já te retorno",
-    "ja te retorno",
-  ]);
-
-  function suggestWordSet(s) {
-    return new Set(
-      String(s || "")
-        .toLowerCase()
-        .match(/[\p{L}\p{N}]+/gu)
-        ?.filter((w) => w.length > 2) || [],
-    );
-  }
-
-  function isGenericSuggestStall(reply) {
-    return GENERIC_SUGGEST_STALLS.has(
-      String(reply || "").toLowerCase().replace(/\s+/g, " ").trim(),
-    );
-  }
-
-  function tooLikeSource(reply, source) {
-    const a = String(reply || "").replace(/\s+/g, " ").trim();
-    const b = String(source || "").replace(/\s+/g, " ").trim();
-    if (!a || a.length < 6) return true;
-    if (a.length > 140) return true;
-    if (!b) return false;
-    const al = a.toLowerCase();
-    const bl = b.toLowerCase();
-    if (al === bl || bl.startsWith(al)) return true;
-    if (al.length > 18 && bl.includes(al.slice(0, 22))) return true;
-    const wa = suggestWordSet(a);
-    const wb = suggestWordSet(b);
-    if (!wa.size) return true;
-    let hit = 0;
-    for (const w of wa) if (wb.has(w)) hit += 1;
-    return hit / wa.size >= 0.62;
-  }
-
-  // Motor antigo devolve [áudio[:120], "Pode falar mais um pouco?", "Já te retorno."]
-  // quando o Qwen 1.5B não emite 3 linhas. Isso não é resposta — some da UI.
-  function cleanSuggestReplies(replies, source) {
-    const rows = Array.isArray(replies) ? replies : [];
-    if (rows.filter(isGenericSuggestStall).length >= 2) return [];
-    const out = [];
-    const seen = new Set();
-    for (const line of rows) {
-      const bit = String(line || "").replace(/\s+/g, " ").trim();
-      if (!bit || isGenericSuggestStall(bit) || tooLikeSource(bit, source)) continue;
-      const key = bit.toLowerCase();
-      if (seen.has(key)) continue;
-      seen.add(key);
-      out.push(bit);
-      if (out.length === 3) break;
-    }
-    return out;
-  }
-
-  function formatSuggestPrompt(thread) {
-    if (typeof thread === "string") {
-      return String(thread).replace(/\s+/g, " ").trim();
-    }
-    const rows = Array.isArray(thread) ? thread : [];
-    if (!rows.length) return "";
-    const last = rows[rows.length - 1] || {};
-    return String(last.text || "").replace(/\s+/g, " ").trim();
-  }
-
   function verifyRequest(kind) {
     return {
       type: "VOZCLARA_MODEL_VERIFY",
@@ -599,19 +338,6 @@
       motorAlive: alive,
       motorUp: up,
       motorInstalled: Boolean(src.motorInstalled) || alive || up,
-      gemmaWaiting: Boolean(src.gemmaWaitingMotor),
-      gemmaStale: Boolean(src.gemmaStale),
-      gemma: {
-        ready: Boolean(src.gemmaReady),
-        loading: Boolean(src.gemmaLoading),
-        percent: Number(src.gemmaPercent) || 0,
-        detail: src.gemmaDetail || "",
-        error: src.gemmaError || "",
-        stale: Boolean(src.gemmaStale),
-        cached: Boolean(src.gemmaCached),
-        bytes: Number(src.gemmaBytes) || 0,
-        kind: src.gemmaKind || "qwen",
-      },
     };
   }
 
@@ -627,17 +353,10 @@
     normalizeKind,
     parseHfRepo,
     modelMeta,
-    gemmaMeta,
-    gemmaView,
-    gemmaAction,
-    formatGemmaSize,
     explainMotorError,
-    explainGemmaError,
-    normalizeGemma,
     stateLabel,
     stateKind,
     MOTOR_SETUP_HINT,
-    SUGGEST_RETRY_ERROR,
     FALLBACK_KEYS,
     downloadLabel,
     modelHint,
@@ -653,10 +372,6 @@
     isLangCleaned,
     setQualityFallback,
     takeQualityFallback,
-    tooLikeSource,
-    isGenericSuggestStall,
-    cleanSuggestReplies,
-    formatSuggestPrompt,
     shouldAttachVoiceCard,
   };
 })();

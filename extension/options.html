@@ -95,51 +95,6 @@
       </label>
       <p class="status">Português (e inglês/espanhol) descarta chinês, japonês e outros alfabetos que o modelo misturar.</p>
 
-      <div class="hr"></div>
-
-      <div class="row-head">
-        <strong>Sugestões no áudio</strong>
-        <label class="switch">
-          <input type="checkbox" id="gemma-on" />
-          <i></i>
-        </label>
-      </div>
-      <p class="status">Ao ligar, o motor baixa o Qwen (~1,1 GB) da Hugging Face para este PC. A % e a barra mostram o andamento. Excluir apaga o arquivo.</p>
-      <div id="gemma-panel" hidden>
-      <div class="split">
-        <div class="pill">
-          <i id="g-motor-dot" class="dot" aria-hidden="true"></i>
-          <span id="g-motor-text">Bandeja</span>
-        </div>
-        <div class="pill">
-          <i id="g-model-dot" class="dot" aria-hidden="true"></i>
-          <span id="g-model-text">Qwen</span>
-        </div>
-      </div>
-      <p id="gemma-status" class="status" aria-live="polite"></p>
-      <div class="meter" id="gemma-meter" hidden><span id="gemma-bar"></span></div>
-      <div class="actions">
-        <button id="gemma-download" type="button">Baixar</button>
-        <button id="gemma-delete" type="button" class="ghost" hidden>Excluir</button>
-      </div>
-      <div id="gemma-extra" hidden>
-        <label>Quem você é
-          <input id="gemma-who" type="text" maxlength="240" placeholder="Atendimento da loja…" />
-        </label>
-        <label>Tom
-          <select id="gemma-tone">
-            <option value="cliente">No clima de quem falou</option>
-            <option value="curto">Curto</option>
-            <option value="formal">Formal</option>
-            <option value="comercial">Comercial</option>
-          </select>
-        </label>
-        <label>Consultar
-          <textarea id="gemma-notes" maxlength="4000" placeholder="Preço, horário, FAQ…"></textarea>
-        </label>
-      </div>
-      </div>
-
       <div class="test">
         <p>Testar</p>
         <p class="drop">Solte um áudio ou escolha um arquivo.</p>
@@ -152,13 +107,13 @@
         <summary>Ajuda</summary>
         <dl>
           <dt>Extensão e motor</dt>
-          <dd>A extensão é o botão no WhatsApp. O motor é o ícone na bandeja do Windows, ao lado do relógio. Whisper no Chrome não usa motor. Nemotron e sugestões Qwen usam.</dd>
+          <dd>A extensão é o botão no WhatsApp. O motor é o ícone na bandeja do Windows, ao lado do relógio. Whisper no Chrome não usa motor. Nemotron usa.</dd>
           <dt>Bandeja Ligado ou Desligado</dt>
           <dd>Verde: pode transcrever. Cinza: clique em Ligar. “Não instalado”: rode o Setup do zip, uma vez.</dd>
           <dt>Preciso do Setup de novo?</dt>
           <dd>Não, se só recarregou a extensão — transcrever segue. Sim, se o painel pedir Atualize, ou se quiser o modelo sair da memória depois do clique (PC com pouca RAM).</dd>
           <dt>Os dois pontos</dt>
-          <dd>Bandeja = o programa. Modelo/Qwen = o arquivo no disco. Sobe na memória só no clique e sai no fim.</dd>
+          <dd>Bandeja = o programa. Modelo = o arquivo no disco. Sobe na memória só no clique e sai no fim.</dd>
         </dl>
       </details>
     </main>

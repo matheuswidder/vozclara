@@ -126,72 +126,21 @@ test("collapseRepeats corta loop do tiny", () => {
   assert.equal(VC.collapseRepeats("oi tudo bem"), "oi tudo bem");
 });
 
-test("gemmaAction pede motor e marca pronto", () => {
-  const off = VC.gemmaAction({ motorAlive: false }, "qwen");
-  assert.equal(off.id, "wake");
-  const stale = VC.gemmaAction(
-    { motorAlive: true, gemmaStale: true, gemma: { stale: true } },
-    "qwen",
-  );
-  assert.equal(stale.id, "update");
-  assert.match(stale.label, /Setup/i);
-  const waiting = VC.gemmaAction(
-    { motorAlive: true, gemmaWaiting: true, gemmaStale: true },
-    "qwen",
-  );
-  assert.equal(waiting.id, "update");
-  assert.equal(waiting.disabled, false);
-  const fail = VC.gemmaAction(
-    {
-      motorAlive: true,
-      motorUp: true,
-      gemma: { error: "401 Client Error gated repo for url huggingface" },
-    },
-    "qwen",
-  );
-  assert.equal(fail.id, "retry");
-  assert.match(fail.status, /Hugging Face/i);
-  const crash = VC.explainGemmaError(
-    "O motor reiniciou no meio do download. Faltou RAM.",
-  );
-  assert.match(crash, /RAM/);
-  assert.match(VC.explainGemmaError("bad token"), /pareamento/i);
-  assert.match(VC.explainMotorError("bad token"), /pareamento|Tentar de novo/i);
-  const viewFail = VC.gemmaView({
+test("fallbackLocalState preserva flags do motor", () => {
+  const state = VC.fallbackLocalState({
     motorAlive: true,
-    gemma: { error: "boom" },
+    motorUp: true,
+    motorInstalled: true,
+    localProgress: { downloading: true, percent: 8, label: "stale" },
   });
-  assert.equal(viewFail.model.text, "Falhou");
-  const view = VC.gemmaView({
-    motorAlive: true,
-    gemma: { loading: true, percent: 22 },
+  assert.equal(state.motorAlive, true);
+  assert.equal(state.motorUp, true);
+  assert.equal(state.downloading, true);
+  assert.equal(state.gemma, undefined);
+  assert.deepEqual(VC.verifyRequest("Nemotron"), {
+    type: "VOZCLARA_MODEL_VERIFY",
+    kind: "nemotron",
   });
-  assert.equal(view.motor.text, "Ligado");
-  assert.match(view.model.text, /22/);
-  const wait = VC.gemmaAction(
-    { motorAlive: true, gemma: { loading: true, percent: 40 } },
-    "qwen",
-  );
-  assert.equal(wait.id, "wait");
-  const ready = VC.gemmaAction(
-    { motorAlive: true, motorUp: true, gemma: { ready: true, kind: "qwen", bytes: 1120000000 } },
-    "qwen",
-  );
-  assert.equal(ready.id, "ready");
-  assert.equal(ready.canDelete, true);
-  assert.match(ready.status, /disco/i);
-  const cached = VC.gemmaAction(
-    { motorAlive: true, motorUp: true, gemma: { cached: true, bytes: 900000000 } },
-    "qwen",
-  );
-  assert.equal(cached.id, "download");
-  assert.equal(cached.label, "Carregar");
-  assert.equal(cached.canDelete, true);
-  const dl = VC.gemmaAction({ motorAlive: true, motorUp: true, gemma: {} }, "qwen");
-  assert.equal(dl.id, "download");
-  assert.equal(dl.canDelete, false);
-  assert.match(dl.label, /Qwen/i);
-  assert.match(VC.formatGemmaSize(1120000000), /GB/);
 });
 
 test("filterTranscriptByLang tira alfabeto estranho no português", () => {
@@ -204,41 +153,6 @@ test("filterTranscriptByLang tira alfabeto estranho no português", () => {
   assert.equal(clean, "teste em português");
   assert.equal(VC.filterTranscriptByLang("oi tudo bem", "pt"), "oi tudo bem");
   assert.equal(VC.isLangCleaned(mixed, out), true);
-});
-
-test("cleanSuggestReplies some o fallback eco+stall do motor antigo", () => {
-  const audio =
-    "E aí tô bem. Tá na hora de tá até trabalhando comigo lá na farmácia, Duna de Laxa Morrella pra trabalhar. Mas a gente não trabalha no mesmo setor, não é você clara como é que tão veja aí um final de semana pra vir aqui, pô faça um final de semana aqui.";
-  assert.deepEqual(
-    VC.cleanSuggestReplies(
-      [audio.slice(0, 120), "Pode falar mais um pouco?", "Já te retorno."],
-      audio,
-    ),
-    [],
-  );
-  assert.equal(VC.isGenericSuggestStall("Já te retorno."), true);
-  assert.equal(VC.tooLikeSource(audio.slice(0, 120), audio), true);
-  const good = VC.cleanSuggestReplies(
-    [
-      "Só vamos num feriado, fica longe demais.",
-      "Melhor deixar pra um feriado.",
-      "Combinado: só num feriado.",
-    ],
-    audio,
-  );
-  assert.equal(good.length, 3);
-  assert.match(VC.SUGGEST_RETRY_ERROR, /copia o áudio/);
-});
-
-test("formatSuggestPrompt usa só o áudio transcrito", () => {
-  const prompt = VC.formatSuggestPrompt([
-    { outgoing: false, voice: false, text: "Vai no mercado?" },
-    { outgoing: true, voice: false, text: "Tô saindo" },
-    { outgoing: false, voice: true, text: "Leite e pão" },
-  ]);
-  assert.equal(prompt, "Leite e pão");
-  assert.equal(VC.formatSuggestPrompt("  Recado só  "), "Recado só");
-  assert.equal(VC.formatSuggestPrompt([]), "");
 });
 
 test("shouldAttachVoiceCard ignora GIF, figurinha e foto", () => {
@@ -267,32 +181,4 @@ test("motorView não mente 'Não instalado' enquanto verifica", () => {
   assert.match(VC.motorHeadline({ motorUp: true }), /pronto para transcrever/);
   assert.match(VC.modelHint("nemotron"), /bandeja/i);
   assert.match(VC.modelHint("turbo"), /Chrome/);
-});
-
-test("fallbackLocalState preserva flags do motor e do Qwen", () => {
-  const state = VC.fallbackLocalState({
-    motorAlive: true,
-    motorUp: true,
-    motorInstalled: true,
-    localProgress: { downloading: true, percent: 8, label: "stale" },
-    gemmaError: "Ligue o motor na bandeja.",
-    gemmaLoading: false,
-    gemmaReady: false,
-  });
-  assert.equal(state.motorAlive, true);
-  assert.equal(state.motorUp, true);
-  assert.equal(state.downloading, true);
-  assert.equal(state.gemma.error, "Ligue o motor na bandeja.");
-  assert.deepEqual(VC.verifyRequest("Nemotron"), {
-    type: "VOZCLARA_MODEL_VERIFY",
-    kind: "nemotron",
-  });
-});
-
-test("gemmaMeta aponta para Qwen 1.5B Q4", () => {
-  assert.equal(VC.normalizeGemma("e2b"), "qwen");
-  assert.equal(VC.normalizeGemma("it"), "qwen");
-  assert.equal(VC.normalizeGemma("assistant"), "qwen");
-  assert.match(VC.gemmaMeta("qwen").name, /Qwen/i);
-  assert.match(VC.gemmaMeta().repo, /Qwen2\.5-1\.5B-Instruct-GGUF/);
 });

@@ -92,7 +92,7 @@ label {
   letter-spacing: 0.02em;
 }
 
-input, select, textarea {
+input, select {
   height: 38px;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -100,13 +100,6 @@ input, select, textarea {
   color: var(--fg);
   padding: 0 10px;
   font: 400 13.5px/1.4 "Segoe UI", system-ui, sans-serif;
-}
-
-textarea {
-  height: auto;
-  min-height: 64px;
-  padding: 8px 10px;
-  resize: vertical;
 }
 
 button {
@@ -132,13 +125,6 @@ button.ghost {
   border: 1px solid var(--line);
   background: transparent;
   color: var(--fg);
-  font-weight: 500;
-}
-
-button.danger {
-  border: 1px solid color-mix(in srgb, #c45c5c 50%, var(--line));
-  background: transparent;
-  color: #c45c5c;
   font-weight: 500;
 }
 
@@ -244,93 +230,6 @@ button.danger {
 .confirm p { margin: 0 0 8px; font-size: 13px; font-weight: 400; }
 .confirm .actions { margin: 0; }
 
-.hr {
-  height: 1px;
-  margin: 12px 0;
-  background: var(--line);
-  border: 0;
-}
-
-.row-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin: 0 0 8px;
-}
-.row-head strong {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--muted);
-  letter-spacing: 0.02em;
-}
-
-.switch {
-  position: relative;
-  width: 36px;
-  height: 20px;
-  flex: 0 0 auto;
-  margin: 0;
-}
-.switch input {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  width: 36px;
-  height: 20px;
-  margin: 0;
-  cursor: pointer;
-}
-.switch i {
-  display: block;
-  height: 20px;
-  border-radius: 99px;
-  background: #3b4a54;
-  pointer-events: none;
-}
-.switch i::after {
-  content: "";
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: #fff;
-  transition: transform 0.16s ease;
-}
-.switch input:checked + i { background: var(--accent); }
-.switch input:checked + i::after { transform: translateX(16px); }
-
-.seg {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 4px;
-  margin: 0 0 10px;
-  padding: 3px;
-  border-radius: 8px;
-  background: var(--surface);
-}
-.seg label {
-  margin: 0;
-  display: grid;
-  place-items: center;
-  height: 30px;
-  border-radius: 6px;
-  font-size: 11.5px;
-  font-weight: 600;
-  color: var(--muted);
-  letter-spacing: 0;
-  cursor: pointer;
-}
-.seg input { display: none; }
-.seg label:has(input:checked) {
-  background: var(--field);
-  color: var(--fg);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
-}
-.seg label { transition: color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease; }
-
 .test {
   margin-top: 14px;
   padding: 10px;
@@ -353,11 +252,9 @@ button.danger {
 #cloud-fields[hidden],
 #custom-fields[hidden],
 #motor-panel[hidden],
-#gemma-panel[hidden],
 #reveal[hidden],
 #local-path[hidden],
 #confirm[hidden],
-#gemma-extra[hidden],
 #motor-hint[hidden],
 #model-hint[hidden],
 .meter[hidden] {
@@ -375,8 +272,7 @@ button.danger {
     --warn: #b45309;
   }
   html, body { background: var(--bg); }
-  input, select, textarea { background: var(--surface); }
-  .switch i { background: #d1d7db; }
+  input, select { background: var(--surface); }
 }
 
 .flash {

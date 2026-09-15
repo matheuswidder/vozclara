@@ -74,18 +74,18 @@
     }
     button.tx:hover { filter: brightness(1.06); }
     button.tx:disabled { opacity: .6; cursor: default; filter: none; }
-    .copy, .retry, .again, .iconbtn {
+    .copy, .retry, .iconbtn {
       appearance: none; border: 0; background: transparent;
       color: var(--vc-muted, #667781); cursor: pointer; font-size: 11px;
       padding: 0;
     }
-    .copy:hover, .retry:hover, .again:hover, .iconbtn:hover { color: var(--vc-fg, #111b21); }
-    .iconbtn, .ok, .again {
+    .copy:hover, .retry:hover, .iconbtn:hover { color: var(--vc-fg, #111b21); }
+    .iconbtn, .ok {
       display: inline-flex; align-items: center; justify-content: center; gap: 6px;
     }
     .ok { color: var(--vc-accent, #00a884); }
     .iconbtn.copied { color: var(--vc-accent, #00a884); }
-    .ok svg, .iconbtn svg, .again svg { width: 14px; height: 14px; display: block; }
+    .ok svg, .iconbtn svg { width: 14px; height: 14px; display: block; }
     .tools { display: flex; gap: 10px; align-items: center; }
     .text {
       margin: 0;
@@ -130,70 +130,9 @@
       margin: 4px 0 0; font-size: 11px; font-weight: 400;
       color: var(--vc-muted, #667781);
     }
-    .replies { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 0; }
-    button.reply {
-      appearance: none; border: 1px solid rgba(0,168,132,.45);
-      background: transparent; color: var(--vc-fg, #111b21);
-      font: 500 12.5px/1.35 Segoe UI, Helvetica, Arial, sans-serif;
-      border-radius: 16px; padding: 6px 10px; text-align: left; cursor: pointer;
-      max-width: 100%; word-break: break-word;
-      display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical;
-      overflow: hidden;
-    }
-    button.reply:hover { background: rgba(0,168,132,.12); }
     .box.mini {
       padding: 0; background: transparent; border: 0; border-radius: 0;
       pointer-events: auto;
-    }
-    button.sug {
-      appearance: none; border: 0; cursor: pointer;
-      background: var(--vc-accent, #00a884); color: #062016;
-      font: 600 12.5px/1 Segoe UI, Helvetica, Arial, sans-serif;
-      border-radius: 8px; padding: 8px 12px; width: 100%;
-      margin-top: 8px;
-    }
-    button.sug:hover { filter: brightness(1.06); }
-    button.sug:disabled { opacity: .55; cursor: default; filter: none; }
-    .again { margin-top: 8px; }
-    .composer { margin-top: 8px; }
-    iframe.ctx-frame {
-      display: block; width: 100%; height: 72px; box-sizing: border-box;
-      margin: 0; border: 1px solid var(--vc-line, #e9edef); border-radius: 8px;
-      background: color-mix(in srgb, var(--vc-fg, #111b21) 4%, var(--vc-panel, #fff));
-    }
-    iframe.ctx-frame:focus-within { outline: 2px solid var(--vc-accent, #00a884); outline-offset: 1px; }
-    .go-row { display: flex; gap: 8px; align-items: stretch; margin-top: 8px; }
-    select.tone-sel {
-      flex: 1; min-width: 0; appearance: none; cursor: pointer;
-      border: 1px solid var(--vc-line, #e9edef);
-      background: var(--vc-panel, #fff) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path fill='%23667781' d='M1 1.5 6 6.5 11 1.5'/></svg>") no-repeat right 10px center;
-      color: var(--vc-fg, #111b21);
-      font: 600 12.5px/1.2 Segoe UI, Helvetica, Arial, sans-serif;
-      border-radius: 8px; padding: 8px 28px 8px 10px;
-    }
-    button.go {
-      flex: 0 0 40px; width: 40px; appearance: none; border: 0; cursor: pointer;
-      border-radius: 8px; background: var(--vc-accent, #00a884); color: #062016;
-      display: inline-flex; align-items: center; justify-content: center; padding: 0;
-    }
-    button.go:hover { filter: brightness(1.06); }
-    button.go:disabled { opacity: .55; cursor: default; filter: none; }
-    button.go svg { width: 18px; height: 18px; display: block; }
-    .typing {
-      display: flex; align-items: center; gap: 8px; margin-top: 8px;
-      font-size: 12.5px; font-weight: 600; color: var(--vc-muted, #667781);
-    }
-    .typing .dots { display: inline-flex; align-items: center; gap: 3px; height: 12px; }
-    .typing .dots i {
-      display: block; width: 6px; height: 6px; border-radius: 50%;
-      background: var(--vc-accent, #00a884);
-      animation: vcdot 1.1s ease-in-out infinite;
-    }
-    .typing .dots i:nth-child(2) { animation-delay: .15s; }
-    .typing .dots i:nth-child(3) { animation-delay: .3s; }
-    @keyframes vcdot {
-      0%, 80%, 100% { opacity: .35; transform: translateY(0); }
-      40% { opacity: 1; transform: translateY(-3px); }
     }
   `;
 
@@ -201,9 +140,6 @@
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" aria-hidden="true"><path d="M5 12.5 10 17.5 19 7"/></svg>';
   const COPY_SVG =
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="8" y="8" width="12" height="14" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h2"/></svg>';
-  const ENTER_SVG =
-    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M20 6v5a3 3 0 0 1-3 3H7"/><path d="m10 10-4 4 4 4"/></svg>';
-
   function resultToolsHtml() {
     return `<span class="tools">
       <span class="ok" title="Pronto" aria-label="Pronto">${CHECK_SVG}</span>
@@ -218,16 +154,6 @@
   window.addEventListener("message", (ev) => {
     const data = ev.data;
     if (!data || data.source !== "vozclara") return;
-    if (data.type === "ctx" && data.key) {
-      const prev = suggestDraft.get(data.key) || {};
-      suggestDraft.set(data.key, { ...prev, context: String(data.value || "") });
-      return;
-    }
-    if (data.type === "ctx-go" && data.key) {
-      const root = rootByKey.get(data.key)?.root;
-      if (root) void runSuggest(root);
-      return;
-    }
     if (ev.source !== window || data.type !== "media") return;
     if (!(data.buffer instanceof ArrayBuffer) && !ArrayBuffer.isView(data.buffer)) return;
     const raw =
@@ -292,16 +218,12 @@
   const cardByKey = new Map();
   const htmlByKey = new Map();
   const miniByKey = new Map();
-  /** @type {Map<string, { context: string; tone: string }>} */
-  const suggestDraft = new Map();
   /** @type {Map<string, { root: Element | null; html: string }>} Parte 1.1 */
   const rootByKey = new Map();
   /** @type {Map<string, number>} requestId → interval id do cronômetro da fase ① */
   const timersByRequest = new Map();
   let mutating = false;
   let paneCache = null;
-  let gemmaEnabled = false;
-  let suggestBusy = false;
   /** @type {MutationObserver | null} */
   let obs = null;
 
@@ -723,26 +645,6 @@
         void transcribeRoot(root, { fresh: true });
       });
     }
-    const sug = el.shadowRoot?.querySelector("[data-suggest]");
-    if (sug && !sug.dataset.bound) {
-      sug.dataset.bound = "1";
-      sug.addEventListener("click", (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        sug.blur();
-        void openSuggestComposer(root);
-      });
-    }
-    bindComposer(root, el);
-    el.shadowRoot?.querySelectorAll("button.reply").forEach((btn) => {
-      if (btn.dataset.bound) return;
-      btn.dataset.bound = "1";
-      btn.addEventListener("click", (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        fillCompose(btn.textContent || "");
-      });
-    });
   }
 
   function bindTx(root, el) {
@@ -930,7 +832,7 @@
       panel.querySelectorAll("[data-bound]").forEach((n) => n.removeAttribute("data-bound"));
       htmlByKey.set(keyFor(root), panel.innerHTML);
       el.style.display = "block";
-      if (!html || /button class="tx"|data-retry|data-copy|data-suggest|data-go|button class="reply"/.test(html)) {
+      if (!html || /button class="tx"|data-retry|data-copy/.test(html)) {
         bindTx(root, el);
         bindResultTools(root, el);
       }
@@ -1479,12 +1381,6 @@
       const langNote = result.langCleaned
         ? `<p class="micro">Tirei trechos em outro alfabeto (filtro do idioma).</p>`
         : "";
-      const gemmaOn = Boolean((await chrome.storage.local.get(["gemmaOn"])).gemmaOn);
-      gemmaEnabled = gemmaOn;
-      const suggest =
-        gemmaOn && !opts.forContext
-          ? `<button class="sug" type="button" data-suggest="1">Sugerir resposta</button>`
-          : "";
       setPanel(
         root,
         `<div class="box">
@@ -1494,7 +1390,6 @@
            <p class="text">${safe}</p>
            ${note}
            ${langNote}
-           ${suggest}
          </div>`,
       );
       return result.text || "";
@@ -1520,541 +1415,6 @@
     }
   }
 
-  function composeBox() {
-    return (
-      document.querySelector("#main footer [contenteditable='true']") ||
-      document.querySelector("footer [contenteditable='true']") ||
-      document.querySelector('[contenteditable="true"][data-tab]') ||
-      document.querySelector('[data-testid="conversation-compose-box-input"]')
-    );
-  }
-
-  function composeFooter() {
-    const box = composeBox();
-    return (
-      document.querySelector("#main footer") ||
-      box?.closest("footer") ||
-      box?.closest('[data-testid="compose-box"]') ||
-      null
-    );
-  }
-
-  function composeEmpty() {
-    const box = composeBox();
-    if (!box) return true;
-    return !String(box.innerText || "").replace(/\u00a0/g, " ").trim();
-  }
-
-  function fillCompose(text) {
-    const box = composeBox();
-    const line = String(text || "");
-    if (!box || !line) return false;
-    box.focus();
-    try {
-      const sel = window.getSelection();
-      const range = document.createRange();
-      range.selectNodeContents(box);
-      sel.removeAllRanges();
-      sel.addRange(range);
-    } catch {
-      try {
-        document.execCommand("selectAll", false, undefined);
-      } catch {
-        /* segue */
-      }
-    }
-    const ok = document.execCommand("insertText", false, line);
-    try {
-      box.dispatchEvent(
-        new InputEvent("input", {
-          bubbles: true,
-          composed: true,
-          data: line,
-          inputType: "insertText",
-        }),
-      );
-    } catch {
-      /* ignore */
-    }
-    return Boolean(ok) || Boolean(String(box.innerText || "").trim());
-  }
-
-  function conversationRoots() {
-    const main =
-      document.querySelector("#main") ||
-      document.querySelector('[data-testid="conversation-panel-messages"]') ||
-      document;
-    const list = [...main.querySelectorAll("[data-id]")].filter(
-      (n) => n instanceof Element && !isChromeUi(n),
-    );
-    return list.filter((r, i, a) => !a.some((o) => o !== r && r.contains(o)));
-  }
-
-  function threadText(root) {
-    if (isVoiceRoot(root)) {
-      return cardOf(root)?.shadowRoot?.querySelector(".text")?.textContent?.trim() || "";
-    }
-    return readableText(root);
-  }
-
-  function collectThread(target, limit = 12) {
-    const roots = conversationRoots();
-    const idx = roots.indexOf(target);
-    const slice =
-      idx < 0
-        ? [target]
-        : roots.slice(Math.max(0, idx - (limit - 1)), idx + 1);
-    return slice.map((root) => ({
-      root,
-      outgoing: isOutgoing(root),
-      voice: isVoiceRoot(root),
-      text: threadText(root),
-    }));
-  }
-
-  const SMART_ID = "vozclara-smart";
-  const SMART_CSS = `
-    :host { all: initial; display: block; overflow-anchor: none; font-family: Segoe UI, Helvetica, Arial, sans-serif; }
-    .bar { padding: 6px 12px 2px; }
-    .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-    button.chip {
-      appearance: none; cursor: pointer;
-      border: 1px solid rgba(0,168,132,.45); background: transparent;
-      color: inherit; font: 500 12.5px/1.3 Segoe UI, Helvetica, Arial, sans-serif;
-      border-radius: 16px; padding: 6px 10px; max-width: 100%; text-align: left;
-    }
-    button.chip:hover { background: rgba(0,168,132,.12); }
-    button.x {
-      appearance: none; border: 0; background: transparent; cursor: pointer;
-      color: #8696a0; font-size: 16px; line-height: 1; padding: 4px 6px;
-    }
-    .hint { margin: 4px 0 0; font-size: 11px; color: #8696a0; }
-    .light { color: #111b21; }
-    .dark { color: #e9edef; }
-  `;
-
-  function smartHost() {
-    return document.getElementById(SMART_ID);
-  }
-
-  function pruneSmartBar() {
-    const host = smartHost();
-    if (!gemmaEnabled) {
-      host?.remove();
-      return;
-    }
-    if (!host) return;
-    const footer = composeFooter();
-    if (!footer || host.parentElement !== footer || host.dataset.mode === "idle") {
-      host.remove();
-    }
-  }
-
-  function mountSmartBar() {
-    const footer = composeFooter();
-    if (!footer || !gemmaEnabled) return null;
-    let host = smartHost();
-    if (!host) {
-      host = document.createElement("div");
-      host.id = SMART_ID;
-      host.style.overflowAnchor = "none";
-      const shadow = host.attachShadow({ mode: "open" });
-      shadow.innerHTML = `<style>${SMART_CSS}</style><div class="bar dark"><div class="row"></div><p class="hint"></p></div>`;
-    }
-    if (host.parentElement !== footer) {
-      footer.insertBefore(host, footer.firstChild);
-    }
-    const fg = getComputedStyle(footer).color;
-    const dark = rgbLum(fg) > 140;
-    const bar = host.shadowRoot?.querySelector(".bar");
-    if (bar) bar.className = `bar ${dark ? "dark" : "light"}`;
-    bindComposeWatch();
-    return host;
-  }
-
-  function paintSmartBusy(label) {
-    const host = mountSmartBar();
-    if (!host?.shadowRoot) return;
-    host.dataset.mode = "busy";
-    const row = host.shadowRoot.querySelector(".row");
-    const hint = host.shadowRoot.querySelector(".hint");
-    if (row) row.innerHTML = "";
-    if (hint) hint.textContent = label || "Sugerindo no motor do Windows…";
-  }
-
-  function hideSmartBar() {
-    smartHost()?.remove();
-  }
-
-  function showSmartChips(replies, error) {
-    if (error || !replies?.length) {
-      hideSmartBar();
-      return;
-    }
-    const host = mountSmartBar();
-    if (!host?.shadowRoot) return;
-    const row = host.shadowRoot.querySelector(".row");
-    const hint = host.shadowRoot.querySelector(".hint");
-    if (!row) return;
-    host.dataset.mode = "chips";
-    row.innerHTML =
-      replies
-        .slice(0, 3)
-        .map((line) => `<button class="chip" type="button">${escapeHtml(line)}</button>`)
-        .join("") + `<button class="x" type="button" aria-label="Fechar">×</button>`;
-    row.querySelectorAll("button.chip").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
-        e.preventDefault();
-        const line = btn.textContent || "";
-        fillCompose(line);
-        hideSmartBar();
-      });
-    });
-    row.querySelector(".x")?.addEventListener("click", () => hideSmartBar());
-    if (hint) hint.textContent = "Clique cola no campo";
-  }
-
-  let composeBound = false;
-  function bindComposeWatch() {
-    if (composeBound) return;
-    composeBound = true;
-    document.addEventListener(
-      "input",
-      (e) => {
-        const t = e.target;
-        if (!(t instanceof Element)) return;
-        if (!t.closest("footer")) return;
-        const host = smartHost();
-        if (host?.dataset.mode === "chips" && !composeEmpty()) hideSmartBar();
-      },
-      true,
-    );
-  }
-
-  async function askGemma(text, opts = {}) {
-    const result = await chrome.runtime.sendMessage({
-      type: "VOZCLARA_SUGGEST",
-      text,
-      context: opts.context || "",
-      tone: opts.tone || "cliente",
-      outgoing: Boolean(opts.outgoing),
-    });
-    if (!result?.ok || !Array.isArray(result.replies) || !result.replies.length) {
-      throw new Error(result?.error || "Não sugeri agora. Ligue o motor.");
-    }
-    const clean = globalThis.VCShared?.cleanSuggestReplies
-      ? globalThis.VCShared.cleanSuggestReplies(result.replies, text)
-      : result.replies.slice(0, 3);
-    if (!clean.length) {
-      throw new Error(
-        globalThis.VCShared?.SUGGEST_RETRY_ERROR ||
-          "O Qwen não montou respostas desta vez. Clique de novo.",
-      );
-    }
-    return clean;
-  }
-
-  function fillCtxFrame(root, el, opts = {}) {
-    const frame = el.shadowRoot?.querySelector("[data-ctx-frame]");
-    if (!(frame instanceof HTMLIFrameElement) || frame.dataset.filled === "1") return;
-    frame.dataset.filled = "1";
-    const key = keyFor(root);
-    const draft = suggestDraft.get(key) || {};
-    const dark = appIsDark();
-    const fg = dark ? "#e9edef" : "#111b21";
-    const muted = dark ? "#8696a0" : "#667781";
-    const bg = dark ? "#1a2329" : "#f6f7f8";
-    const ph = escapeHtml(
-      "O que você quer responder? Ex.: só vamos no feriado, fica longe",
-    );
-    const val = escapeHtml(draft.context || "");
-    const onLoad = () => {
-      const t = frame.contentDocument?.querySelector("textarea");
-      if (!t || t.dataset.bound === "1") return;
-      t.dataset.bound = "1";
-      t.addEventListener("input", () => {
-        const prev = suggestDraft.get(key) || {};
-        suggestDraft.set(key, { ...prev, context: t.value });
-      });
-      t.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-          e.preventDefault();
-          void runSuggest(root);
-        }
-      });
-      if (opts.focus) t.focus();
-    };
-    frame.addEventListener("load", onLoad, { once: true });
-    frame.srcdoc = `<!doctype html><meta charset="utf-8"><style>
-html,body{margin:0;height:100%;background:${bg};}
-textarea{width:100%;height:100%;border:0;outline:none;resize:none;box-sizing:border-box;padding:8px 10px;font:400 12.5px/1.4 Segoe UI,Helvetica,Arial,sans-serif;color:${fg};background:transparent;}
-textarea::placeholder{color:${muted};}
-</style><textarea maxlength="480" placeholder="${ph}">${val}</textarea>`;
-  }
-
-  function bindComposer(root, el) {
-    if (!el?.shadowRoot) return;
-    const sel = el.shadowRoot.querySelector("[data-tone-select]");
-    if (sel && !sel.dataset.bound) {
-      sel.dataset.bound = "1";
-      sel.addEventListener("change", () => {
-        const prev = suggestDraft.get(keyFor(root)) || {};
-        suggestDraft.set(keyFor(root), { ...prev, tone: sel.value || "cliente" });
-      });
-    }
-    const go = el.shadowRoot.querySelector("[data-go]");
-    if (go && !go.dataset.bound) {
-      go.dataset.bound = "1";
-      go.addEventListener("click", (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        go.blur();
-        void runSuggest(root);
-      });
-    }
-    fillCtxFrame(root, el, { focus: el.dataset.vcFocusCtx === "1" });
-    el.dataset.vcFocusCtx = "";
-  }
-
-  function waitLabel(stored) {
-    const loading = Boolean(stored?.gemmaLoading);
-    const pct = Number(stored?.gemmaPercent) || 0;
-    const detail = String(stored?.gemmaDetail || "").trim();
-    if (loading && (pct || /baix/i.test(detail))) {
-      return pct ? `Baixando Qwen ${pct}%` : detail || "Baixando Qwen…";
-    }
-    if (detail && !stored?.gemmaReady && /baix/i.test(detail)) return detail;
-    return "Digitando…";
-  }
-
-  function showTyping(root, label) {
-    const composer = panelOf(root)?.querySelector(".composer");
-    if (!composer) return;
-    let row = composer.querySelector("[data-typing]");
-    if (!row) {
-      row = document.createElement("div");
-      row.className = "typing";
-      row.dataset.typing = "1";
-      row.setAttribute("aria-live", "polite");
-      row.innerHTML =
-        '<span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span data-typing-label></span>';
-      composer.appendChild(row);
-    }
-    const lab = row.querySelector("[data-typing-label]");
-    if (lab) lab.textContent = label || "Digitando…";
-    const go = composer.querySelector("[data-go]");
-    if (go) go.disabled = true;
-  }
-
-  function composerHtml(root, opts = {}) {
-    const draft = suggestDraft.get(keyFor(root)) || {};
-    const picked = opts.tone || draft.tone || "cliente";
-    const busy = Boolean(opts.busy);
-    const tones = [
-      ["curto", "Curto"],
-      ["formal", "Formal"],
-      ["cliente", "No tom da pessoa"],
-      ["comercial", "Comercial"],
-    ];
-    const options = tones
-      .map(
-        ([id, label]) =>
-          `<option value="${id}"${picked === id ? " selected" : ""}>${label}</option>`,
-      )
-      .join("");
-    const typing = busy
-      ? `<div class="typing" data-typing="1" aria-live="polite"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span data-typing-label>${escapeHtml(opts.wait || "Digitando…")}</span></div>`
-      : "";
-    return `<div class="composer">
-      <iframe class="ctx-frame" data-ctx-frame title="Contexto da resposta"></iframe>
-      <div class="go-row">
-        <select class="tone-sel" data-tone-select aria-label="Tom da resposta">${options}</select>
-        <button type="button" class="go" data-go aria-label="Gerar respostas" title="Gerar"${busy ? " disabled" : ""}>${ENTER_SVG}</button>
-      </div>
-      ${typing}
-    </div>`;
-  }
-
-  function liveComposerContext(root) {
-    const panel = panelOf(root);
-    const frame = panel?.querySelector("[data-ctx-frame]");
-    if (!(frame instanceof HTMLIFrameElement)) return "";
-    try {
-      return String(frame.contentDocument?.querySelector("textarea")?.value || "").trim();
-    } catch {
-      return "";
-    }
-  }
-
-  function readComposer(root) {
-    const panel = panelOf(root);
-    const sel = panel?.querySelector("[data-tone-select]");
-    const prev = suggestDraft.get(keyFor(root)) || {};
-    const tone = sel?.value || prev.tone || "cliente";
-    const context = liveComposerContext(root) || prev.context || "";
-    suggestDraft.set(keyFor(root), { ...prev, context, tone });
-    return { context, tone };
-  }
-
-  function replyExtra(root, replies, wait) {
-    const chips = replies?.length
-      ? `<div class="replies">${replies
-          .map((line) => `<button class="reply" type="button">${escapeHtml(line)}</button>`)
-          .join("")}</div>`
-      : "";
-    return `${composerHtml(root, wait || {})}${chips}`;
-  }
-
-  function keepTranscript(root) {
-    const panel = panelOf(root);
-    return {
-      text: panel?.querySelector(".text")?.textContent || "",
-      textHtml: panel?.querySelector(".text")?.innerHTML || "",
-      tools: (panel?.querySelector(".tools")?.innerHTML || "").replace(
-        /\sdata-bound="1"/g,
-        "",
-      ),
-      micros: [...(panel?.querySelectorAll(".micro") || [])]
-        .filter((n) => !n.closest(".composer"))
-        .map((n) => n.outerHTML)
-        .join(""),
-    };
-  }
-
-  function renderTranscript(root, kept, extra) {
-    setPanel(
-      root,
-      `<div class="box">
-         <div class="label"><span>VozClara</span>
-           <span class="tools">${kept.tools || ""}</span>
-         </div>
-         <p class="text">${kept.textHtml}</p>
-         ${kept.micros}
-         ${extra || ""}
-       </div>`,
-    );
-  }
-
-  function paintSuggestWait(root, kept, stored) {
-    const label = waitLabel(stored);
-    if (panelOf(root)?.querySelector(".composer")) {
-      showTyping(root, label);
-      return;
-    }
-    renderTranscript(root, kept, composerHtml(root, { busy: true, wait: label }));
-    bindResultTools(root, cardOf(root));
-  }
-
-  async function openSuggestComposer(root) {
-    if (suggestBusy) return;
-    const kept = keepTranscript(root);
-    const current = kept.text.trim();
-    if (!current) {
-      renderTranscript(
-        root,
-        kept,
-        `<p class="micro">Transcreva este áudio antes de sugerir.</p>`,
-      );
-      return;
-    }
-    const key = keyFor(root);
-    rootByKey.set(key, { root, html: "" });
-    if (!suggestDraft.has(key)) {
-      const stored = await chrome.storage.local.get([
-        "gemmaCardContext",
-        "gemmaNotes",
-        "gemmaTone",
-      ]);
-      suggestDraft.set(key, {
-        context: stored.gemmaCardContext || stored.gemmaNotes || "",
-        tone: stored.gemmaTone || "cliente",
-      });
-    }
-    hideSmartBar();
-    if (panelOf(root)?.querySelector(".composer")) return;
-    const card = cardOf(root);
-    if (card) card.dataset.vcFocusCtx = "1";
-    renderTranscript(root, kept, composerHtml(root));
-    bindResultTools(root, cardOf(root));
-  }
-
-  async function runSuggest(root) {
-    if (suggestBusy) return;
-    const kept = keepTranscript(root);
-    const current = kept.text.trim();
-    if (!current) {
-      renderTranscript(
-        root,
-        kept,
-        `<p class="micro">Transcreva este áudio antes de sugerir.</p>`,
-      );
-      return;
-    }
-    const draft = readComposer(root);
-    const picked = draft.tone || "cliente";
-    suggestDraft.set(keyFor(root), { context: draft.context, tone: picked });
-    chrome.storage.local
-      .set({ gemmaTone: picked, gemmaCardContext: draft.context })
-      .catch(() => {});
-    suggestBusy = true;
-    hideSmartBar();
-    panelOf(root)?.querySelector(".replies")?.remove();
-    paintSuggestWait(root, kept, {
-      gemmaLoading: true,
-      gemmaPercent: 0,
-      gemmaDetail: "Digitando…",
-    });
-    const onProgress = (changes, area) => {
-      if (area !== "local" || !suggestBusy) return;
-      if (
-        !changes.gemmaLoading &&
-        !changes.gemmaPercent &&
-        !changes.gemmaDetail &&
-        !changes.gemmaReady
-      ) {
-        return;
-      }
-      chrome.storage.local
-        .get(["gemmaLoading", "gemmaPercent", "gemmaDetail", "gemmaReady"])
-        .then((stored) => {
-          if (!suggestBusy) return;
-          paintSuggestWait(root, kept, stored);
-        });
-    };
-    chrome.storage.onChanged.addListener(onProgress);
-    const tick = window.setInterval(() => {
-      if (!suggestBusy) return;
-      chrome.storage.local
-        .get(["gemmaLoading", "gemmaPercent", "gemmaDetail", "gemmaReady"])
-        .then((stored) => {
-          if (!suggestBusy) return;
-          paintSuggestWait(root, kept, stored);
-        });
-    }, 800);
-    try {
-      const replies = await askGemma(current, {
-        context: draft.context,
-        tone: picked,
-        outgoing: isOutgoing(root),
-      });
-      renderTranscript(root, kept, replyExtra(root, replies, { tone: picked }));
-      bindResultTools(root, cardOf(root));
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Não sugeri.";
-      renderTranscript(
-        root,
-        kept,
-        `${composerHtml(root, { tone: picked })}<p class="micro">${escapeHtml(msg)}</p>`,
-      );
-      bindResultTools(root, cardOf(root));
-      hideSmartBar();
-    } finally {
-      window.clearInterval(tick);
-      chrome.storage.onChanged.removeListener(onProgress);
-      suggestBusy = false;
-    }
-  }
-
   function escapeHtml(s) {
     return String(s)
       .replace(/&/g, "&amp;")
@@ -2067,14 +1427,13 @@ textarea::placeholder{color:${muted};}
     if (mutating) return;
     for (const rec of records) {
       const target = rec.target instanceof Element ? rec.target : rec.target?.parentElement;
-      if (target?.closest?.(".vozclara-card, .vozclara-mini, .vozclara-dock, #vozclara-layer, #vozclara-smart")) continue;
+      if (target?.closest?.(".vozclara-card, .vozclara-mini, .vozclara-dock, #vozclara-layer")) continue;
       const ours = [...rec.addedNodes, ...rec.removedNodes].every(
         (n) =>
           n instanceof Element &&
           (n.classList.contains("vozclara-card") ||
             n.classList.contains("vozclara-mini") ||
-            n.id === SMART_ID ||
-            n.closest(".vozclara-card, .vozclara-mini, #vozclara-smart")),
+            n.closest(".vozclara-card, .vozclara-mini")),
       );
       if (ours && rec.addedNodes.length + rec.removedNodes.length > 0) continue;
       scheduleScan();
@@ -2111,20 +1470,6 @@ textarea::placeholder{color:${muted};}
   });
 
   function start() {
-    chrome.storage.local.get(["gemmaOn"]).then((s) => {
-      gemmaEnabled = Boolean(s.gemmaOn);
-      scan(document);
-    });
-    chrome.storage.onChanged.addListener((changes, area) => {
-      if (area !== "local" || !changes.gemmaOn) return;
-      gemmaEnabled = Boolean(changes.gemmaOn.newValue);
-      if (!gemmaEnabled) {
-        for (const [, el] of miniByKey) el.remove();
-        miniByKey.clear();
-        smartHost()?.remove();
-      }
-      scan(document);
-    });
     scan(document);
     obs.observe(document.documentElement, {
       childList: true,

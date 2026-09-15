@@ -53,12 +53,11 @@
       display: flex; flex-direction: column; gap: 5px; margin: 0 0 10px;
       font-size: 11px; font-weight: 600; color: var(--muted);
     }
-    select, input[type="password"], input[type="text"], textarea {
+    select, input[type="password"], input[type="text"] {
       appearance: none; border: 1px solid var(--line); background: var(--field);
       color: var(--fg); border-radius: 8px; padding: 8px 10px; font-size: 13.5px;
       font-weight: 400;
     }
-    textarea { min-height: 64px; resize: vertical; }
     .actions { display: flex; gap: 8px; margin: 0 0 10px; }
     .actions button { min-width: 0; flex: 1; }
     button.act {
@@ -73,14 +72,9 @@
       border: 1px solid var(--line); background: transparent; color: var(--fg);
       border-radius: 8px; padding: 9px 12px; cursor: pointer; font-size: 13px;
     }
-    button.danger {
-      border: 1px solid color-mix(in srgb, #c45c5c 50%, var(--line));
-      background: transparent; color: #c45c5c;
-      border-radius: 8px; padding: 9px 12px; cursor: pointer; font-size: 13px;
-    }
     .meter { height: 4px; background: var(--line); border-radius: 99px; overflow: hidden; margin: 0 0 10px; }
     .meter[hidden], #motor-panel[hidden], #custom-fields[hidden], #cloud-fields[hidden],
-    #local-fields[hidden], #confirm[hidden], #gemma-extra[hidden], #gemma-panel[hidden],
+    #local-fields[hidden], #confirm[hidden],
     #motor-hint[hidden], #model-hint[hidden], [hidden] { display: none !important; }
     .hint {
       margin: 0 0 10px; padding: 8px 10px; border-radius: 8px;
@@ -114,30 +108,6 @@
     .confirm { margin: 0 0 10px; padding: 10px; border-radius: 8px; background: var(--field); }
     .confirm p { margin: 0 0 8px; font-size: 13px; font-weight: 400; }
     .confirm .actions { margin: 0; }
-    .hr { height: 1px; margin: 12px 0; background: var(--line); }
-    .row-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 8px; }
-    .row-head strong { font-size: 12px; font-weight: 600; color: var(--muted); }
-    .switch { position: relative; width: 36px; height: 20px; flex: 0 0 auto; margin: 0; }
-    .switch input { position: absolute; inset: 0; opacity: 0; width: 36px; height: 20px; margin: 0; cursor: pointer; }
-    .switch i { display: block; height: 20px; border-radius: 99px; background: #3b4a54; pointer-events: none; }
-    .switch i::after {
-      content: ""; position: absolute; top: 2px; left: 2px;
-      width: 16px; height: 16px; border-radius: 50%; background: #fff;
-      transition: transform .16s ease;
-    }
-    .switch input:checked + i { background: #00a884; }
-    .switch input:checked + i::after { transform: translateX(16px); }
-    .seg {
-      display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px;
-      margin: 0 0 10px; padding: 3px; border-radius: 8px; background: var(--field);
-    }
-    .seg label {
-      margin: 0; display: grid; place-items: center; height: 30px;
-      border-radius: 6px; font-size: 11.5px; font-weight: 600; color: var(--muted);
-      letter-spacing: 0; cursor: pointer;
-    }
-    .seg input { display: none; }
-    .seg label:has(input:checked) { background: var(--bg); color: var(--fg); }
     .test { padding: 10px; border-radius: 8px; background: var(--field); }
     .test p { margin: 0 0 6px; font-size: 12px; font-weight: 600; color: var(--muted); }
     .test .drop { font-weight: 400; }
@@ -427,46 +397,6 @@
               </select>
             </label>
             <p class="status">Português (e inglês/espanhol) descarta chinês, japonês e outros alfabetos que o modelo misturar.</p>
-            <div class="hr"></div>
-            <div class="row-head">
-              <strong>Sugestões no áudio</strong>
-              <label class="switch"><input type="checkbox" id="gemma-on" /><i></i></label>
-            </div>
-            <p class="status">Ao ligar, o motor baixa o Qwen (~1,1 GB) da Hugging Face para este PC. A % e a barra mostram o andamento. Excluir apaga o arquivo.</p>
-            <div id="gemma-panel" hidden>
-            <div class="split">
-              <div class="pill">
-                <i id="g-motor-dot" class="dot"></i>
-                <span id="g-motor-text">Bandeja</span>
-              </div>
-              <div class="pill">
-                <i id="g-model-dot" class="dot"></i>
-                <span id="g-model-text">Qwen</span>
-              </div>
-            </div>
-            <p class="status" id="gemma-status"></p>
-            <div class="meter" id="gemma-meter" hidden><span id="gemma-bar"></span></div>
-            <div class="actions">
-              <button class="act" id="gemma-download" type="button">Baixar</button>
-              <button class="ghost" id="gemma-delete" type="button" hidden>Excluir</button>
-            </div>
-            <div id="gemma-extra" hidden>
-              <label>Quem você é
-                <input id="gemma-who" type="text" maxlength="240" placeholder="Atendimento da loja…" />
-              </label>
-              <label>Tom
-                <select id="gemma-tone">
-                  <option value="cliente">No clima de quem falou</option>
-                  <option value="curto">Curto</option>
-                  <option value="formal">Formal</option>
-                  <option value="comercial">Comercial</option>
-                </select>
-              </label>
-              <label>Consultar
-                <textarea id="gemma-notes" maxlength="4000" placeholder="Preço, horário, FAQ…"></textarea>
-              </label>
-            </div>
-            </div>
             <p class="status" id="save-status"></p>
             <div class="test">
               <p>Testar</p>
@@ -479,13 +409,13 @@
               <summary>Ajuda</summary>
               <dl>
                 <dt>Extensão e motor</dt>
-                <dd>A extensão é o botão no WhatsApp. O motor é o ícone na bandeja do Windows, ao lado do relógio. Whisper no Chrome não usa motor. Nemotron e sugestões Qwen usam.</dd>
+                <dd>A extensão é o botão no WhatsApp. O motor é o ícone na bandeja do Windows, ao lado do relógio. Whisper no Chrome não usa motor. Nemotron usa.</dd>
                 <dt>Bandeja Ligado ou Desligado</dt>
                 <dd>Verde: pode transcrever. Cinza: clique em Ligar. “Não instalado”: rode o Setup do zip, uma vez.</dd>
                 <dt>Preciso do Setup de novo?</dt>
                 <dd>Não, se só recarregou a extensão — transcrever segue. Sim, se o painel pedir Atualize, ou se quiser o modelo sair da memória depois do clique (PC com pouca RAM).</dd>
                 <dt>Os dois pontos</dt>
-                <dd>Bandeja = o programa. Modelo/Qwen = o arquivo no disco. Sobe na memória só no clique e sai no fim.</dd>
+                <dd>Bandeja = o programa. Modelo = o arquivo no disco. Sobe na memória só no clique e sai no fim.</dd>
               </dl>
             </details>
           </div>
@@ -501,14 +431,6 @@
     return shadow?.getElementById(id) || null;
   }
 
-  function syncGemmaPanel() {
-    const on = Boolean($p("gemma-on")?.checked);
-    const extra = $p("gemma-extra");
-    const panel = $p("gemma-panel");
-    if (extra) extra.hidden = !on;
-    if (panel) panel.hidden = !on;
-  }
-
   function bindPanel() {
     $p("back")?.addEventListener("click", close);
     $p("close")?.addEventListener("click", close);
@@ -521,16 +443,6 @@
     $p("apiKey")?.addEventListener("change", () => void save());
     $p("model")?.addEventListener("change", () => void onModelChange());
     $p("hf-repo")?.addEventListener("change", () => void save());
-    $p("gemma-on")?.addEventListener("change", () => {
-      syncGemmaPanel();
-      void save();
-      if ($p("gemma-on")?.checked) void startGemma();
-    });
-    $p("gemma-download")?.addEventListener("click", () => void startGemma());
-    $p("gemma-delete")?.addEventListener("click", () => void deleteGemma());
-    $p("gemma-who")?.addEventListener("change", () => void save());
-    $p("gemma-tone")?.addEventListener("change", () => void save());
-    $p("gemma-notes")?.addEventListener("change", () => void save());
     $p("download")?.addEventListener("click", () => void commitModel());
     $p("reveal")?.addEventListener("click", () => void revealFolder());
     $p("confirm-yes")?.addEventListener("click", () => {
@@ -587,11 +499,6 @@
       apiKey: $p("apiKey")?.value.trim() || "",
       language: $p("language")?.value || "pt",
       customModelInput: $p("hf-repo")?.value.trim() || "",
-      gemmaOn: Boolean($p("gemma-on")?.checked),
-      gemmaKind: "qwen",
-      gemmaWho: $p("gemma-who")?.value.trim() || "",
-      gemmaTone: $p("gemma-tone")?.value || "cliente",
-      gemmaNotes: $p("gemma-notes")?.value.trim() || "",
     });
     const s = $p("save-status");
     if (s) {
@@ -685,11 +592,6 @@
       "preferredKind",
       "customModelInput",
       "customModelRepo",
-      "gemmaOn",
-      "gemmaKind",
-      "gemmaWho",
-      "gemmaTone",
-      "gemmaNotes",
     ]);
     if ($p("provider")) $p("provider").value = stored.provider || "local";
     if ($p("apiKey")) $p("apiKey").value = stored.apiKey || "";
@@ -703,17 +605,10 @@
     if ($p("hf-repo")) {
       $p("hf-repo").value = stored.customModelInput || stored.customModelRepo || "";
     }
-    if ($p("gemma-on")) $p("gemma-on").checked = Boolean(stored.gemmaOn);
-    if ($p("gemma-who")) $p("gemma-who").value = stored.gemmaWho || "";
-    if ($p("gemma-tone")) $p("gemma-tone").value = stored.gemmaTone || "cliente";
-    if ($p("gemma-notes")) $p("gemma-notes").value = stored.gemmaNotes || "";
-    const extra = $p("gemma-extra");
-    if (extra) extra.hidden = !$p("gemma-on")?.checked;
-    syncGemmaPanel();
     syncFields();
     const kind = normalizeKind($p("model")?.value);
     if (kind === "nemotron") paintLocal({ checking: true, kind: "nemotron" });
-    await refreshLocal({ autoGemma: true });
+    await refreshLocal();
   }
 
   function showQualityFallback() {
@@ -735,10 +630,9 @@
       (Boolean(state?.checking) ||
         Boolean(state?.downloading) ||
         (Boolean(state?.motorAlive) && !state?.motorUp));
-    const gBusy = Boolean(state?.gemma?.loading || state?.gemmaWaiting || state?.gemmaPending);
-    if ((busy || gBusy) && !motorPoll) {
+    if (busy && !motorPoll) {
       motorPoll = setInterval(() => void refreshLocal(), 700);
-    } else if (!busy && !gBusy && motorPoll) {
+    } else if (!busy && motorPoll) {
       clearInterval(motorPoll);
       motorPoll = null;
     }
@@ -812,113 +706,7 @@
       chrome.storage.local.set({ preferredKind: selected }).catch(() => {});
     }
     watchMotor(state);
-    paintGemma(state);
     paintDot(document.getElementById(BTN_ID));
-  }
-
-  function selectedGemma() {
-    return "qwen";
-  }
-
-  function paintGemma(state) {
-    const btn = $p("gemma-download");
-    const del = $p("gemma-delete");
-    const status = $p("gemma-status");
-    const meter = $p("gemma-meter");
-    const bar = $p("gemma-bar");
-    if (!btn && !status) return;
-    const action = globalThis.VCShared.gemmaAction(state, selectedGemma());
-    const view = globalThis.VCShared.gemmaView(state);
-    const motorText = $p("g-motor-text");
-    const modelText = $p("g-model-text");
-    const motorDot = $p("g-motor-dot");
-    const modelDot = $p("g-model-dot");
-    if (motorText) motorText.textContent = view.motor.text;
-    if (modelText) modelText.textContent = view.model.text;
-    if (motorDot) motorDot.className = `dot ${view.motor.kind || "off"}`;
-    if (modelDot) modelDot.className = `dot ${view.model.kind || "off"}`;
-    if (status) {
-      status.textContent = action.status;
-      status.className = action.kind === "ok" ? "status ok" : "status warn";
-    }
-    if (btn) {
-      btn.disabled = action.disabled;
-      btn.dataset.action = action.id;
-      btn.textContent = action.label;
-    }
-    if (del) {
-      del.hidden = !action.canDelete;
-      del.disabled = action.id === "wait";
-    }
-    if (meter && bar) {
-      meter.hidden = action.id !== "wait";
-      meter.classList.toggle("indeterminate", action.id === "wait" && !(action.percent > 0));
-      bar.style.width = `${Math.max(8, Number(action.percent) || 8)}%`;
-    }
-  }
-
-  async function startGemma() {
-    const kind = selectedGemma();
-    if ($p("gemma-on")) $p("gemma-on").checked = true;
-    syncGemmaPanel();
-    await save();
-    const btn = $p("gemma-download");
-    if (btn?.dataset.action === "wait") return;
-    if (btn) {
-      btn.disabled = true;
-      btn.textContent = "…";
-    }
-    try {
-      const result = await chrome.runtime.sendMessage({
-        type: "VOZCLARA_GEMMA_LOAD",
-        kind,
-      });
-      if (!result?.ok) {
-        throw new Error(result?.error || "Não baixei o Qwen.");
-      }
-    } catch (err) {
-      const status = $p("gemma-status");
-      if (status) {
-        status.textContent = err instanceof Error ? err.message : "Não baixei o Qwen.";
-        status.dataset.kind = "warn";
-        status.className = "status warn";
-      }
-      if (btn) btn.disabled = false;
-    }
-    void refreshLocal();
-  }
-
-  async function deleteGemma() {
-    const ok = window.confirm(
-      "Apagar o Qwen deste PC? Libera cerca de 1,1 GB. Dá para baixar de novo depois.",
-    );
-    if (!ok) return;
-    const del = $p("gemma-delete");
-    if (del) {
-      del.disabled = true;
-      del.textContent = "…";
-    }
-    try {
-      const result = await chrome.runtime.sendMessage({ type: "VOZCLARA_GEMMA_DELETE" });
-      if (!result?.ok) {
-        throw new Error(result?.error || "Não apaguei o Qwen.");
-      }
-    } catch (err) {
-      const status = $p("gemma-status");
-      if (status) {
-        status.textContent = err instanceof Error ? err.message : "Não apaguei o Qwen.";
-        status.dataset.kind = "warn";
-        status.className = "status warn";
-      }
-    }
-    if (del) del.textContent = "Excluir";
-    void refreshLocal();
-  }
-
-  function maybeKickGemma(state) {
-    if (!$p("gemma-on")?.checked) return;
-    const action = globalThis.VCShared.gemmaAction(state, selectedGemma());
-    if (action.id === "download") void startGemma();
   }
 
   async function refreshLocal(opts) {
@@ -930,7 +718,6 @@
       if (state && typeof state === "object" && state.checked) {
         paintLocal(state);
         void showQualityFallback();
-        if (opts?.autoGemma) maybeKickGemma(state);
         return;
       }
     } catch {
@@ -1117,12 +904,7 @@
       changes.cachedKinds ||
       changes.motorAlive ||
       changes.motorUp ||
-      changes.motorInstalled ||
-      changes.gemmaLoading ||
-      changes.gemmaPercent ||
-      changes.gemmaDetail ||
-      changes.gemmaReady ||
-      changes.gemmaCached
+      changes.motorInstalled
     ) {
       if ($p("layer")?.classList.contains("open")) void refreshLocal();
       paintDot(document.getElementById(BTN_ID));

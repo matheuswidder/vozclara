@@ -27,10 +27,9 @@ function watchMotor(state) {
     (Boolean(state?.checking) ||
       Boolean(state?.downloading) ||
       (Boolean(state?.motorAlive) && !state?.motorUp));
-  const gBusy = Boolean(state?.gemma?.loading || state?.gemmaWaiting || state?.gemmaPending);
-  if ((busy || gBusy) && !motorPoll) {
+  if (busy && !motorPoll) {
     motorPoll = setInterval(() => void queryLocal(), 700);
-  } else if (!busy && !gBusy && motorPoll) {
+  } else if (!busy && motorPoll) {
     clearInterval(motorPoll);
     motorPoll = null;
   }
@@ -181,110 +180,6 @@ function renderLocal(state) {
     chrome.storage.local.set({ preferredKind: selected }).catch(() => {});
   }
   watchMotor(state);
-  renderGemma(state);
-}
-
-function selectedGemma() {
-  return "qwen";
-}
-
-function renderGemma(state) {
-  const btn = $("gemma-download");
-  const del = $("gemma-delete");
-  const status = $("gemma-status");
-  const meter = $("gemma-meter");
-  const bar = $("gemma-bar");
-  if (!btn && !status) return;
-  const action = globalThis.VCShared.gemmaAction(state, selectedGemma());
-  const view = globalThis.VCShared.gemmaView(state);
-  const motorText = $("g-motor-text");
-  const modelText = $("g-model-text");
-  const motorDot = $("g-motor-dot");
-  const modelDot = $("g-model-dot");
-  if (motorText) motorText.textContent = view.motor.text;
-  if (modelText) modelText.textContent = view.model.text;
-  if (motorDot) motorDot.className = `dot ${view.motor.kind || "off"}`;
-  if (modelDot) modelDot.className = `dot ${view.model.kind || "off"}`;
-  if (status) {
-    status.textContent = action.status;
-    status.dataset.kind = action.kind || "";
-  }
-  if (btn) {
-    btn.disabled = action.disabled;
-    btn.dataset.action = action.id;
-    btn.textContent = action.label;
-  }
-  if (del) {
-    del.hidden = !action.canDelete;
-    del.disabled = action.id === "wait";
-  }
-  if (meter && bar) {
-    meter.hidden = action.id !== "wait";
-    meter.classList.toggle("indeterminate", action.id === "wait" && !(action.percent > 0));
-    bar.style.width = `${Math.max(8, Number(action.percent) || 8)}%`;
-  }
-}
-
-async function startGemma() {
-  const kind = selectedGemma();
-  if ($("gemma-on")) $("gemma-on").checked = true;
-  syncGemma();
-  await save();
-  const btn = $("gemma-download");
-  if (btn?.dataset.action === "wait") return;
-  if (btn) {
-    btn.disabled = true;
-    btn.textContent = "…";
-  }
-  try {
-    const result = await chrome.runtime.sendMessage({
-      type: "VOZCLARA_GEMMA_LOAD",
-      kind,
-    });
-    if (!result?.ok) {
-      throw new Error(result?.error || "Não baixei o Qwen.");
-    }
-  } catch (err) {
-    const status = $("gemma-status");
-    if (status) {
-      status.textContent = friendly(err);
-      status.dataset.kind = "warn";
-    }
-    if (btn) btn.disabled = false;
-  }
-  void queryLocal();
-}
-
-async function deleteGemma() {
-  const ok = window.confirm(
-    "Apagar o Qwen deste PC? Libera cerca de 1,1 GB. Dá para baixar de novo depois.",
-  );
-  if (!ok) return;
-  const del = $("gemma-delete");
-  if (del) {
-    del.disabled = true;
-    del.textContent = "…";
-  }
-  try {
-    const result = await chrome.runtime.sendMessage({ type: "VOZCLARA_GEMMA_DELETE" });
-    if (!result?.ok) {
-      throw new Error(result?.error || "Não apaguei o Qwen.");
-    }
-  } catch (err) {
-    const status = $("gemma-status");
-    if (status) {
-      status.textContent = friendly(err);
-      status.dataset.kind = "warn";
-    }
-  }
-  if (del) del.textContent = "Excluir";
-  void queryLocal();
-}
-
-function maybeKickGemma(state) {
-  if (!$("gemma-on")?.checked) return;
-  const action = globalThis.VCShared.gemmaAction(state, selectedGemma());
-  if (action.id === "download") void startGemma();
 }
 
 async function queryLocal(opts) {
@@ -296,7 +191,6 @@ async function queryLocal(opts) {
     if (state && typeof state === "object" && state.checked) {
       renderLocal(state);
       void showQualityFallback();
-      if (opts?.autoGemma) maybeKickGemma(state);
       return;
     }
   } catch {
@@ -324,11 +218,6 @@ async function load() {
       "preferredKind",
       "customModelInput",
       "customModelRepo",
-      "gemmaOn",
-      "gemmaKind",
-      "gemmaWho",
-      "gemmaTone",
-      "gemmaNotes",
     ]);
     $("provider").value = stored.provider || "local";
     $("apiKey").value = stored.apiKey || "";
@@ -342,14 +231,13 @@ async function load() {
     if ($("hf-repo")) {
       $("hf-repo").value = stored.customModelInput || stored.customModelRepo || "";
     }
-    loadGemma(stored);
     syncFields();
     paint();
     const kind = normalizeKind($("model")?.value);
     if (isLocal() && kind === "nemotron") {
       renderLocal({ checking: true, kind: "nemotron" });
     }
-    if (isLocal()) void queryLocal({ autoGemma: true });
+    if (isLocal()) void queryLocal();
   } catch (err) {
     paint({ text: friendly(err), kind: "warn" });
   }
@@ -361,35 +249,8 @@ async function save() {
     apiKey: $("apiKey").value.trim(),
     language: $("language").value,
     customModelInput: $("hf-repo")?.value.trim() || "",
-    ...gemmaPayload(),
   });
   paint({ text: "Guardado.", kind: "ok" });
-}
-
-function gemmaPayload() {
-  return {
-    gemmaOn: Boolean($("gemma-on")?.checked),
-    gemmaKind: "qwen",
-    gemmaWho: $("gemma-who")?.value.trim() || "",
-    gemmaTone: $("gemma-tone")?.value || "cliente",
-    gemmaNotes: $("gemma-notes")?.value.trim() || "",
-  };
-}
-
-function syncGemma() {
-  const on = Boolean($("gemma-on")?.checked);
-  const extra = $("gemma-extra");
-  const panel = $("gemma-panel");
-  if (extra) extra.hidden = !on;
-  if (panel) panel.hidden = !on;
-}
-
-function loadGemma(stored) {
-  if ($("gemma-on")) $("gemma-on").checked = Boolean(stored.gemmaOn);
-  if ($("gemma-who")) $("gemma-who").value = stored.gemmaWho || "";
-  if ($("gemma-tone")) $("gemma-tone").value = stored.gemmaTone || "cliente";
-  if ($("gemma-notes")) $("gemma-notes").value = stored.gemmaNotes || "";
-  syncGemma();
 }
 
 async function hideConfirm() {
@@ -581,16 +442,6 @@ document.addEventListener("DOMContentLoaded", () => {
   $("apiKey").addEventListener("change", () => void save());
   $("model")?.addEventListener("change", () => void onModelChange());
   $("hf-repo")?.addEventListener("change", () => void save());
-  $("gemma-on")?.addEventListener("change", () => {
-    syncGemma();
-    void save();
-    if ($("gemma-on")?.checked) void startGemma();
-  });
-  $("gemma-download")?.addEventListener("click", () => void startGemma());
-  $("gemma-delete")?.addEventListener("click", () => void deleteGemma());
-  $("gemma-who")?.addEventListener("change", () => void save());
-  $("gemma-tone")?.addEventListener("change", () => void save());
-  $("gemma-notes")?.addEventListener("change", () => void save());
   $("confirm-yes")?.addEventListener("click", () => {
     hideConfirm();
     void startDownload(normalizeKind($("model")?.value));
@@ -613,12 +464,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
     changes.cachedKinds ||
     changes.motorAlive ||
     changes.motorUp ||
-    changes.motorInstalled ||
-    changes.gemmaLoading ||
-    changes.gemmaPercent ||
-    changes.gemmaDetail ||
-    changes.gemmaReady ||
-    changes.gemmaCached
+    changes.motorInstalled
   ) {
     void queryLocal();
   }
