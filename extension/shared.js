@@ -499,6 +499,69 @@
     }
   }
 
+  const SUGGEST_RETRY_ERROR =
+    "O Qwen não montou respostas desta vez. Clique de novo — às vezes ele só copia o áudio.";
+
+  const GENERIC_SUGGEST_STALLS = new Set([
+    "pode falar mais um pouco?",
+    "já te retorno.",
+    "ja te retorno.",
+    "já te retorno",
+    "ja te retorno",
+  ]);
+
+  function suggestWordSet(s) {
+    return new Set(
+      String(s || "")
+        .toLowerCase()
+        .match(/[\p{L}\p{N}]+/gu)
+        ?.filter((w) => w.length > 2) || [],
+    );
+  }
+
+  function isGenericSuggestStall(reply) {
+    return GENERIC_SUGGEST_STALLS.has(
+      String(reply || "").toLowerCase().replace(/\s+/g, " ").trim(),
+    );
+  }
+
+  function tooLikeSource(reply, source) {
+    const a = String(reply || "").replace(/\s+/g, " ").trim();
+    const b = String(source || "").replace(/\s+/g, " ").trim();
+    if (!a || a.length < 6) return true;
+    if (a.length > 140) return true;
+    if (!b) return false;
+    const al = a.toLowerCase();
+    const bl = b.toLowerCase();
+    if (al === bl || bl.startsWith(al)) return true;
+    if (al.length > 18 && bl.includes(al.slice(0, 22))) return true;
+    const wa = suggestWordSet(a);
+    const wb = suggestWordSet(b);
+    if (!wa.size) return true;
+    let hit = 0;
+    for (const w of wa) if (wb.has(w)) hit += 1;
+    return hit / wa.size >= 0.62;
+  }
+
+  // Motor antigo devolve [áudio[:120], "Pode falar mais um pouco?", "Já te retorno."]
+  // quando o Qwen 1.5B não emite 3 linhas. Isso não é resposta — some da UI.
+  function cleanSuggestReplies(replies, source) {
+    const rows = Array.isArray(replies) ? replies : [];
+    if (rows.filter(isGenericSuggestStall).length >= 2) return [];
+    const out = [];
+    const seen = new Set();
+    for (const line of rows) {
+      const bit = String(line || "").replace(/\s+/g, " ").trim();
+      if (!bit || isGenericSuggestStall(bit) || tooLikeSource(bit, source)) continue;
+      const key = bit.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(bit);
+      if (out.length === 3) break;
+    }
+    return out;
+  }
+
   function formatSuggestPrompt(thread) {
     if (typeof thread === "string") {
       return String(thread).replace(/\s+/g, " ").trim();
@@ -574,6 +637,7 @@
     stateLabel,
     stateKind,
     MOTOR_SETUP_HINT,
+    SUGGEST_RETRY_ERROR,
     FALLBACK_KEYS,
     downloadLabel,
     modelHint,
@@ -589,6 +653,9 @@
     isLangCleaned,
     setQualityFallback,
     takeQualityFallback,
+    tooLikeSource,
+    isGenericSuggestStall,
+    cleanSuggestReplies,
     formatSuggestPrompt,
     shouldAttachVoiceCard,
   };

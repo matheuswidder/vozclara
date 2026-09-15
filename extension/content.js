@@ -136,7 +136,9 @@
       background: transparent; color: var(--vc-fg, #111b21);
       font: 500 12.5px/1.35 Segoe UI, Helvetica, Arial, sans-serif;
       border-radius: 16px; padding: 6px 10px; text-align: left; cursor: pointer;
-      max-width: 100%;
+      max-width: 100%; word-break: break-word;
+      display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical;
+      overflow: hidden;
     }
     button.reply:hover { background: rgba(0,168,132,.12); }
     .box.mini {
@@ -1740,7 +1742,16 @@
     if (!result?.ok || !Array.isArray(result.replies) || !result.replies.length) {
       throw new Error(result?.error || "Não sugeri agora. Ligue o motor.");
     }
-    return result.replies.slice(0, 3);
+    const clean = globalThis.VCShared?.cleanSuggestReplies
+      ? globalThis.VCShared.cleanSuggestReplies(result.replies, text)
+      : result.replies.slice(0, 3);
+    if (!clean.length) {
+      throw new Error(
+        globalThis.VCShared?.SUGGEST_RETRY_ERROR ||
+          "O Qwen não montou respostas desta vez. Clique de novo.",
+      );
+    }
+    return clean;
   }
 
   function fillCtxFrame(root, el, opts = {}) {
@@ -1754,7 +1765,7 @@
     const muted = dark ? "#8696a0" : "#667781";
     const bg = dark ? "#1a2329" : "#f6f7f8";
     const ph = escapeHtml(
-      "Contexto: quem falou, se é pergunta, o que você precisa responder…",
+      "O que você quer responder? Ex.: só vamos no feriado, fica longe",
     );
     const val = escapeHtml(draft.context || "");
     const onLoad = () => {
@@ -1864,12 +1875,23 @@ textarea::placeholder{color:${muted};}
     </div>`;
   }
 
+  function liveComposerContext(root) {
+    const panel = panelOf(root);
+    const frame = panel?.querySelector("[data-ctx-frame]");
+    if (!(frame instanceof HTMLIFrameElement)) return "";
+    try {
+      return String(frame.contentDocument?.querySelector("textarea")?.value || "").trim();
+    } catch {
+      return "";
+    }
+  }
+
   function readComposer(root) {
     const panel = panelOf(root);
     const sel = panel?.querySelector("[data-tone-select]");
     const prev = suggestDraft.get(keyFor(root)) || {};
     const tone = sel?.value || prev.tone || "cliente";
-    const context = prev.context || "";
+    const context = liveComposerContext(root) || prev.context || "";
     suggestDraft.set(keyFor(root), { ...prev, context, tone });
     return { context, tone };
   }

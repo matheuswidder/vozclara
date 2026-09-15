@@ -1,3 +1,5 @@
+importScripts("shared.js");
+
 const MENU_ID = "vozclara-transcribe";
 const MOTOR_SETUP_HINT =
   "Na primeira vez, rode engine/VozClara-Motor-Setup.exe do zip. Depois use Ligar o motor — o Setup só abre o que já está no PC, sem instalar de novo.";
@@ -1777,10 +1779,14 @@ async function suggestReplies(text, opts = {}) {
   const replies = Array.isArray(json?.replies)
     ? json.replies.map((s) => String(s || "").trim()).filter(Boolean)
     : [];
-  if (!replies.length) {
-    return { ok: false, error: "O Qwen não devolveu respostas." };
+  const cleaned = globalThis.VCShared.cleanSuggestReplies(replies, raw);
+  if (!cleaned.length) {
+    return {
+      ok: false,
+      error: globalThis.VCShared.SUGGEST_RETRY_ERROR,
+    };
   }
-  return { ok: true, replies, kind: json?.kind || "qwen" };
+  return { ok: true, replies: cleaned, kind: json?.kind || "qwen" };
 }
 
 async function probeLocal(url) {

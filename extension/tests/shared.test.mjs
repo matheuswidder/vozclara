@@ -206,6 +206,30 @@ test("filterTranscriptByLang tira alfabeto estranho no português", () => {
   assert.equal(VC.isLangCleaned(mixed, out), true);
 });
 
+test("cleanSuggestReplies some o fallback eco+stall do motor antigo", () => {
+  const audio =
+    "E aí tô bem. Tá na hora de tá até trabalhando comigo lá na farmácia, Duna de Laxa Morrella pra trabalhar. Mas a gente não trabalha no mesmo setor, não é você clara como é que tão veja aí um final de semana pra vir aqui, pô faça um final de semana aqui.";
+  assert.deepEqual(
+    VC.cleanSuggestReplies(
+      [audio.slice(0, 120), "Pode falar mais um pouco?", "Já te retorno."],
+      audio,
+    ),
+    [],
+  );
+  assert.equal(VC.isGenericSuggestStall("Já te retorno."), true);
+  assert.equal(VC.tooLikeSource(audio.slice(0, 120), audio), true);
+  const good = VC.cleanSuggestReplies(
+    [
+      "Só vamos num feriado, fica longe demais.",
+      "Melhor deixar pra um feriado.",
+      "Combinado: só num feriado.",
+    ],
+    audio,
+  );
+  assert.equal(good.length, 3);
+  assert.match(VC.SUGGEST_RETRY_ERROR, /copia o áudio/);
+});
+
 test("formatSuggestPrompt usa só o áudio transcrito", () => {
   const prompt = VC.formatSuggestPrompt([
     { outgoing: false, voice: false, text: "Vai no mercado?" },
