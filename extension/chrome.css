@@ -359,8 +359,24 @@ button.danger {
 #confirm[hidden],
 #gemma-extra[hidden],
 #motor-hint[hidden],
+#model-hint[hidden],
 .meter[hidden] {
   display: none;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #ffffff;
+    --surface: #f0f2f5;
+    --field: #ffffff;
+    --fg: #111b21;
+    --muted: #667781;
+    --line: #e9edef;
+    --warn: #b45309;
+  }
+  html, body { background: var(--bg); }
+  input, select, textarea { background: var(--surface); }
+  .switch i { background: #d1d7db; }
 }
 
 .flash {

@@ -66,7 +66,7 @@ test("modelMeta e troca rápida", () => {
 });
 
 test("downloadLabel cobre todos os kinds", () => {
-  assert.equal(VC.downloadLabel("nemotron"), "Verificando o motor no PC…");
+  assert.equal(VC.downloadLabel("nemotron"), "Procurando o motor neste PC…");
   assert.equal(
     VC.downloadLabel("custom", "onnx-community/whisper-tiny"),
     "Baixando onnx-community/whisper-tiny…",
@@ -85,7 +85,7 @@ test("primaryAction: um botão, ação óbvia", () => {
   assert.equal(VC.primaryAction({ motorUp: true }, "nemotron").id, "ready");
   assert.equal(VC.primaryAction({ motorInstalled: true }, "nemotron").id, "wake");
   assert.equal(VC.primaryAction({ downloading: true }, "nemotron").id, "wait");
-  assert.equal(VC.primaryAction({ downloading: true }, "nemotron").label, "Verificando…");
+  assert.equal(VC.primaryAction({ downloading: true }, "nemotron").label, "Procurando o motor…");
   assert.equal(VC.primaryAction({}, "nemotron").id, "install");
   assert.equal(VC.primaryAction({}, "nemotron").label, "Verificar o motor");
   assert.match(VC.MOTOR_SETUP_HINT, /Ligar o motor/);
@@ -227,6 +227,40 @@ test("shouldAttachVoiceCard ignora GIF, figurinha e foto", () => {
   assert.equal(VC.shouldAttachVoiceCard({ quotedOnly: true, audioIcon: true }), false);
   assert.equal(VC.shouldAttachVoiceCard({ audioIcon: true }), true);
   assert.equal(VC.shouldAttachVoiceCard({ slimWaveform: true }), true);
+});
+
+test("motorView não mente 'Não instalado' enquanto verifica", () => {
+  const checking = VC.motorView({ checking: true });
+  assert.equal(checking.motor.text, "Verificando");
+  assert.equal(checking.model.text, "Procurando no PC");
+  const leftover = VC.motorView({ downloading: true });
+  assert.equal(leftover.motor.text, "Verificando");
+  assert.equal(leftover.model.text, "Procurando no PC");
+  const off = VC.motorView({ motorInstalled: true });
+  assert.equal(off.motor.text, "Desligado");
+  assert.match(VC.motorHeadline({ motorUp: true }), /pronto para transcrever/);
+  assert.match(VC.modelHint("nemotron"), /bandeja/i);
+  assert.match(VC.modelHint("turbo"), /Chrome/);
+});
+
+test("fallbackLocalState preserva flags do motor e do Qwen", () => {
+  const state = VC.fallbackLocalState({
+    motorAlive: true,
+    motorUp: true,
+    motorInstalled: true,
+    localProgress: { downloading: true, percent: 8, label: "stale" },
+    gemmaError: "Ligue o motor na bandeja.",
+    gemmaLoading: false,
+    gemmaReady: false,
+  });
+  assert.equal(state.motorAlive, true);
+  assert.equal(state.motorUp, true);
+  assert.equal(state.downloading, true);
+  assert.equal(state.gemma.error, "Ligue o motor na bandeja.");
+  assert.deepEqual(VC.verifyRequest("Nemotron"), {
+    type: "VOZCLARA_MODEL_VERIFY",
+    kind: "nemotron",
+  });
 });
 
 test("gemmaMeta aponta para Qwen 1.5B Q4", () => {

@@ -40,8 +40,8 @@
     }
     header strong { display: block; font-size: 16px; font-weight: 600; }
     header p { margin: 1px 0 0; font-size: 12px; color: var(--muted); }
-    header p.ok { color: #00a884; }
-    header p.warn { color: #e9c46a; }
+    header p.ok, header p[data-kind="ok"] { color: #00a884; }
+    header p.warn, header p[data-kind="warn"] { color: #e9c46a; }
     .x {
       margin-left: auto; border: 0; background: transparent;
       color: var(--muted); width: 32px; height: 32px; border-radius: 50%;
@@ -80,7 +80,8 @@
     }
     .meter { height: 4px; background: var(--line); border-radius: 99px; overflow: hidden; margin: 0 0 10px; }
     .meter[hidden], #motor-panel[hidden], #custom-fields[hidden], #cloud-fields[hidden],
-    #local-fields[hidden], #confirm[hidden], #gemma-extra[hidden], #gemma-panel[hidden], #motor-hint[hidden] { display: none; }
+    #local-fields[hidden], #confirm[hidden], #gemma-extra[hidden], #gemma-panel[hidden],
+    #motor-hint[hidden], #model-hint[hidden], [hidden] { display: none !important; }
     .hint {
       margin: 0 0 10px; padding: 8px 10px; border-radius: 8px;
       background: color-mix(in srgb, #00a884 10%, var(--field));
@@ -180,11 +181,26 @@
   }
 
   function isDark() {
-    const bg = getComputedStyle(document.body).backgroundColor;
-    const m = bg.match(/\d+/g);
-    if (!m || m.length < 3) return false;
-    const [r, g, b] = m.map(Number);
-    return (r * 299 + g * 587 + b * 114) / 1000 < 90;
+    const html = document.documentElement;
+    const body = document.body;
+    const mark = `${html.className || ""} ${body?.className || ""} ${html.dataset.theme || ""} ${body?.dataset?.theme || ""}`.toLowerCase();
+    if (/\bdark\b/.test(mark) || mark.includes("web-dark")) return true;
+    if (/\blight\b/.test(mark) || mark.includes("web-light")) return false;
+    const scheme = `${getComputedStyle(html).colorScheme || ""} ${getComputedStyle(body || html).colorScheme || ""}`.toLowerCase();
+    if (/\bdark\b/.test(scheme) && !/\blight\b/.test(scheme)) return true;
+    if (/\blight\b/.test(scheme)) return false;
+    const nodes = [body, html, document.getElementById("app"), document.getElementById("main")];
+    for (const node of nodes) {
+      if (!node) continue;
+      const bg = getComputedStyle(node).backgroundColor;
+      const m = String(bg || "").match(/\d+/g);
+      if (!m || m.length < 3) continue;
+      const [r, g, b] = m.map(Number);
+      const a = m[3] != null ? Number(m[3]) : 1;
+      if (a === 0) continue;
+      return (r * 299 + g * 587 + b * 114) / 1000 < 90;
+    }
+    return false;
   }
 
   function findRail() {
@@ -258,9 +274,11 @@
         "localModelReady",
         "localProgress",
         "provider",
+        "motorAlive",
+        "motorUp",
       ]);
       const downloading = Boolean(stored.localProgress?.downloading);
-      const ready = Boolean(stored.localModelReady);
+      const ready = Boolean(stored.localModelReady) || Boolean(stored.motorUp) || Boolean(stored.motorAlive);
       const cloud = stored.provider && stored.provider !== "local";
       dot.style.background = downloading ? "#f6c344" : ready || cloud ? "#00a884" : "#8696a0";
     } catch {
@@ -340,33 +358,16 @@
             <button class="x" id="close" type="button" aria-label="Fechar">×</button>
           </header>
           <div class="body">
-            <div id="motor-panel" hidden>
-              <div class="split">
-                <div class="pill">
-                  <i id="motor-dot" class="dot"></i>
-                  <span id="motor-text">Bandeja</span>
-                </div>
-                <div class="pill">
-                  <i id="model-dot" class="dot"></i>
-                  <span id="model-text">Modelo</span>
-                </div>
-              </div>
-              <div class="meter" id="motor-meter" hidden><span id="motor-bar"></span></div>
-              <p class="hint" id="motor-hint" hidden>
-                O Setup do zip instala uma vez. Depois: Ligar o motor (atalho na área de trabalho).
-              </p>
-            </div>
-            <div class="meter" id="meter" hidden><span id="bar"></span></div>
             <label>Provedor
               <select id="provider">
-                <option value="local">Neste Chrome</option>
+                <option value="local">Neste computador</option>
                 <option value="openai">OpenAI</option>
                 <option value="gemini">Gemini</option>
                 <option value="groq">Groq</option>
                 <option value="xai">xAI</option>
               </select>
             </label>
-            <div id="cloud-fields">
+            <div id="cloud-fields" hidden>
               <label>Chave
                 <input id="apiKey" type="password" spellcheck="false" autocomplete="off" placeholder="Cole a chave" />
               </label>
@@ -374,19 +375,37 @@
             <div id="local-fields">
               <label>Modelo
                 <select id="model">
-                  <option value="turbo">Turbo · 560 MB</option>
-                  <option value="tiny">Tiny · 40 MB</option>
-                  <option value="light">Small · 120 MB</option>
-                  <option value="v3">v3 · 1,5 GB</option>
-                  <option value="nemotron">Nemotron · Windows</option>
+                  <option value="turbo">Whisper Turbo · 560 MB</option>
+                  <option value="tiny">Whisper Tiny · 40 MB</option>
+                  <option value="light">Whisper Small · 120 MB</option>
+                  <option value="v3">Whisper v3 · 1,5 GB</option>
+                  <option value="nemotron">Motor Windows · Nemotron</option>
                   <option value="custom">Outro Whisper</option>
                 </select>
               </label>
+              <p class="hint" id="model-hint">O Whisper fica neste Chrome. O áudio não sai do computador.</p>
               <div id="custom-fields" hidden>
                 <label>Link
                   <input id="hf-repo" type="text" spellcheck="false" autocomplete="off" placeholder="huggingface.co/…/whisper-tiny" />
                 </label>
               </div>
+              <div id="motor-panel" hidden>
+                <div class="split">
+                  <div class="pill">
+                    <i id="motor-dot" class="dot"></i>
+                    <span id="motor-text">Bandeja</span>
+                  </div>
+                  <div class="pill">
+                    <i id="model-dot" class="dot"></i>
+                    <span id="model-text">Modelo</span>
+                  </div>
+                </div>
+                <div class="meter" id="motor-meter" hidden><span id="motor-bar"></span></div>
+                <p class="hint" id="motor-hint" hidden>
+                  O Setup do zip instala uma vez. Depois use Ligar o motor (atalho na área de trabalho). A extensão só verifica se a bandeja responde — não baixa o .exe.
+                </p>
+              </div>
+              <div class="meter" id="meter" hidden><span id="bar"></span></div>
               <div id="confirm" class="confirm" hidden>
                 <p id="confirm-text"></p>
                 <div class="actions">
@@ -413,7 +432,7 @@
               <strong>Sugestões no áudio</strong>
               <label class="switch"><input type="checkbox" id="gemma-on" /><i></i></label>
             </div>
-            <p class="status">Ao ligar, baixa o Qwen (~1,1 GB). Excluir apaga o arquivo.</p>
+            <p class="status">Ao ligar, o motor baixa o Qwen (~1,1 GB) da Hugging Face para este PC. A % e a barra mostram o andamento. Excluir apaga o arquivo.</p>
             <div id="gemma-panel" hidden>
             <div class="split">
               <div class="pill">
@@ -534,6 +553,14 @@
     });
   }
 
+  function syncModelHint() {
+    const hint = $p("model-hint");
+    if (!hint) return;
+    const kind = normalizeKind($p("model")?.value);
+    hint.textContent = globalThis.VCShared.modelHint(kind);
+    hint.hidden = false;
+  }
+
   function syncFields() {
     const local = $p("provider")?.value === "local";
     const cloud = $p("cloud-fields");
@@ -541,6 +568,7 @@
     if (cloud) cloud.hidden = Boolean(local);
     if (box) box.hidden = !local;
     syncModelFields();
+    syncModelHint();
   }
 
   function syncModelFields() {
@@ -595,7 +623,7 @@
     const yes = $p("confirm-yes");
     const meta = metaOf(kind);
     if (!box || !text) return;
-    text.textContent = `Baixar ${meta.name} (${meta.size})?`;
+    text.textContent = `Baixar ${meta.name}${meta.size ? ` · ${meta.size}` : ""}?`;
     if (yes) yes.textContent = `Baixar ${meta.name}`;
     box.hidden = false;
     flashEl(box);
@@ -610,13 +638,21 @@
 
   async function onModelChange() {
     syncModelFields();
+    syncModelHint();
     hideConfirm();
     const kind = normalizeKind($p("model")?.value);
+    lastPreferred = kind;
+    await chrome.storage.local.set({ preferredKind: kind });
     const status = $p("local-status");
     if (status) {
       status.textContent = `Verificando ${metaOf(kind).name}…`;
       status.className = "status warn flash";
       flashEl(status);
+    }
+    if (kind === "nemotron") {
+      paintLocal({ checking: true, kind: "nemotron" });
+      void refreshLocal();
+      return;
     }
     if (kind === "custom") {
       void refreshLocal();
@@ -631,10 +667,6 @@
       if (probe?.cached && kind !== "nemotron") {
         lastPreferred = kind;
         void startDownload(kind, { switching: true });
-        return;
-      }
-      if (kind === "nemotron") {
-        void refreshLocal();
         return;
       }
       showConfirm(kind);
@@ -679,6 +711,8 @@
     if (extra) extra.hidden = !$p("gemma-on")?.checked;
     syncGemmaPanel();
     syncFields();
+    const kind = normalizeKind($p("model")?.value);
+    if (kind === "nemotron") paintLocal({ checking: true, kind: "nemotron" });
     await refreshLocal({ autoGemma: true });
   }
 
@@ -698,7 +732,9 @@
     const selected = normalizeKind($p("model")?.value);
     const busy =
       selected === "nemotron" &&
-      (Boolean(state?.downloading) || (Boolean(state?.motorAlive) && !state?.motorUp));
+      (Boolean(state?.checking) ||
+        Boolean(state?.downloading) ||
+        (Boolean(state?.motorAlive) && !state?.motorUp));
     const gBusy = Boolean(state?.gemma?.loading || state?.gemmaWaiting || state?.gemmaPending);
     if ((busy || gBusy) && !motorPoll) {
       motorPoll = setInterval(() => void refreshLocal(), 700);
@@ -748,8 +784,9 @@
         motorBar.style.width = `${Math.max(0, Math.min(100, view.model.percent || 8))}%`;
       }
       if (status) {
-        status.textContent = error || view.model.text;
+        status.textContent = globalThis.VCShared.motorHeadline(state);
         status.className = error ? "warn" : state?.motorUp ? "ok" : "warn";
+        status.dataset.kind = error ? "warn" : state?.motorUp ? "ok" : "warn";
       }
       if (meter) meter.hidden = true;
     } else if (status) {
@@ -823,8 +860,7 @@
   async function startGemma() {
     const kind = selectedGemma();
     if ($p("gemma-on")) $p("gemma-on").checked = true;
-    const extra = $p("gemma-extra");
-    if (extra) extra.hidden = false;
+    syncGemmaPanel();
     await save();
     const btn = $p("gemma-download");
     if (btn?.dataset.action === "wait") return;
@@ -882,13 +918,16 @@
   function maybeKickGemma(state) {
     if (!$p("gemma-on")?.checked) return;
     const action = globalThis.VCShared.gemmaAction(state, selectedGemma());
-    if (action.id === "download" || action.id === "retry") void startGemma();
+    if (action.id === "download") void startGemma();
   }
 
   async function refreshLocal(opts) {
+    const selected = normalizeKind($p("model")?.value);
     try {
-      const state = await chrome.runtime.sendMessage({ type: "VOZCLARA_MODEL_VERIFY" });
-      if (state && typeof state === "object") {
+      const state = await chrome.runtime.sendMessage(
+        globalThis.VCShared.verifyRequest(selected),
+      );
+      if (state && typeof state === "object" && state.checked) {
         paintLocal(state);
         void showQualityFallback();
         if (opts?.autoGemma) maybeKickGemma(state);
@@ -897,24 +936,8 @@
     } catch {
       /* storage */
     }
-    const stored = await chrome.storage.local.get([
-      "localModelReady",
-      "localModelId",
-      "localModelKind",
-      "localProgress",
-      "cachedKinds",
-      "preferredKind",
-    ]);
-    paintLocal({
-      ready: Boolean(stored.localModelReady),
-      downloading: Boolean(stored.localProgress?.downloading),
-      percent: stored.localProgress?.percent || (stored.localModelReady ? 100 : 0),
-      label: stored.localProgress?.label,
-      error: stored.localProgress?.error,
-      model: stored.localModelId,
-      kind: stored.preferredKind || stored.localModelKind,
-      cachedKinds: stored.cachedKinds,
-    });
+    const stored = await chrome.storage.local.get(globalThis.VCShared.FALLBACK_KEYS);
+    paintLocal(globalThis.VCShared.fallbackLocalState(stored));
     void showQualityFallback();
   }
 
@@ -981,7 +1004,7 @@
           ? `${meta.name} já estava aqui. Aplicando…`
           : want === "nemotron"
             ? "Se o motor não responder, rode o Setup do zip e clique de novo em Verificar."
-            : "Deixe a aba aberta até Pronto.";
+            : "Deixe a aba aberta até Pronto. Pode fechar este painel.";
         s.className = want === "nemotron" && !opts.switching ? "status warn" : "status ok";
         flashEl(s);
       }
@@ -991,6 +1014,8 @@
         ready: false,
         error: err instanceof Error ? err.message : "Não iniciou o download.",
       });
+    } finally {
+      void refreshLocal();
     }
   }
 
@@ -1054,6 +1079,7 @@
     if (!layer) return;
     layer.classList.toggle("dark", isDark());
     layer.classList.toggle("light", !isDark());
+    syncFields();
     layer.classList.add("open");
     const btn = document.getElementById(BTN_ID);
     if (btn) {
@@ -1088,6 +1114,10 @@
       changes.localProgress ||
       changes.localModelReady ||
       changes.localModelId ||
+      changes.cachedKinds ||
+      changes.motorAlive ||
+      changes.motorUp ||
+      changes.motorInstalled ||
       changes.gemmaLoading ||
       changes.gemmaPercent ||
       changes.gemmaDetail ||

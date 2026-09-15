@@ -18,7 +18,7 @@
     <label>
       Provedor
       <select id="provider">
-        <option value="local">Neste Chrome</option>
+        <option value="local">Neste computador</option>
         <option value="openai">OpenAI</option>
         <option value="gemini">Gemini</option>
         <option value="groq">Groq</option>
@@ -37,14 +37,15 @@
       <label>
         Modelo
         <select id="model">
-          <option value="turbo">Turbo · 560 MB</option>
-          <option value="tiny">Tiny · 40 MB</option>
-          <option value="light">Small · 120 MB</option>
-          <option value="v3">v3 · 1,5 GB</option>
-          <option value="nemotron">Nemotron · Windows</option>
+          <option value="turbo">Whisper Turbo · 560 MB</option>
+          <option value="tiny">Whisper Tiny · 40 MB</option>
+          <option value="light">Whisper Small · 120 MB</option>
+          <option value="v3">Whisper v3 · 1,5 GB</option>
+          <option value="nemotron">Motor Windows · Nemotron</option>
           <option value="custom">Outro Whisper</option>
         </select>
       </label>
+      <p class="hint" id="model-hint">O Whisper fica neste Chrome. O áudio não sai do computador.</p>
       <div id="custom-fields" hidden>
         <label>
           Link
@@ -64,7 +65,7 @@
         </div>
         <div class="meter" id="motor-meter" hidden><span id="motor-bar"></span></div>
         <p class="hint" id="motor-hint" hidden>
-          O Setup do zip instala uma vez. Depois: Ligar o motor (atalho na área de trabalho).
+          O Setup do zip instala uma vez. Depois use Ligar o motor (atalho na área de trabalho). A extensão só verifica se a bandeja responde — não baixa o .exe.
         </p>
       </div>
       <div class="meter" id="meter" hidden><span id="bar"></span></div>
@@ -102,7 +103,7 @@
         <i></i>
       </label>
     </div>
-    <p class="status">Ao ligar, baixa o Qwen (~1,1 GB). Excluir apaga o arquivo.</p>
+    <p class="status">Ao ligar, o motor baixa o Qwen (~1,1 GB) da Hugging Face para este PC. A % e a barra mostram o andamento. Excluir apaga o arquivo.</p>
     <div id="gemma-panel" hidden>
     <div class="split">
       <div class="pill">

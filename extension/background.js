@@ -29,9 +29,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
   if (msg?.type === "VOZCLARA_MODEL_VERIFY") {
-    verifyModel()
+    verifyModel({ kind: msg.kind })
       .then(sendResponse)
-      .catch(() => sendResponse({ ok: false, ready: false }));
+      .catch(() => sendResponse({ ok: false, ready: false, checked: false }));
     return true;
   }
   if (msg?.type === "VOZCLARA_MODEL_REVEAL") {
@@ -478,12 +478,17 @@ async function storedStatus() {
     "customModelInput",
     "preferredKind",
     "cachedKinds",
+    "motorAlive",
+    "motorUp",
+    "motorInstalled",
   ]);
+  const alive = Boolean(stored.motorAlive);
+  const up = Boolean(stored.motorUp);
   return {
     ok: true,
-    ready: Boolean(stored.localModelReady),
+    ready: Boolean(stored.localModelReady) || up,
     downloading: Boolean(stored.localProgress?.downloading),
-    percent: stored.localProgress?.percent || (stored.localModelReady ? 100 : 0),
+    percent: stored.localProgress?.percent || (stored.localModelReady || up ? 100 : 0),
     label: stored.localProgress?.label,
     error: stored.localProgress?.error,
     model: stored.localModelId,
@@ -491,6 +496,9 @@ async function storedStatus() {
     device: stored.localModelDevice,
     customRepo: stored.customModelRepo || stored.customModelInput || "",
     cachedKinds: Array.isArray(stored.cachedKinds) ? stored.cachedKinds : [],
+    motorAlive: alive,
+    motorUp: up,
+    motorInstalled: Boolean(stored.motorInstalled) || alive || up,
   };
 }
 
@@ -781,26 +789,46 @@ function waitDownload(id) {
   });
 }
 
+async function persistMotorFlags(flags) {
+  const alive = Boolean(flags.alive);
+  const up = Boolean(flags.up);
+  const installed = Boolean(flags.installed) || alive || up;
+  await chrome.storage.local.set({
+    motorAlive: alive,
+    motorUp: up,
+    motorInstalled: installed,
+  });
+}
+
 async function verifyModel(opts = {}) {
   const stored = await storedStatus();
-  const kind = normalizeKind(stored.kind);
+  const kind = normalizeKind(opts.kind || stored.kind);
+  if (opts.kind && kind !== normalizeKind(stored.kind)) {
+    await chrome.storage.local.set({ preferredKind: kind });
+  }
   if (kind === "nemotron") {
     const extra = await chrome.storage.local.get(["localUrl", "motorInstalled"]);
     const probe = await probeLocal(extra.localUrl);
     const alive = Boolean(probe?.ok);
     const up = Boolean(probe?.ok && probe.ready);
-    if (up) {
-      await chrome.storage.local.set({
-        localModelReady: true,
-        motorInstalled: true,
-        localProgress: {
-          downloading: false,
-          percent: 100,
-          error: "",
-          label: `Pronto · ${probe.model || "Nemotron"} na bandeja`,
-        },
-      });
-    }
+    const installed = Boolean(extra.motorInstalled) || alive || up;
+    await persistMotorFlags({ alive, up, installed });
+    await chrome.storage.local.set({
+      localModelReady: up,
+      motorInstalled: installed,
+      localProgress: {
+        downloading: false,
+        percent: up ? 100 : Number(probe?.percent) || 0,
+        error: up ? "" : alive ? probe?.error || "" : installed ? "Não alcanço o motor neste PC." : "",
+        label: up
+          ? `Pronto · ${probe.model || "Nemotron"} na bandeja`
+          : alive
+            ? probe?.detail || "Motor ligado. O modelo sobe na primeira transcrição."
+            : installed
+              ? "Não alcanço o motor. Clique em Ligar o motor."
+              : MOTOR_SETUP_HINT,
+      },
+    });
     const loadingLabel = probe?.error
       ? `Motor ligado, mas o modelo falhou: ${probe.error}`
       : probe?.detail ||
@@ -821,7 +849,7 @@ async function verifyModel(opts = {}) {
       ready: up,
       motorUp: up,
       motorAlive: alive,
-      motorInstalled: Boolean(extra.motorInstalled) || alive || up,
+      motorInstalled: installed,
       downloading: false,
       phase: probe?.phase || (up ? "ready" : alive ? "load" : ""),
       percent,
@@ -832,10 +860,10 @@ async function verifyModel(opts = {}) {
         ? `Pronto · ${probe.model || "Nemotron"} — ao lado do relógio`
         : alive
           ? loadingLabel
-            : extra.motorInstalled
+            : installed
             ? "Não alcanço o motor. Clique em Ligar o motor."
             : MOTOR_SETUP_HINT,
-      error: up ? "" : alive ? probe?.error || "" : extra.motorInstalled ? "Não alcanço o motor neste PC." : "",
+      error: up ? "" : alive ? probe?.error || "" : installed ? "Não alcanço o motor neste PC." : "",
     });
   }
   const disk = await scanModelCache(kind, stored.customRepo || stored.customModelRepo);
@@ -1285,7 +1313,9 @@ async function withGemma(status) {
     "gemmaLoadStartedAt",
   ]);
   let probe = { ok: false };
-  if (extra.gemmaOn || extra.gemmaWaitingMotor || status.motorAlive) {
+  const needMotor =
+    extra.gemmaOn || extra.gemmaWaitingMotor || status.motorAlive;
+  if (needMotor) {
     try {
       probe = await probeLocal(extra.localUrl);
     } catch {
@@ -1305,23 +1335,42 @@ async function withGemma(status) {
     });
     postGemmaLoad("qwen").catch(() => {});
   }
-  const saw = Boolean(extra.gemmaSawLoading) || Boolean(g.loading);
+  const sawLoading = Boolean(extra.gemmaSawLoading) || Boolean(g.loading);
   const startedAt = Number(extra.gemmaLoadStartedAt) || 0;
-  const waited = startedAt > 0 && Date.now() - startedAt > 4000;
+  const waited = startedAt > 0 && Date.now() - startedAt > 45000;
   let crash = "";
-  if (saw && waited && probe?.ok && !g.loading && !g.ready && !g.error && !stale) {
+  if (
+    extra.gemmaSawLoading &&
+    waited &&
+    probe?.ok &&
+    !g.loading &&
+    !g.ready &&
+    !g.error &&
+    !stale
+  ) {
     crash =
-      "O motor reiniciou no meio do download. Feche outros programas e clique em Tentar de novo.";
+      "O motor parou no meio do download. Feche outros programas e clique em Tentar de novo.";
   }
+  const prevErr = String(extra.gemmaError || "").trim();
+  const motorOffErr = /ligue o motor na bandeja/i.test(prevErr);
   const keepErr = g.ready || g.loading
     ? ""
-    : String(g.error || crash || extra.gemmaError || "").trim();
+    : String(g.error || crash || (probe?.ok && motorOffErr ? "" : prevErr) || "").trim();
+  const alive = needMotor ? Boolean(probe?.ok) : Boolean(status.motorAlive);
+  const up = needMotor ? Boolean(probe?.ok && probe.ready) : Boolean(status.motorUp);
+  if (needMotor) {
+    await persistMotorFlags({
+      alive,
+      up,
+      installed: Boolean(status.motorInstalled) || alive || up,
+    });
+  }
   await chrome.storage.local.set({
     gemmaReady: Boolean(g.ready),
     gemmaLoading: Boolean(g.loading) || Boolean(extra.gemmaWaitingMotor && stale),
     gemmaError: keepErr,
     gemmaStale: stale,
-    gemmaSawLoading: Boolean(g.loading),
+    gemmaSawLoading: Boolean(g.loading) || (Boolean(extra.gemmaSawLoading) && !g.ready && !keepErr),
     gemmaLoadStartedAt: g.ready ? 0 : extra.gemmaLoadStartedAt || 0,
     gemmaPercent: Number(g.percent) || 0,
     gemmaDetail: g.detail || "",
@@ -1332,12 +1381,12 @@ async function withGemma(status) {
   else if (g.loading || extra.gemmaLoading) startGemmaWatch();
   return {
     ...status,
-    motorAlive: Boolean(probe?.ok) || Boolean(status.motorAlive),
-    motorUp: Boolean(probe?.ok && probe.ready) || Boolean(status.motorUp),
+    motorAlive: alive,
+    motorUp: up,
     gemmaStale: stale,
     gemmaWaiting: Boolean(extra.gemmaWaitingMotor) && stale,
     gemmaSetupOk: Boolean(extra.gemmaSetupOk),
-    gemmaPending: Boolean(g.loading) || (saw && !g.ready && !keepErr),
+    gemmaPending: Boolean(g.loading) || (sawLoading && !g.ready && !keepErr),
     gemma: {
       ready: Boolean(g.ready),
       loading: Boolean(g.loading),
@@ -1586,7 +1635,7 @@ async function loadGemmaMotor(kind) {
       return { ok: false, waiting: true, error };
     }
     await chrome.storage.local.set({
-      gemmaSawLoading: true,
+      gemmaSawLoading: false,
       gemmaLoading: true,
       gemmaError: "",
       gemmaLoadStartedAt: Date.now(),
@@ -1894,7 +1943,7 @@ async function beginNemotron() {
     localProgress: {
       downloading: true,
       percent: 8,
-      label: "Verificando o motor neste PC…",
+      label: "Procurando o motor neste PC…",
       error: "",
     },
   });

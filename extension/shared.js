@@ -13,6 +13,30 @@
     custom: { name: "Este Whisper", size: "" },
   };
 
+  const FALLBACK_KEYS = [
+    "localModelReady",
+    "localModelId",
+    "localModelKind",
+    "localModelDevice",
+    "localProgress",
+    "cachedKinds",
+    "preferredKind",
+    "motorAlive",
+    "motorUp",
+    "motorInstalled",
+    "gemmaReady",
+    "gemmaLoading",
+    "gemmaPercent",
+    "gemmaDetail",
+    "gemmaError",
+    "gemmaStale",
+    "gemmaCached",
+    "gemmaBytes",
+    "gemmaKind",
+    "gemmaWaitingMotor",
+    "gemmaOn",
+  ];
+
   const SUGGEST_META = {
     qwen: {
       id: "qwen",
@@ -95,11 +119,17 @@
     }
     if (g.loading) {
       const pct = Number(g.percent) || 0;
+      const size = formatGemmaSize(g.bytes);
+      const detail = String(g.detail || "").trim();
       return {
         id: "wait",
         label: pct ? `${pct}%` : "Baixando…",
         disabled: true,
-        status: g.detail || "Baixando o Qwen (~1,1 GB)…",
+        status:
+          detail ||
+          (pct
+            ? `Baixando o Qwen da Hugging Face… ${pct}% de ${size}`
+            : "Baixando o Qwen (~1,1 GB) da Hugging Face para este PC…"),
         kind: "warn",
         percent: pct,
         canDelete: false,
@@ -233,9 +263,30 @@
   function downloadLabel(kind, repo) {
     const want = normalizeKind(kind);
     const meta = modelMeta(want);
-    if (want === "nemotron") return "Verificando o motor no PC…";
+    if (want === "nemotron") return "Procurando o motor neste PC…";
     if (want === "custom") return `Baixando ${parseHfRepo(repo) || "modelo"}…`;
     return `Baixando ${meta.name} (${meta.size})…`;
+  }
+
+  function modelHint(kind) {
+    if (normalizeKind(kind) === "nemotron") {
+      return "O motor Python na bandeja transcreve. Não usa o Chrome. O modelo NVIDIA só baixa na primeira transcrição.";
+    }
+    return "O Whisper fica neste Chrome. O áudio não sai do computador.";
+  }
+
+  function motorHeadline(state) {
+    const view = motorView(state);
+    const error = String(state?.error || "").trim();
+    const label = String(state?.label || "").trim();
+    if (error) return error;
+    if (state?.checking) return "Procurando o motor neste PC…";
+    if (state?.motorUp) return "Motor ligado · pronto para transcrever";
+    if (state?.motorAlive) return view.model.text || "Motor ligado · modelo ainda subindo";
+    if (label && !/ainda não baixou|um clique/i.test(label)) return label;
+    if (Boolean(state?.downloading) || state?.checking) return "Procurando o motor neste PC…";
+    if (state?.motorInstalled) return "Motor instalado, mas desligado — clique em Ligar o motor.";
+    return MOTOR_SETUP_HINT;
   }
 
   function primaryAction(state, selected) {
@@ -251,7 +302,9 @@
     if (want === "nemotron") {
       if (motorUp) return { id: "ready", label: "Motor ligado", disabled: true };
       if (motorAlive) return { id: "ready", label: "Motor ligado", disabled: true };
-      if (downloading) return { id: "wait", label: "Verificando…", disabled: true };
+      if (downloading || state?.checking) {
+        return { id: "wait", label: "Procurando o motor…", disabled: true };
+      }
       if (motorInstalled) return { id: "wake", label: "Ligar o motor", disabled: false };
       return { id: "install", label: "Verificar o motor", disabled: false };
     }
@@ -275,12 +328,14 @@
     const alive = Boolean(state?.motorAlive);
     const up = Boolean(state?.motorUp);
     const installed = Boolean(state?.motorInstalled) || alive || up;
+    const checking = Boolean(state?.checking) || (Boolean(state?.downloading) && !alive && !up);
     const phase = String(state?.phase || "");
     const percent = Number(state?.percent) || 0;
     const detail = String(state?.detail || "").trim();
     const error = String(state?.error || "").trim();
     let motor = { kind: "off", text: "Não instalado" };
     if (up || alive) motor = { kind: "ok", text: "Ligado" };
+    else if (checking) motor = { kind: "warn", text: "Verificando" };
     else if (installed) motor = { kind: "warn", text: "Desligado" };
     let model = {
       kind: "",
@@ -288,6 +343,14 @@
       percent: 0,
       indeterminate: false,
     };
+    if (checking && !alive && !up) {
+      model = {
+        kind: "warn",
+        text: "Procurando no PC",
+        percent: percent || 8,
+        indeterminate: true,
+      };
+    }
     if (up) {
       model = { kind: "ok", text: "Pronto", percent: 100, indeterminate: false };
     } else if (error && alive) {
@@ -434,6 +497,49 @@
     return String(last.text || "").replace(/\s+/g, " ").trim();
   }
 
+  function verifyRequest(kind) {
+    return {
+      type: "VOZCLARA_MODEL_VERIFY",
+      kind: normalizeKind(kind),
+    };
+  }
+
+  function fallbackLocalState(stored) {
+    const src = stored && typeof stored === "object" ? stored : {};
+    const progress = src.localProgress && typeof src.localProgress === "object" ? src.localProgress : {};
+    const alive = Boolean(src.motorAlive);
+    const up = Boolean(src.motorUp);
+    return {
+      ok: true,
+      checked: false,
+      ready: Boolean(src.localModelReady) || up,
+      downloading: Boolean(progress.downloading),
+      percent: Number(progress.percent) || (src.localModelReady || up ? 100 : 0),
+      label: progress.label,
+      error: progress.error,
+      model: src.localModelId,
+      kind: src.preferredKind || src.localModelKind,
+      device: src.localModelDevice,
+      cachedKinds: Array.isArray(src.cachedKinds) ? src.cachedKinds : [],
+      motorAlive: alive,
+      motorUp: up,
+      motorInstalled: Boolean(src.motorInstalled) || alive || up,
+      gemmaWaiting: Boolean(src.gemmaWaitingMotor),
+      gemmaStale: Boolean(src.gemmaStale),
+      gemma: {
+        ready: Boolean(src.gemmaReady),
+        loading: Boolean(src.gemmaLoading),
+        percent: Number(src.gemmaPercent) || 0,
+        detail: src.gemmaDetail || "",
+        error: src.gemmaError || "",
+        stale: Boolean(src.gemmaStale),
+        cached: Boolean(src.gemmaCached),
+        bytes: Number(src.gemmaBytes) || 0,
+        kind: src.gemmaKind || "qwen",
+      },
+    };
+  }
+
   function shouldAttachVoiceCard(info) {
     const i = info && typeof info === "object" ? info : {};
     if (i.video || i.gif || i.sticker) return false;
@@ -455,9 +561,14 @@
     stateLabel,
     stateKind,
     MOTOR_SETUP_HINT,
+    FALLBACK_KEYS,
     downloadLabel,
+    modelHint,
+    motorHeadline,
     primaryAction,
     motorView,
+    verifyRequest,
+    fallbackLocalState,
     collapseRepeats,
     isRepeatLoop,
     filterTranscriptByLang,

@@ -24,7 +24,9 @@ function watchMotor(state) {
   const selected = normalizeKind($("model")?.value);
   const busy =
     selected === "nemotron" &&
-    (Boolean(state?.downloading) || (Boolean(state?.motorAlive) && !state?.motorUp));
+    (Boolean(state?.checking) ||
+      Boolean(state?.downloading) ||
+      (Boolean(state?.motorAlive) && !state?.motorUp));
   const gBusy = Boolean(state?.gemma?.loading || state?.gemmaWaiting || state?.gemmaPending);
   if ((busy || gBusy) && !motorPoll) {
     motorPoll = setInterval(() => void queryLocal(), 700);
@@ -38,6 +40,14 @@ function isLocal() {
   return $("provider").value === "local";
 }
 
+function syncModelHint() {
+  const hint = $("model-hint");
+  if (!hint) return;
+  const kind = normalizeKind($("model")?.value);
+  hint.textContent = globalThis.VCShared.modelHint(kind);
+  hint.hidden = false;
+}
+
 function syncFields() {
   const local = isLocal();
   const cloud = $("cloud-fields");
@@ -46,6 +56,7 @@ function syncFields() {
   if (localBox) localBox.hidden = !local;
   const custom = $("custom-fields");
   if (custom) custom.hidden = $("model")?.value !== "custom";
+  syncModelHint();
 }
 
 function paint(extra) {
@@ -128,7 +139,7 @@ function renderLocal(state) {
       motorBar.style.width = `${Math.max(0, Math.min(100, view.model.percent || 8))}%`;
     }
     if (localStatus) {
-      localStatus.textContent = error || view.model.text;
+      localStatus.textContent = globalThis.VCShared.motorHeadline(state);
       localStatus.dataset.kind = error
         ? "warn"
         : state?.motorUp
@@ -273,15 +284,16 @@ async function deleteGemma() {
 function maybeKickGemma(state) {
   if (!$("gemma-on")?.checked) return;
   const action = globalThis.VCShared.gemmaAction(state, selectedGemma());
-  if (action.id === "download" || action.id === "retry") void startGemma();
+  if (action.id === "download") void startGemma();
 }
 
 async function queryLocal(opts) {
+  const selected = normalizeKind($("model")?.value);
   try {
-    const state = await chrome.runtime.sendMessage({
-      type: "VOZCLARA_MODEL_VERIFY",
-    });
-    if (state && typeof state === "object") {
+    const state = await chrome.runtime.sendMessage(
+      globalThis.VCShared.verifyRequest(selected),
+    );
+    if (state && typeof state === "object" && state.checked) {
       renderLocal(state);
       void showQualityFallback();
       if (opts?.autoGemma) maybeKickGemma(state);
@@ -291,26 +303,8 @@ async function queryLocal(opts) {
     /* cai no storage */
   }
   try {
-    const stored = await chrome.storage.local.get([
-      "localModelReady",
-      "localModelId",
-      "localModelKind",
-      "localModelDevice",
-      "localProgress",
-      "cachedKinds",
-      "preferredKind",
-    ]);
-    renderLocal({
-      ready: Boolean(stored.localModelReady),
-      downloading: Boolean(stored.localProgress?.downloading),
-      percent: stored.localProgress?.percent || (stored.localModelReady ? 100 : 0),
-      label: stored.localProgress?.label,
-      error: stored.localProgress?.error,
-      model: stored.localModelId,
-      kind: stored.preferredKind || stored.localModelKind,
-      device: stored.localModelDevice,
-      cachedKinds: stored.cachedKinds,
-    });
+    const stored = await chrome.storage.local.get(globalThis.VCShared.FALLBACK_KEYS);
+    renderLocal(globalThis.VCShared.fallbackLocalState(stored));
     void showQualityFallback();
   } catch (err) {
     renderLocal({
@@ -351,6 +345,10 @@ async function load() {
     loadGemma(stored);
     syncFields();
     paint();
+    const kind = normalizeKind($("model")?.value);
+    if (isLocal() && kind === "nemotron") {
+      renderLocal({ checking: true, kind: "nemotron" });
+    }
     if (isLocal()) void queryLocal({ autoGemma: true });
   } catch (err) {
     paint({ text: friendly(err), kind: "warn" });
@@ -415,11 +413,18 @@ async function onModelChange() {
   syncFields();
   hideConfirm();
   const kind = normalizeKind($("model")?.value);
+  lastPreferred = kind;
+  await chrome.storage.local.set({ preferredKind: kind });
   const localStatus = $("local-status");
   if (localStatus) {
     localStatus.textContent = `Verificando ${metaOf(kind).name}…`;
     localStatus.dataset.kind = "warn";
     flashEl(localStatus);
+  }
+  if (kind === "nemotron") {
+    renderLocal({ checking: true, kind: "nemotron" });
+    void queryLocal();
+    return;
   }
   if (kind === "custom") {
     void queryLocal();
@@ -434,10 +439,6 @@ async function onModelChange() {
     if (probe?.cached && kind !== "nemotron") {
       lastPreferred = kind;
       void startDownload(kind, { switching: true });
-      return;
-    }
-    if (kind === "nemotron") {
-      void queryLocal();
       return;
     }
     showConfirm(kind);
@@ -563,6 +564,8 @@ async function startDownload(kind, opts = {}) {
       percent: 0,
       error: friendly(err),
     });
+  } finally {
+    void queryLocal();
   }
 }
 
@@ -608,6 +611,9 @@ chrome.storage.onChanged.addListener((changes, area) => {
     changes.localModelReady ||
     changes.localModelId ||
     changes.cachedKinds ||
+    changes.motorAlive ||
+    changes.motorUp ||
+    changes.motorInstalled ||
     changes.gemmaLoading ||
     changes.gemmaPercent ||
     changes.gemmaDetail ||
