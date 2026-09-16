@@ -19,6 +19,19 @@ test("VCShared é exposto como objeto", () => {
   assert.equal(typeof VC.parseHfRepo, "function");
 });
 
+
+test("normalizeKind trava migração Turbo/Small", () => {
+  assert.equal(VC.normalizeKind("v3"), "turbo");
+  assert.equal(VC.normalizeKind("large-v3"), "turbo");
+  assert.equal(VC.normalizeKind("Nemotron"), "turbo");
+  assert.equal(VC.normalizeKind("custom"), "turbo");
+  assert.equal(VC.normalizeKind("tiny"), "turbo");
+  assert.equal(VC.normalizeKind("small"), "light");
+  assert.equal(VC.normalizeKind("Small"), "light");
+  assert.equal(VC.normalizeKind("light"), "light");
+  assert.equal(VC.normalizeKind("turbo"), "turbo");
+});
+
 test("normalizeKind mapeia apelidos", () => {
   assert.equal(VC.normalizeKind("small"), "light");
   assert.equal(VC.normalizeKind("light"), "light");

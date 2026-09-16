@@ -39,7 +39,7 @@ Erro "manifesto faltando"
 -------------------------
 Você escolheu a pasta de cima. Entre até ver o manifest.json.
 
-Pasta vozclara-local
---------------------
-Opcional. Só para quem quer o motor nativo (Python) no lugar
-do Whisper deste Chrome. A maioria das pessoas ignora.
+Pasta vozclara-local (legado)
+----------------------------
+O seletor atual só usa Turbo/Small neste Chrome. O motor Python
+ficou para trás: ignore esta pasta.

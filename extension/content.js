@@ -224,6 +224,10 @@
   let modelReady = false;
   const autoQ = [];
   let autoBusy = false;
+  // Estado explícito do auto-transcrever por chave: "queued" | "done" | "error".
+  // Substitui a leitura de innerHTML como fonte primária (o HTML segue como
+  // fallback para cards transcritos manualmente ou de sessões anteriores).
+  const autoState = new Map();
   /** @type {Map<string, { root: Element | null; html: string }>} Parte 1.1 */
   const rootByKey = new Map();
   /** @type {Map<string, number>} requestId → interval id do cronômetro da fase ① */
@@ -1435,13 +1439,19 @@
     );
   }
 
+  function isJobRunning(key) {
+    for (const k of jobs.values()) if (k === key) return true;
+    return false;
+  }
+
   function alreadyDone(root) {
+    if (autoState.get(keyFor(root)) === "done") return true;
     return /data-copy|data-retry/.test(panelHtml(root));
   }
 
   function alreadyBusy(root) {
     const key = keyFor(root);
-    for (const k of jobs.values()) if (k === key) return true;
+    if (isJobRunning(key)) return true;
     return /Aguarde|Transcrevendo|Baixando Whisper/.test(panelHtml(root));
   }
 
@@ -1456,9 +1466,12 @@
   function maybeAuto(root) {
     if (!autoOn || !modelReady || document.hidden) return;
     if (!root || isOutgoing(root) || !isVoiceRoot(root)) return;
+    const key = keyFor(root);
+    if (!key || autoState.has(key)) return;
     if (!isNearBottom(root)) return;
     if (alreadyDone(root) || alreadyBusy(root)) return;
     if (autoQ.length >= 6) return;
+    autoState.set(key, "queued");
     autoQ.push(root);
     void pumpAuto();
   }
@@ -1469,13 +1482,35 @@
     try {
       while (autoQ.length) {
         const root = autoQ.shift();
-        if (!root?.isConnected || !autoOn || !modelReady) continue;
-        if (alreadyDone(root) || alreadyBusy(root)) continue;
-        await transcribeRoot(root);
+        const key = keyFor(root);
+        if (!root?.isConnected || !autoOn || !modelReady) {
+          if (key && autoState.get(key) === "queued") autoState.delete(key);
+          continue;
+        }
+        if (alreadyDone(root)) {
+          autoState.set(key, "done");
+          continue;
+        }
+        if (isJobRunning(key)) {
+          // Transcrição manual em curso: o painel dela decide o futuro.
+          autoState.delete(key);
+          continue;
+        }
+        const text = await transcribeRoot(root);
+        // Erro não retenta sozinho; o usuário retenta no card.
+        autoState.set(key, text ? "done" : "error");
       }
     } finally {
       autoBusy = false;
     }
+  }
+
+  // O que chega com a aba oculta não dispara (maybeAuto trava em
+  // document.hidden) e o scan já marcou a chave como vista. Ao voltar,
+  // varre a conversa aberta uma vez; done/busy/error barram duplicata.
+  function catchUpAuto() {
+    if (!autoOn || !modelReady || document.hidden) return;
+    collectRoots(document).forEach((root) => maybeAuto(root));
   }
 
   function escapeHtml(s) {
@@ -1529,6 +1564,7 @@
     else {
       scan(document);
       startIdleScan();
+      catchUpAuto();
     }
   });
 

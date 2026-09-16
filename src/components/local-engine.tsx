@@ -66,11 +66,10 @@ export function LocalEngine() {
         <HardDrive className="mt-0.5 size-4 shrink-0 text-accent" />
         <div>
           <p className="text-sm font-medium text-fg">
-            O Whisper baixa na extensão. O motor, não.
+            O Whisper baixa na extensão. Sem programa separado.
           </p>
           <p className="mt-0.5 text-xs text-fg-muted">
-            Setup em <span className="font-mono text-fg">engine/</span> no zip.
-            No celular a extensão não instala — use uma chave de nuvem ao lado.
+            Nada sai deste Chrome. No celular a extensão não instala — use uma chave de nuvem ao lado.
           </p>
         </div>
       </div>

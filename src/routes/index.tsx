@@ -30,8 +30,8 @@ function Home() {
               <span className="block italic text-fg-muted">vira texto no chat.</span>
             </h1>
             <p className="mt-5 max-w-md text-base leading-relaxed text-fg-muted">
-              Um zip: extensão e motor juntos. Instale o Setup uma vez,
-              verifique, transcreva. O arquivo não sai do computador.
+              Um zip com a extensão. Baixe o Turbo uma vez, transcreva.
+              O áudio não sai do computador.
             </p>
             <div className="mt-7 flex flex-wrap gap-3">
               <Button asChild>
@@ -55,7 +55,7 @@ function Home() {
               </li>
               <li className="flex gap-2">
                 <HardDrive className="mt-0.5 size-4 shrink-0 text-accent" />
-                Motor no zip, uma vez
+                Turbo ou Small, no Chrome
               </li>
             </ul>
           </div>

@@ -15,7 +15,7 @@ export const Route = createRootRoute({
       {
         name: "description",
         content:
-          "Transcreva áudios do WhatsApp Web. Um zip: extensão e motor. Whisper no Chrome ou chave da nuvem.",
+          "Transcreva áudios do WhatsApp Web. Um zip com a extensão. Whisper no Chrome ou chave da nuvem.",
       },
       { name: "theme-color", content: "#0c1210" },
     ],

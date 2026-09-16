@@ -381,6 +381,7 @@
               <input id="auto-tx" type="checkbox" />
               Transcrever ao receber
             </label>
+            <p class="status">Só Whisper neste Chrome, com a aba visível.</p>
             <p class="status" id="save-status"></p>
             <div class="test">
               <p>Testar</p>
@@ -397,7 +398,7 @@
                 <dt>Trocar de conversa</dt>
                 <dd>A transcrição não para. Ao voltar, o texto (ou o “Aguarde”) continua no áudio.</dd>
                 <dt>Transcrever ao receber</dt>
-                <dd>Liga a opção. Só áudios novos da conversa aberta, um de cada vez. O Whisper já precisa estar baixado.</dd>
+                <dd>Liga a opção. Só áudios novos da conversa aberta, um de cada vez. O Whisper já precisa estar baixado e a aba visível — o que chegar com ela oculta entra ao voltar.</dd>
                 <dt>O áudio sai do PC?</dt>
                 <dd>Não. O Whisper roda neste Chrome.</dd>
               </dl>

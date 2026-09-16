@@ -73,9 +73,8 @@ export function SettingsPanel() {
           <div className="space-y-2">
             <p className="text-sm font-medium text-fg">Whisper neste Chrome</p>
             <p className="text-sm leading-relaxed text-fg-muted">
-              Sem chave. Whisper baixa no ícone da extensão. O motor Windows
-              já veio no zip — rode o Setup em engine/ uma vez e depois
-              Verifique.
+              Sem chave e sem Setup. O Whisper baixa no ícone da extensão
+              e roda neste Chrome.
             </p>
             <a
               href="#local"

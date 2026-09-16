@@ -1,0 +1,6 @@
+* text=auto
+*.zip binary
+*.exe binary
+*.wasm binary
+*.onnx binary
+*.gguf binary
