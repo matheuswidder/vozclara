@@ -6,11 +6,7 @@
 (() => {
   const MODEL_META = {
     turbo: { name: "Turbo", size: "~560 MB" },
-    tiny: { name: "Tiny", size: "~40 MB" },
     light: { name: "Small", size: "~120 MB" },
-    v3: { name: "v3", size: "~1,5 GB" },
-    nemotron: { name: "Nemotron", size: "Windows" },
-    custom: { name: "Este Whisper", size: "" },
   };
 
   const FALLBACK_KEYS = [
@@ -28,11 +24,7 @@
 
   function normalizeKind(kind) {
     const k = String(kind || "").toLowerCase();
-    if (k === "v3" || k === "precise" || k === "large" || k === "large-v3") return "v3";
     if (k === "light" || k === "small") return "light";
-    if (k === "tiny") return "tiny";
-    if (k === "nemotron") return "nemotron";
-    if (k === "custom") return "custom";
     return "turbo";
   }
 
@@ -93,10 +85,10 @@
   }
 
   function modelHint(kind) {
-    if (normalizeKind(kind) === "nemotron") {
-      return "O motor Python na bandeja transcreve. Não usa o Chrome. O modelo NVIDIA só baixa na primeira transcrição.";
+    if (normalizeKind(kind) === "light") {
+      return "Small é mais leve. Turbo continua o padrão.";
     }
-    return "O Whisper fica neste Chrome. O áudio não sai do computador.";
+    return "Turbo é o padrão. O áudio não sai deste Chrome.";
   }
 
   function motorHeadline(state) {

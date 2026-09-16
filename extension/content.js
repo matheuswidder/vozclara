@@ -218,6 +218,12 @@
   const cardByKey = new Map();
   const htmlByKey = new Map();
   const miniByKey = new Map();
+  const seenKeys = new Set();
+  let scanPrimed = false;
+  let autoOn = false;
+  let modelReady = false;
+  const autoQ = [];
+  let autoBusy = false;
   /** @type {Map<string, { root: Element | null; html: string }>} Parte 1.1 */
   const rootByKey = new Map();
   /** @type {Map<string, number>} requestId → interval id do cronômetro da fase ① */
@@ -845,8 +851,13 @@
       const live = new Set();
       collectRoots(from).forEach((root) => {
         const key = keyFor(root);
-        if (key) live.add(key);
+        const isNew = Boolean(key) && !seenKeys.has(key);
+        if (key) {
+          live.add(key);
+          seenKeys.add(key);
+        }
         ensureUi(root);
+        if (scanPrimed && isNew) maybeAuto(root);
       });
       for (const [key, el] of cardByKey) {
         if (!live.has(key)) {
@@ -855,8 +866,9 @@
           cardByKey.delete(key);
         }
       }
+      pruneSmartBar();
     });
-    pruneSmartBar();
+    if (!scanPrimed) scanPrimed = true;
   }
 
   function positionAll() {
@@ -1376,7 +1388,7 @@
       }
       const safe = escapeHtml(result.text);
       const note = result.cleaned
-        ? `<p class="micro">O tiny repetiu demais — texto limpo. Troque o modelo e clique em Re-transcrever.</p>`
+        ? `<p class="micro">O modelo repetiu demais — texto limpo. Clique em Re-transcrever se quiser tentar de novo.</p>`
         : "";
       const langNote = result.langCleaned
         ? `<p class="micro">Tirei trechos em outro alfabeto (filtro do idioma).</p>`
@@ -1412,6 +1424,57 @@
       jobs.delete(requestId);
       if (btn) btn.disabled = false;
       releasePlayback();
+    }
+  }
+
+  function panelHtml(root) {
+    return (
+      cardOf(root)?.shadowRoot?.querySelector(".panel")?.innerHTML ||
+      htmlByKey.get(keyFor(root)) ||
+      ""
+    );
+  }
+
+  function alreadyDone(root) {
+    return /data-copy|data-retry/.test(panelHtml(root));
+  }
+
+  function alreadyBusy(root) {
+    const key = keyFor(root);
+    for (const k of jobs.values()) if (k === key) return true;
+    return /Aguarde|Transcrevendo|Baixando Whisper/.test(panelHtml(root));
+  }
+
+  function isNearBottom(root) {
+    const pane = chatPane();
+    if (!pane || !root) return false;
+    const pr = pane.getBoundingClientRect();
+    const rr = root.getBoundingClientRect();
+    return rr.bottom >= pr.bottom - 220 && rr.top <= pr.bottom + 80;
+  }
+
+  function maybeAuto(root) {
+    if (!autoOn || !modelReady || document.hidden) return;
+    if (!root || isOutgoing(root) || !isVoiceRoot(root)) return;
+    if (!isNearBottom(root)) return;
+    if (alreadyDone(root) || alreadyBusy(root)) return;
+    if (autoQ.length >= 6) return;
+    autoQ.push(root);
+    void pumpAuto();
+  }
+
+  async function pumpAuto() {
+    if (autoBusy) return;
+    autoBusy = true;
+    try {
+      while (autoQ.length) {
+        const root = autoQ.shift();
+        if (!root?.isConnected || !autoOn || !modelReady) continue;
+        if (alreadyDone(root) || alreadyBusy(root)) continue;
+        await transcribeRoot(root);
+      }
+    } finally {
+      autoBusy = false;
     }
   }
 
@@ -1467,6 +1530,19 @@
       scan(document);
       startIdleScan();
     }
+  });
+
+  chrome.storage.local
+    .get(["autoTranscribe", "localModelReady"])
+    .then((s) => {
+      autoOn = Boolean(s.autoTranscribe);
+      modelReady = Boolean(s.localModelReady);
+    })
+    .catch(() => {});
+  chrome.storage.onChanged.addListener((ch, area) => {
+    if (area !== "local") return;
+    if (ch.autoTranscribe) autoOn = Boolean(ch.autoTranscribe.newValue);
+    if (ch.localModelReady) modelReady = Boolean(ch.localModelReady.newValue);
   });
 
   function start() {

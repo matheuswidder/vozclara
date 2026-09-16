@@ -4,8 +4,8 @@ import { Button } from "@/components/ui/button";
 const STEPS = [
   {
     n: "1",
-    title: "Baixe um zip",
-    body: "Só este arquivo. Dentro já vão a extensão e o Setup do motor (engine/VozClara-Motor-Setup.exe).",
+    title: "Baixe o zip",
+    body: "Só este arquivo. Dentro vai a extensão pronta para o Chrome, Brave ou Edge.",
   },
   {
     n: "2",
@@ -14,13 +14,8 @@ const STEPS = [
   },
   {
     n: "3",
-    title: "Rode o Setup uma vez",
-    body: "Na pasta extraída, abra engine/VozClara-Motor-Setup.exe uma vez. Depois o atalho VozClara Motor (ou Ligar o motor) só abre o que já está no PC — sem instalar de novo.",
-  },
-  {
-    n: "4",
-    title: "Verifique",
-    body: "No ícone da VozClara, Nemotron → Verificar o motor. Se o ícone da bandeja estiver ligado, está pronto.",
+    title: "Baixe o Turbo",
+    body: "No ícone da VozClara, deixe Turbo e clique em Baixar. Uma vez. Small só se você quiser trocar.",
   },
 ];
 
@@ -33,8 +28,8 @@ export function InstallGuide() {
             Instalar no navegador
           </h2>
           <p className="mt-1 max-w-xl text-sm text-fg-muted">
-            Chrome, Brave ou Edge no computador. Um zip, uma instalação do
-            motor, depois só ligar.
+            Chrome, Brave ou Edge no computador. Um zip, Turbo no Chrome,
+            pronto.
           </p>
         </div>
         <Button asChild>
@@ -69,8 +64,7 @@ export function InstallGuide() {
             </p>
             <p className="mt-1 text-sm leading-relaxed text-fg-muted">
               Entre até ver o arquivo{" "}
-              <span className="font-mono text-fg">manifest.json</span> e a
-              pasta <span className="font-mono text-fg">engine/</span>. Essa é
+              <span className="font-mono text-fg">manifest.json</span>. Essa é
               a pasta certa.
             </p>
           </div>

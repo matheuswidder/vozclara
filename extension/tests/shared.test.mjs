@@ -20,14 +20,15 @@ test("VCShared é exposto como objeto", () => {
 });
 
 test("normalizeKind mapeia apelidos", () => {
-  assert.equal(VC.normalizeKind("large-v3"), "v3");
-  assert.equal(VC.normalizeKind("PRECISE"), "v3");
   assert.equal(VC.normalizeKind("small"), "light");
-  assert.equal(VC.normalizeKind("nemotron"), "nemotron");
-  assert.equal(VC.normalizeKind("custom"), "custom");
+  assert.equal(VC.normalizeKind("light"), "light");
+  assert.equal(VC.normalizeKind("turbo"), "turbo");
+  assert.equal(VC.normalizeKind("tiny"), "turbo");
+  assert.equal(VC.normalizeKind("large-v3"), "turbo");
+  assert.equal(VC.normalizeKind("nemotron"), "turbo");
+  assert.equal(VC.normalizeKind("custom"), "turbo");
   assert.equal(VC.normalizeKind(""), "turbo");
   assert.equal(VC.normalizeKind(undefined), "turbo");
-  assert.equal(VC.normalizeKind("qualquer-coisa"), "turbo");
 });
 
 test("parseHfRepo aceita link, hf:// e org/name", () => {
@@ -55,62 +56,40 @@ test("stateLabel cobre ready/downloading/error/label", () => {
 });
 
 test("modelMeta e troca rápida", () => {
-  assert.equal(VC.modelMeta("tiny").name, "Tiny");
+  assert.equal(VC.modelMeta("tiny").name, "Turbo");
   assert.equal(VC.modelMeta("turbo").size, "~560 MB");
   const sw = VC.primaryAction(
-    { ready: true, kind: "turbo", cachedKinds: ["turbo", "tiny"] },
-    "tiny",
+    { ready: true, kind: "turbo", cachedKinds: ["turbo", "light"] },
+    "light",
   );
   assert.equal(sw.id, "switch");
-  assert.match(sw.label, /Tiny/);
+  assert.match(sw.label, /Small/);
 });
 
-test("downloadLabel cobre todos os kinds", () => {
-  assert.equal(VC.downloadLabel("nemotron"), "Procurando o motor neste PC…");
-  assert.equal(
-    VC.downloadLabel("custom", "onnx-community/whisper-tiny"),
-    "Baixando onnx-community/whisper-tiny…",
-  );
-  assert.equal(VC.downloadLabel("tiny"), "Baixando Tiny (~40 MB)…");
+test("downloadLabel cobre turbo e small", () => {
   assert.equal(VC.downloadLabel("light"), "Baixando Small (~120 MB)…");
-  assert.equal(VC.downloadLabel("v3"), "Baixando v3 (~1,5 GB)…");
   assert.equal(VC.downloadLabel("turbo"), "Baixando Turbo (~560 MB)…");
+  assert.equal(VC.downloadLabel("tiny"), "Baixando Turbo (~560 MB)…");
 });
 
 test("primaryAction: um botão, ação óbvia", () => {
   assert.equal(typeof VC.primaryAction, "function");
   assert.equal(VC.primaryAction({ downloading: true }, "turbo").id, "wait");
   assert.equal(VC.primaryAction({ ready: true, kind: "turbo" }, "turbo").id, "ready");
-  assert.equal(VC.primaryAction({ ready: true, kind: "turbo" }, "tiny").id, "download");
-  assert.equal(VC.primaryAction({ motorUp: true }, "nemotron").id, "ready");
-  assert.equal(VC.primaryAction({ motorInstalled: true }, "nemotron").id, "wake");
-  assert.equal(VC.primaryAction({ downloading: true }, "nemotron").id, "wait");
-  assert.equal(VC.primaryAction({ downloading: true }, "nemotron").label, "Procurando o motor…");
-  assert.equal(VC.primaryAction({}, "nemotron").id, "install");
-  assert.equal(VC.primaryAction({}, "nemotron").label, "Verificar o motor");
-  assert.match(VC.MOTOR_SETUP_HINT, /Ligar o motor/);
-  assert.match(VC.primaryAction({}, "tiny").label, /40 MB/);
+  assert.equal(VC.primaryAction({ ready: true, kind: "turbo" }, "light").id, "download");
+  assert.match(VC.primaryAction({}, "light").label, /120 MB/);
 });
 
-test("Nemotron não mistura motor com download", () => {
+test("kinds antigos viram turbo", () => {
   const loading = VC.primaryAction(
     { downloading: true, motorAlive: true, motorUp: false, phase: "download", percent: 32 },
     "nemotron",
   );
-  assert.equal(loading.id, "ready");
-  assert.equal(loading.label, "Motor ligado");
-  const view = VC.motorView({
-    motorAlive: true,
-    motorUp: false,
-    phase: "download",
-    percent: 32,
-    detail: "Baixando model.safetensors · 32%",
+  assert.equal(loading.id, "wait");
+  assert.deepEqual(VC.verifyRequest("Nemotron"), {
+    type: "VOZCLARA_MODEL_VERIFY",
+    kind: "turbo",
   });
-  assert.equal(view.motor.text, "Ligado");
-  assert.match(view.model.text, /32%/);
-  assert.equal(view.model.kind, "warn");
-  const ready = VC.motorView({ motorAlive: true, motorUp: true });
-  assert.equal(ready.model.text, "Pronto");
 });
 
 test("collapseRepeats corta loop do tiny", () => {
@@ -137,10 +116,6 @@ test("fallbackLocalState preserva flags do motor", () => {
   assert.equal(state.motorUp, true);
   assert.equal(state.downloading, true);
   assert.equal(state.gemma, undefined);
-  assert.deepEqual(VC.verifyRequest("Nemotron"), {
-    type: "VOZCLARA_MODEL_VERIFY",
-    kind: "nemotron",
-  });
 });
 
 test("filterTranscriptByLang tira alfabeto estranho no português", () => {
@@ -179,6 +154,6 @@ test("motorView não mente 'Não instalado' enquanto verifica", () => {
   const off = VC.motorView({ motorInstalled: true });
   assert.equal(off.motor.text, "Desligado");
   assert.match(VC.motorHeadline({ motorUp: true }), /pronto para transcrever/);
-  assert.match(VC.modelHint("nemotron"), /bandeja/i);
+  assert.match(VC.modelHint("nemotron"), /Turbo/);
   assert.match(VC.modelHint("turbo"), /Chrome/);
 });

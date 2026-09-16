@@ -4,18 +4,18 @@ import { INPAGE_MODELS } from "@/lib/providers";
 const STEPS = [
   {
     n: "1",
-    title: "Whisper no Chrome",
-    body: "No ícone da VozClara, escolha Turbo (ou Tiny) e Baixar. Isso baixa só o modelo, uma vez.",
+    title: "Turbo",
+    body: "Já vem selecionado. Clique em Baixar uma vez. ~560 MB neste Chrome.",
   },
   {
     n: "2",
-    title: "Motor Windows",
-    body: "Nemotron transcreve no PC. O Setup do zip instala o motor uma vez. Não peça outro download — o Chrome recusa o .exe duplicado.",
+    title: "Small",
+    body: "Só se você trocar no seletor. Mais leve (~120 MB), um pouco menos preciso.",
   },
   {
     n: "3",
-    title: "Verificar",
-    body: "Depois do Setup, o botão vira Verificar. Se a bandeja estiver verde, está ok.",
+    title: "Ao receber",
+    body: "Opcional. Liga Transcrever ao receber: áudios novos da conversa aberta já saem em texto.",
   },
 ];
 
@@ -30,8 +30,8 @@ export function LocalEngine() {
           Whisper neste Chrome
         </h2>
         <p className="mt-1 text-sm text-fg-muted">
-          Um clique em Baixar para o Whisper. O motor Windows já veio no mesmo
-          zip — instale uma vez e depois só verifique.
+          Um clique em Baixar. Turbo é o padrão. O áudio não sai deste
+          computador.
         </p>
       </div>
 

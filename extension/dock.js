@@ -132,6 +132,11 @@
     .help dl { margin: 0; padding: 0 12px 12px; border-top: 1px solid var(--line); }
     .help dt { margin: 10px 0 2px; font-size: 12px; font-weight: 600; color: var(--fg); }
     .help dd { margin: 0; font-size: 12px; line-height: 1.45; color: var(--muted); }
+    .check {
+      display: flex; align-items: center; gap: 8px; margin: 0 0 12px;
+      font-size: 13px; color: var(--fg); cursor: pointer;
+    }
+    .check input { width: 16px; height: 16px; accent-color: #00a884; cursor: pointer; }
   `;
 
   let shadow = null;
@@ -345,36 +350,11 @@
             <div id="local-fields">
               <label>Modelo
                 <select id="model">
-                  <option value="turbo">Whisper Turbo · 560 MB</option>
-                  <option value="tiny">Whisper Tiny · 40 MB</option>
-                  <option value="light">Whisper Small · 120 MB</option>
-                  <option value="v3">Whisper v3 · 1,5 GB</option>
-                  <option value="nemotron">Motor Windows · Nemotron</option>
-                  <option value="custom">Outro Whisper</option>
+                  <option value="turbo">Turbo · 560 MB</option>
+                  <option value="light">Small · 120 MB</option>
                 </select>
               </label>
-              <p class="hint" id="model-hint">O Whisper fica neste Chrome. O áudio não sai do computador.</p>
-              <div id="custom-fields" hidden>
-                <label>Link
-                  <input id="hf-repo" type="text" spellcheck="false" autocomplete="off" placeholder="huggingface.co/…/whisper-tiny" />
-                </label>
-              </div>
-              <div id="motor-panel" hidden>
-                <div class="split">
-                  <div class="pill">
-                    <i id="motor-dot" class="dot"></i>
-                    <span id="motor-text">Bandeja</span>
-                  </div>
-                  <div class="pill">
-                    <i id="model-dot" class="dot"></i>
-                    <span id="model-text">Modelo</span>
-                  </div>
-                </div>
-                <div class="meter" id="motor-meter" hidden><span id="motor-bar"></span></div>
-                <p class="hint" id="motor-hint" hidden>
-                  O Setup do zip instala uma vez. Depois use Ligar o motor (atalho na área de trabalho). A extensão só verifica se a bandeja responde — não baixa o .exe.
-                </p>
-              </div>
+              <p class="hint" id="model-hint">Turbo é o padrão. O áudio não sai deste Chrome.</p>
               <div class="meter" id="meter" hidden><span id="bar"></span></div>
               <div id="confirm" class="confirm" hidden>
                 <p id="confirm-text"></p>
@@ -397,6 +377,10 @@
               </select>
             </label>
             <p class="status">Português (e inglês/espanhol) descarta chinês, japonês e outros alfabetos que o modelo misturar.</p>
+            <label class="check">
+              <input id="auto-tx" type="checkbox" />
+              Transcrever ao receber
+            </label>
             <p class="status" id="save-status"></p>
             <div class="test">
               <p>Testar</p>
@@ -408,14 +392,14 @@
             <details class="help">
               <summary>Ajuda</summary>
               <dl>
-                <dt>Extensão e motor</dt>
-                <dd>A extensão é o botão no WhatsApp. O motor é o ícone na bandeja do Windows, ao lado do relógio. Whisper no Chrome não usa motor. Nemotron usa.</dd>
-                <dt>Bandeja Ligado ou Desligado</dt>
-                <dd>Verde: pode transcrever. Cinza: clique em Ligar. “Não instalado”: rode o Setup do zip, uma vez.</dd>
-                <dt>Preciso do Setup de novo?</dt>
-                <dd>Não, se só recarregou a extensão — transcrever segue. Sim, se o painel pedir Atualize, ou se quiser o modelo sair da memória depois do clique (PC com pouca RAM).</dd>
-                <dt>Os dois pontos</dt>
-                <dd>Bandeja = o programa. Modelo = o arquivo no disco. Sobe na memória só no clique e sai no fim.</dd>
+                <dt>Turbo e Small</dt>
+                <dd>Turbo vem ligado. Small só entra se você trocar no seletor.</dd>
+                <dt>Trocar de conversa</dt>
+                <dd>A transcrição não para. Ao voltar, o texto (ou o “Aguarde”) continua no áudio.</dd>
+                <dt>Transcrever ao receber</dt>
+                <dd>Liga a opção. Só áudios novos da conversa aberta, um de cada vez. O Whisper já precisa estar baixado.</dd>
+                <dt>O áudio sai do PC?</dt>
+                <dd>Não. O Whisper roda neste Chrome.</dd>
               </dl>
             </details>
           </div>
@@ -440,6 +424,7 @@
       void refreshLocal();
     });
     $p("language")?.addEventListener("change", () => void save());
+    $p("auto-tx")?.addEventListener("change", () => void save());
     $p("apiKey")?.addEventListener("change", () => void save());
     $p("model")?.addEventListener("change", () => void onModelChange());
     $p("hf-repo")?.addEventListener("change", () => void save());
@@ -499,6 +484,7 @@
       apiKey: $p("apiKey")?.value.trim() || "",
       language: $p("language")?.value || "pt",
       customModelInput: $p("hf-repo")?.value.trim() || "",
+      autoTranscribe: Boolean($p("auto-tx")?.checked),
     });
     const s = $p("save-status");
     if (s) {
@@ -592,22 +578,22 @@
       "preferredKind",
       "customModelInput",
       "customModelRepo",
+      "autoTranscribe",
     ]);
     if ($p("provider")) $p("provider").value = stored.provider || "local";
     if ($p("apiKey")) $p("apiKey").value = stored.apiKey || "";
     if ($p("language")) $p("language").value = stored.language || "pt";
+    if ($p("auto-tx")) $p("auto-tx").checked = Boolean(stored.autoTranscribe);
     if ($p("model")) {
       lastPreferred = normalizeKind(
         stored.preferredKind || stored.localModelKind || "turbo",
       );
-      $p("model").value = lastPreferred;
+      $p("model").value = lastPreferred === "light" ? "light" : "turbo";
     }
     if ($p("hf-repo")) {
       $p("hf-repo").value = stored.customModelInput || stored.customModelRepo || "";
     }
     syncFields();
-    const kind = normalizeKind($p("model")?.value);
-    if (kind === "nemotron") paintLocal({ checking: true, kind: "nemotron" });
     await refreshLocal();
   }
 

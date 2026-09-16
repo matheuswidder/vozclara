@@ -218,25 +218,23 @@ async function load() {
       "preferredKind",
       "customModelInput",
       "customModelRepo",
+      "autoTranscribe",
     ]);
     $("provider").value = stored.provider || "local";
     $("apiKey").value = stored.apiKey || "";
     $("language").value = stored.language || "pt";
+    if ($("auto-tx")) $("auto-tx").checked = Boolean(stored.autoTranscribe);
     if ($("model")) {
       lastPreferred = normalizeKind(
         stored.preferredKind || stored.localModelKind || "turbo",
       );
-      $("model").value = lastPreferred;
+      $("model").value = lastPreferred === "light" ? "light" : "turbo";
     }
     if ($("hf-repo")) {
       $("hf-repo").value = stored.customModelInput || stored.customModelRepo || "";
     }
     syncFields();
     paint();
-    const kind = normalizeKind($("model")?.value);
-    if (isLocal() && kind === "nemotron") {
-      renderLocal({ checking: true, kind: "nemotron" });
-    }
     if (isLocal()) void queryLocal();
   } catch (err) {
     paint({ text: friendly(err), kind: "warn" });
@@ -249,6 +247,7 @@ async function save() {
     apiKey: $("apiKey").value.trim(),
     language: $("language").value,
     customModelInput: $("hf-repo")?.value.trim() || "",
+    autoTranscribe: Boolean($("auto-tx")?.checked),
   });
   paint({ text: "Guardado.", kind: "ok" });
 }
@@ -439,6 +438,7 @@ document.addEventListener("DOMContentLoaded", () => {
     else paint();
   });
   $("language").addEventListener("change", () => void save());
+  $("auto-tx")?.addEventListener("change", () => void save());
   $("apiKey").addEventListener("change", () => void save());
   $("model")?.addEventListener("change", () => void onModelChange());
   $("hf-repo")?.addEventListener("change", () => void save());

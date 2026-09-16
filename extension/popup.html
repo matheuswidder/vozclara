@@ -37,37 +37,11 @@
       <label>
         Modelo
         <select id="model">
-          <option value="turbo">Whisper Turbo · 560 MB</option>
-          <option value="tiny">Whisper Tiny · 40 MB</option>
-          <option value="light">Whisper Small · 120 MB</option>
-          <option value="v3">Whisper v3 · 1,5 GB</option>
-          <option value="nemotron">Motor Windows · Nemotron</option>
-          <option value="custom">Outro Whisper</option>
+          <option value="turbo">Turbo · 560 MB</option>
+          <option value="light">Small · 120 MB</option>
         </select>
       </label>
-      <p class="hint" id="model-hint">O Whisper fica neste Chrome. O áudio não sai do computador.</p>
-      <div id="custom-fields" hidden>
-        <label>
-          Link
-          <input id="hf-repo" type="text" spellcheck="false" autocomplete="off" placeholder="huggingface.co/…/whisper-tiny" />
-        </label>
-      </div>
-      <div id="motor-panel" hidden>
-        <div class="split">
-          <div class="pill">
-            <i id="motor-dot" class="dot" aria-hidden="true"></i>
-            <span id="motor-text">Bandeja</span>
-          </div>
-          <div class="pill">
-            <i id="model-dot" class="dot" aria-hidden="true"></i>
-            <span id="model-text">Modelo</span>
-          </div>
-        </div>
-        <div class="meter" id="motor-meter" hidden><span id="motor-bar"></span></div>
-        <p class="hint" id="motor-hint" hidden>
-          O Setup do zip instala uma vez. Depois use Ligar o motor (atalho na área de trabalho). A extensão só verifica se a bandeja responde — não baixa o .exe.
-        </p>
-      </div>
+      <p class="hint" id="model-hint">Turbo é o padrão. O áudio não sai deste Chrome.</p>
       <div class="meter" id="meter" hidden><span id="bar"></span></div>
       <p id="local-path" hidden></p>
       <div id="confirm" class="confirm" hidden>
@@ -93,19 +67,23 @@
       </select>
     </label>
     <p class="status">Português (e inglês/espanhol) descarta chinês, japonês e outros alfabetos que o modelo misturar.</p>
+    <label class="check">
+      <input id="auto-tx" type="checkbox" />
+      Transcrever ao receber
+    </label>
 
     <p id="status" class="status" hidden></p>
     <details class="help">
       <summary>Ajuda</summary>
       <dl>
-        <dt>Extensão e motor</dt>
-        <dd>A extensão é o botão no WhatsApp. O motor é o ícone na bandeja do Windows, ao lado do relógio. Whisper no Chrome não usa motor. Nemotron usa.</dd>
-        <dt>Bandeja Ligado ou Desligado</dt>
-        <dd>Verde: pode transcrever. Cinza: clique em Ligar. “Não instalado”: rode o Setup do zip, uma vez.</dd>
-        <dt>Preciso do Setup de novo?</dt>
-        <dd>Não, se só recarregou a extensão — transcrever segue. Sim, se o painel pedir Atualize, ou se quiser o modelo sair da memória depois do clique (PC com pouca RAM).</dd>
-        <dt>Os dois pontos</dt>
-        <dd>Bandeja = o programa. Modelo = o arquivo no disco. Sobe na memória só no clique e sai no fim.</dd>
+        <dt>Turbo e Small</dt>
+        <dd>Turbo vem ligado. Small só entra se você trocar no seletor.</dd>
+        <dt>Trocar de conversa</dt>
+        <dd>A transcrição não para. Ao voltar, o texto (ou o “Aguarde”) continua no áudio.</dd>
+        <dt>Transcrever ao receber</dt>
+        <dd>Liga a opção. Só áudios novos da conversa aberta, um de cada vez. O Whisper já precisa estar baixado.</dd>
+        <dt>O áudio sai do PC?</dt>
+        <dd>Não. O Whisper roda neste Chrome.</dd>
       </dl>
     </details>
   </body>

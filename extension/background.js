@@ -500,11 +500,7 @@ const MODEL_REPOS = {
 // extension/tests/shared-sync.test.mjs falha se divergir.
 function normalizeKind(kind) {
   const k = String(kind || "").toLowerCase();
-  if (k === "v3" || k === "precise" || k === "large" || k === "large-v3") return "v3";
   if (k === "light" || k === "small") return "light";
-  if (k === "tiny") return "tiny";
-  if (k === "nemotron") return "nemotron";
-  if (k === "custom") return "custom";
   return "turbo";
 }
 

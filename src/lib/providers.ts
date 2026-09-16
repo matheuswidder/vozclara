@@ -59,36 +59,12 @@ export const INPAGE_MODELS = [
     id: "turbo",
     label: "Turbo",
     size: "~560 MB",
-    hint: "Recomendado. Rápido e preciso o bastante para conversas.",
-  },
-  {
-    id: "tiny",
-    label: "Tiny",
-    size: "~40 MB",
-    hint: "O mais leve. Qualidade menor, baixa em poucos segundos.",
+    hint: "Padrão. Rápido e preciso o bastante para conversas.",
   },
   {
     id: "light",
     label: "Small",
     size: "~120 MB",
-    hint: "Meio-termo, se o turbo não couber.",
-  },
-  {
-    id: "v3",
-    label: "v3",
-    size: "~1,5 GB",
-    hint: "Mais preciso. Demora mais para baixar e transcrever.",
-  },
-  {
-    id: "nemotron",
-    label: "Nemotron",
-    size: "Windows",
-    hint: "Programa no Windows, ao lado do relógio. O Setup já veio no zip. Áudio não sai do PC.",
-  },
-  {
-    id: "custom",
-    label: "Outro Whisper",
-    size: "link",
-    hint: "Cole um link de Whisper ONNX do Hugging Face.",
+    hint: "Mais leve. Só entra se você trocar no seletor.",
   },
 ] as const;
