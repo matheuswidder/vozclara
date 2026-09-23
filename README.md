@@ -2,9 +2,9 @@
 
 Extensão para Chromium que transcreve mensagens de voz do WhatsApp Web e mostra o texto na própria conversa. Um clique com o botão direito no áudio → **Transcrever** → o texto aparece no chat.
 
-🌐 Site oficial: **https://vozclara.grok.me/**
+🌐 Site oficial: **https://vozclara-whats.vercel.app/**
 
-> 🤖 **Repositório desenvolvido 100% por IA**, com Grok 4.6, DeepSeek V4.1 Flash, Mimo V2.6 Flash e Muse Spark 1.3 Contributor. Nenhuma linha foi escrita manualmente por humanos — todo o código, da extensão ao site, foi gerado e revisado por modelos de IA.
+> 🤖 **Repositório desenvolvido 100% por IA**, com Grok 4.6, DeepSeek V4.1 Flash, Mimo V2.6 Flash e Muse Spark 1.3 Contributor. Tudo começou no Grok — nenhuma linha foi escrita manualmente por humanos.
 
 ## Como funciona
 
@@ -56,6 +56,10 @@ npm run typecheck    # tsc --noEmit
 npm test             # testes unitários (node:test)
 npm run check:pack   # garante que o zip da extensão está sincronizado com o código
 ```
+
+## Deploy
+
+Produção em https://vozclara-whats.vercel.app/ via integração Git do Vercel: push na `main` publica automaticamente, cada PR ganha uma URL de preview. Nenhuma variável de ambiente é obrigatória (`XAI_API_KEY` é opcional, só para a demo do site transcrever sem chave do visitante).
 
 Convenções: sem bundler na extensão (content scripts clássicos), Chrome 116+, EOL fixado via `.gitattributes`. Edge cases e decisões de produto vivem em `DEV/`.
 
