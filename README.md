@@ -70,7 +70,3 @@ Issues e pull requests são bem-vindos. Para mudanças na extensão, rode `npm r
 ## Privacidade em uma frase
 
 Por padrão, tudo roda na sua máquina e nada é enviado para a rede; a nuvem só entra se você colar sua própria chave — e ela nunca sai do seu navegador.
-
-## Licença
-
-A definir.
