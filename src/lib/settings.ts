@@ -1,4 +1,4 @@
-import { DEFAULT_LOCAL_URL, type LanguageId, type ProviderId } from "./providers";
+import type { LanguageId, ProviderId } from "./providers";
 
 const KEY = "vozclara.settings.v1";
 
@@ -7,7 +7,6 @@ export type VozClaraSettings = {
   apiKey: string;
   language: LanguageId;
   sessionId: string;
-  localUrl: string;
 };
 
 function newSessionId() {
@@ -21,7 +20,6 @@ export const DEFAULT_SETTINGS: VozClaraSettings = {
   apiKey: "",
   language: "pt",
   sessionId: "",
-  localUrl: DEFAULT_LOCAL_URL,
 };
 
 export function loadSettings(): VozClaraSettings {
@@ -39,10 +37,6 @@ export function loadSettings(): VozClaraSettings {
       apiKey: typeof parsed.apiKey === "string" ? parsed.apiKey : "",
       language: parsed.language ?? "pt",
       sessionId: parsed.sessionId || newSessionId(),
-      localUrl:
-        typeof parsed.localUrl === "string" && parsed.localUrl.trim()
-          ? parsed.localUrl.trim()
-          : DEFAULT_LOCAL_URL,
     };
   } catch {
     return { ...DEFAULT_SETTINGS, sessionId: newSessionId() };

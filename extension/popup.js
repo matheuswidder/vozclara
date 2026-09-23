@@ -7,7 +7,6 @@ const parseHfRepo = (r) => globalThis.VCShared.parseHfRepo(r);
 const $ = (id) => document.getElementById(id);
 
 let lastPreferred = "turbo";
-let motorPoll = null;
 
 function metaOf(kind) {
   return globalThis.VCShared.modelMeta(kind);
@@ -18,21 +17,6 @@ function flashEl(el) {
   el.classList.remove("flash");
   void el.offsetWidth;
   el.classList.add("flash");
-}
-
-function watchMotor(state) {
-  const selected = normalizeKind($("model")?.value);
-  const busy =
-    selected === "nemotron" &&
-    (Boolean(state?.checking) ||
-      Boolean(state?.downloading) ||
-      (Boolean(state?.motorAlive) && !state?.motorUp));
-  if (busy && !motorPoll) {
-    motorPoll = setInterval(() => void queryLocal(), 700);
-  } else if (!busy && motorPoll) {
-    clearInterval(motorPoll);
-    motorPoll = null;
-  }
 }
 
 function isLocal() {
@@ -110,44 +94,8 @@ function renderLocal(state) {
   const label = globalThis.VCShared.stateLabel(state);
   const selected = normalizeKind($("model")?.value);
   const action = globalThis.VCShared.primaryAction(state, selected);
-  const motorPanel = $("motor-panel");
-  const isNemo = selected === "nemotron";
-  if (motorPanel) motorPanel.hidden = !isNemo;
-  const motorHint = $("motor-hint");
-  if (motorHint) motorHint.hidden = !isNemo;
 
-  if (isNemo) {
-    const view = globalThis.VCShared.motorView(state);
-    const motorText = $("motor-text");
-    const modelText = $("model-text");
-    const motorDot = $("motor-dot");
-    const modelDot = $("model-dot");
-    const motorMeter = $("motor-meter");
-    const motorBar = $("motor-bar");
-    if (motorText) motorText.textContent = view.motor.text;
-    if (modelText) modelText.textContent = view.model.text;
-    if (motorDot) motorDot.className = `dot ${view.motor.kind || "off"}`;
-    if (modelDot) modelDot.className = `dot ${view.model.kind || "off"}`;
-    if (motorMeter && motorBar) {
-      const show =
-        Boolean(state?.motorAlive) &&
-        !state?.motorUp &&
-        (view.model.percent > 0 || view.model.indeterminate);
-      motorMeter.hidden = !show;
-      motorMeter.classList.toggle("indeterminate", Boolean(view.model.indeterminate));
-      motorBar.style.width = `${Math.max(0, Math.min(100, view.model.percent || 8))}%`;
-    }
-    if (localStatus) {
-      localStatus.textContent = globalThis.VCShared.motorHeadline(state);
-      localStatus.dataset.kind = error
-        ? "warn"
-        : state?.motorUp
-          ? "ok"
-          : "warn";
-    }
-    if (meter) meter.hidden = true;
-    if (pathEl) pathEl.hidden = true;
-  } else if (localStatus) {
+  if (localStatus) {
     localStatus.textContent = error || label;
     localStatus.dataset.kind = error
       ? "warn"
@@ -161,8 +109,7 @@ function renderLocal(state) {
   if (pathEl) pathEl.hidden = true;
 
   if (meter && bar) {
-    const showBar =
-      !isNemo && (downloading || (percent > 0 && percent < 100 && !ready));
+    const showBar = downloading || (percent > 0 && percent < 100 && !ready);
     meter.hidden = !showBar;
     bar.style.width = `${Math.max(0, Math.min(100, percent))}%`;
   }
@@ -172,14 +119,13 @@ function renderLocal(state) {
   download.textContent = action.label;
 
   if (reveal) {
-    reveal.hidden = isNemo || action.id !== "ready";
+    reveal.hidden = action.id !== "ready";
     reveal.disabled = downloading || action.id !== "ready";
   }
 
-  if (action.id === "ready" && !isNemo) {
+  if (action.id === "ready") {
     chrome.storage.local.set({ preferredKind: selected }).catch(() => {});
   }
-  watchMotor(state);
 }
 
 async function queryLocal(opts) {
@@ -281,11 +227,6 @@ async function onModelChange() {
     localStatus.dataset.kind = "warn";
     flashEl(localStatus);
   }
-  if (kind === "nemotron") {
-    renderLocal({ checking: true, kind: "nemotron" });
-    void queryLocal();
-    return;
-  }
   if (kind === "custom") {
     void queryLocal();
     return;
@@ -296,7 +237,7 @@ async function onModelChange() {
       kind,
       repo: $("hf-repo")?.value.trim() || "",
     });
-    if (probe?.cached && kind !== "nemotron") {
+    if (probe?.cached) {
       lastPreferred = kind;
       void startDownload(kind, { switching: true });
       return;
@@ -320,12 +261,6 @@ async function commitModel() {
   const download = $("download");
   const action = download?.dataset.action || "download";
   if (action === "wait" || action === "ready") return;
-  if (action === "wake") {
-    chrome.runtime.sendMessage({ type: "VOZCLARA_MOTOR_WAKE" }).finally(() => {
-      void queryLocal();
-    });
-    return;
-  }
   hideConfirm();
   void startDownload(kind, { switching: action === "switch" });
 }
@@ -368,9 +303,9 @@ async function startDownload(kind, opts = {}) {
   const repo = want === "custom" ? ($("hf-repo")?.value.trim() || "") : "";
   const parsed = parseHfRepo(repo);
   const meta = metaOf(want);
-  if (want === "custom" && /nemotron|parakeet|fastconformer|canary|nemo[-_]?asr/i.test(parsed)) {
+  if (want === "custom" && /parakeet|fastconformer|canary|nemo[-_]?asr/i.test(parsed)) {
     paint({
-      text: "Escolha Nemotron no seletor. O Setup já veio no zip — não baixa de novo.",
+      text: "Neste Chrome só Whisper ONNX. Tente onnx-community/whisper-tiny.",
       kind: "warn",
     });
     return;
@@ -412,10 +347,8 @@ async function startDownload(kind, opts = {}) {
     paint({
       text: opts.switching
         ? `${meta.name} já estava aqui. Aplicando…`
-        : want === "nemotron"
-          ? "Se o motor não responder, rode o Setup do zip e clique de novo em Verificar."
-          : "Deixe a aba aberta até Pronto. Pode fechar este painel.",
-      kind: want === "nemotron" && !opts.switching ? "warn" : "ok",
+        : "Deixe a aba aberta até Pronto. Pode fechar este painel.",
+      kind: "ok",
     });
   } catch (err) {
     renderLocal({
@@ -461,10 +394,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
     changes.localProgress ||
     changes.localModelReady ||
     changes.localModelId ||
-    changes.cachedKinds ||
-    changes.motorAlive ||
-    changes.motorUp ||
-    changes.motorInstalled
+    changes.cachedKinds
   ) {
     void queryLocal();
   }

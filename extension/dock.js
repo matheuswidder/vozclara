@@ -73,9 +73,9 @@
       border-radius: 8px; padding: 9px 12px; cursor: pointer; font-size: 13px;
     }
     .meter { height: 4px; background: var(--line); border-radius: 99px; overflow: hidden; margin: 0 0 10px; }
-    .meter[hidden], #motor-panel[hidden], #custom-fields[hidden], #cloud-fields[hidden],
+    .meter[hidden], #custom-fields[hidden], #cloud-fields[hidden],
     #local-fields[hidden], #confirm[hidden],
-    #motor-hint[hidden], #model-hint[hidden], [hidden] { display: none !important; }
+    #model-hint[hidden], [hidden] { display: none !important; }
     .hint {
       margin: 0 0 10px; padding: 8px 10px; border-radius: 8px;
       background: color-mix(in srgb, #00a884 10%, var(--field));
@@ -142,7 +142,6 @@
   let shadow = null;
   let raf = 0;
   let lastPreferred = "turbo";
-  let motorPoll = null;
 
   function metaOf(kind) {
     return globalThis.VCShared.modelMeta(kind);
@@ -249,11 +248,9 @@
         "localModelReady",
         "localProgress",
         "provider",
-        "motorAlive",
-        "motorUp",
       ]);
       const downloading = Boolean(stored.localProgress?.downloading);
-      const ready = Boolean(stored.localModelReady) || Boolean(stored.motorUp) || Boolean(stored.motorAlive);
+      const ready = Boolean(stored.localModelReady);
       const cloud = stored.provider && stored.provider !== "local";
       dot.style.background = downloading ? "#f6c344" : ready || cloud ? "#00a884" : "#8696a0";
     } catch {
@@ -498,10 +495,6 @@
     const download = $p("download");
     const action = download?.dataset.action || "download";
     if (action === "wait" || action === "ready") return;
-    if (action === "wake") {
-      void wakeMotor();
-      return;
-    }
     hideConfirm();
     void startDownload($p("model")?.value || "turbo", { switching: action === "switch" });
   }
@@ -543,11 +536,6 @@
       status.className = "status warn flash";
       flashEl(status);
     }
-    if (kind === "nemotron") {
-      paintLocal({ checking: true, kind: "nemotron" });
-      void refreshLocal();
-      return;
-    }
     if (kind === "custom") {
       void refreshLocal();
       return;
@@ -558,7 +546,7 @@
         kind,
         repo: $p("hf-repo")?.value.trim() || "",
       });
-      if (probe?.cached && kind !== "nemotron") {
+      if (probe?.cached) {
         lastPreferred = kind;
         void startDownload(kind, { switching: true });
         return;
@@ -610,21 +598,6 @@
     });
   }
 
-  function watchMotor(state) {
-    const selected = normalizeKind($p("model")?.value);
-    const busy =
-      selected === "nemotron" &&
-      (Boolean(state?.checking) ||
-        Boolean(state?.downloading) ||
-        (Boolean(state?.motorAlive) && !state?.motorUp));
-    if (busy && !motorPoll) {
-      motorPoll = setInterval(() => void refreshLocal(), 700);
-    } else if (!busy && motorPoll) {
-      clearInterval(motorPoll);
-      motorPoll = null;
-    }
-  }
-
   function paintLocal(state) {
     const status = $p("local-status");
     const meter = $p("meter");
@@ -638,44 +611,12 @@
     const label = globalThis.VCShared.stateLabel(state);
     const selected = normalizeKind($p("model")?.value);
     const action = globalThis.VCShared.primaryAction(state, selected);
-    const isNemo = selected === "nemotron";
-    const motorPanel = $p("motor-panel");
-    if (motorPanel) motorPanel.hidden = !isNemo;
-    const motorHint = $p("motor-hint");
-    if (motorHint) motorHint.hidden = !isNemo;
-    if (isNemo) {
-      const view = globalThis.VCShared.motorView(state);
-      const motorText = $p("motor-text");
-      const modelText = $p("model-text");
-      const motorDot = $p("motor-dot");
-      const modelDot = $p("model-dot");
-      const motorMeter = $p("motor-meter");
-      const motorBar = $p("motor-bar");
-      if (motorText) motorText.textContent = view.motor.text;
-      if (modelText) modelText.textContent = view.model.text;
-      if (motorDot) motorDot.className = `dot ${view.motor.kind || "off"}`;
-      if (modelDot) modelDot.className = `dot ${view.model.kind || "off"}`;
-      if (motorMeter && motorBar) {
-        const show =
-          Boolean(state?.motorAlive) &&
-          !state?.motorUp &&
-          (view.model.percent > 0 || view.model.indeterminate);
-        motorMeter.hidden = !show;
-        motorMeter.classList.toggle("indeterminate", Boolean(view.model.indeterminate));
-        motorBar.style.width = `${Math.max(0, Math.min(100, view.model.percent || 8))}%`;
-      }
-      if (status) {
-        status.textContent = globalThis.VCShared.motorHeadline(state);
-        status.className = error ? "warn" : state?.motorUp ? "ok" : "warn";
-        status.dataset.kind = error ? "warn" : state?.motorUp ? "ok" : "warn";
-      }
-      if (meter) meter.hidden = true;
-    } else if (status) {
+    if (status) {
       status.textContent = error || label;
       status.className =
         error ? "warn" : action.id === "ready" ? "ok" : downloading ? "warn" : "";
     }
-    if (meter && bar && !isNemo) {
+    if (meter && bar) {
       const show = downloading || (percent > 0 && percent < 100 && !ready);
       meter.hidden = !show;
       bar.style.width = `${Math.max(0, Math.min(100, percent))}%`;
@@ -686,13 +627,12 @@
       download.textContent = action.label;
     }
     if (reveal) {
-      reveal.hidden = isNemo || action.id !== "ready";
+      reveal.hidden = action.id !== "ready";
       reveal.disabled = downloading || action.id !== "ready";
     }
-    if (action.id === "ready" && !isNemo) {
+    if (action.id === "ready") {
       chrome.storage.local.set({ preferredKind: selected }).catch(() => {});
     }
-    watchMotor(state);
     paintDot(document.getElementById(BTN_ID));
   }
 
@@ -715,35 +655,16 @@
     void showQualityFallback();
   }
 
-  async function wakeMotor() {
-    const s = $p("save-status");
-    if (s) {
-      s.textContent = "Ligando o motor na bandeja, ao lado do relógio…";
-      s.className = "status warn";
-    }
-    try {
-      window.open("vozclara://run", "_blank", "noopener");
-    } catch {
-      /* ignore */
-    }
-    try {
-      await chrome.runtime.sendMessage({ type: "VOZCLARA_MOTOR_WAKE" });
-    } catch {
-      /* ignore */
-    }
-    await refreshLocal();
-  }
-
   async function startDownload(kind, opts = {}) {
     const want = normalizeKind(kind);
     const repo = want === "custom" ? ($p("hf-repo")?.value.trim() || "") : "";
     const parsed = parseHfRepo(repo);
     const meta = metaOf(want);
-    if (want === "custom" && /nemotron|parakeet|fastconformer|canary|nemo[-_]?asr/i.test(parsed)) {
+    if (want === "custom" && /parakeet|fastconformer|canary|nemo[-_]?asr/i.test(parsed)) {
       const s = $p("save-status");
       if (s) {
         s.textContent =
-          "Escolha Nemotron no seletor. O Setup já veio no zip — não baixa de novo.";
+          "Neste Chrome só Whisper ONNX. Tente onnx-community/whisper-tiny.";
         s.className = "status warn";
       }
       return;
@@ -776,10 +697,8 @@
       if (s) {
         s.textContent = opts.switching
           ? `${meta.name} já estava aqui. Aplicando…`
-          : want === "nemotron"
-            ? "Se o motor não responder, rode o Setup do zip e clique de novo em Verificar."
-            : "Deixe a aba aberta até Pronto. Pode fechar este painel.";
-        s.className = want === "nemotron" && !opts.switching ? "status warn" : "status ok";
+          : "Deixe a aba aberta até Pronto. Pode fechar este painel.";
+        s.className = "status ok";
         flashEl(s);
       }
     } catch (err) {
@@ -888,10 +807,7 @@
       changes.localProgress ||
       changes.localModelReady ||
       changes.localModelId ||
-      changes.cachedKinds ||
-      changes.motorAlive ||
-      changes.motorUp ||
-      changes.motorInstalled
+      changes.cachedKinds
     ) {
       if ($p("layer")?.classList.contains("open")) void refreshLocal();
       paintDot(document.getElementById(BTN_ID));
@@ -900,9 +816,6 @@
 
   function boot() {
     ensureButton();
-    window.setInterval(() => {
-      if (normalizeKind($p("model")?.value) === "nemotron") void refreshLocal();
-    }, 8000);
     const obs = new MutationObserver(() => {
       if (raf) return;
       raf = requestAnimationFrame(() => {

@@ -8,12 +8,11 @@ Extensão para Chromium que transcreve mensagens de voz do WhatsApp Web e mostra
 
 ## Como funciona
 
-A transcrição acontece em **três modos**, nesta ordem de privacidade:
+A transcrição acontece em **dois modos**:
 
 | Modo | Onde o áudio é processado | Sai da sua máquina? |
 |---|---|---|
 | **Whisper neste Chrome** (padrão) | Modelo Whisper (Turbo ~560 MB ou Small ~120 MB) rodando dentro do navegador via Transformers.js + ONNX Runtime (WebGPU/WASM) | **Não.** 100% local, zero rede |
-| **Motor local** (Windows) | Servidor Python em `127.0.0.1:8173` com Whisper local, pareado por token | **Não.** 100% local, zero rede |
 | **Nuvem** (opt-in) | OpenAI, Google Gemini, Groq ou xAI, com **sua própria chave** guardada só no seu navegador | Sim, somente se você optar e colar sua chave |
 
 Nos modos locais, **nenhum byte de áudio sai do seu computador**: sem telemetria, sem conta, sem servidor intermediário. As chaves de nuvem ficam em `chrome.storage` local e nunca passam por este repositório.
@@ -27,23 +26,16 @@ Nos modos locais, **nenhum byte de áudio sai do seu computador**: sem telemetri
 3. Clique no ícone da VozClara → **Baixar Whisper** (baixa o modelo uma vez, ~560 MB).
 4. Abra `web.whatsapp.com`, clique com o botão direito num áudio → **Transcrever**.
 
-Detalhes e solução de problemas em [`extension/LEIA-ME.txt`](extension/LEIA-ME.txt).
-
-**Motor local (Windows, opcional/legado):** rode `vozclara-local/VozClara-Motor-Setup.exe` uma vez — instala o servidor Python com ícone na bandeja. Veja [`vozclara-local/LEIA-ME.txt`](vozclara-local/LEIA-ME.txt).
-
 ## Estrutura do repositório
 
 ```text
 extension/            Extensão Chrome MV3 (content scripts, offscreen Whisper, popup)
   vendor/             Transformers.js + ONNX Runtime empacotados (sem bundler)
-vozclara-local/       Motor Python local + instalador Windows (.bat/.command)
-tools/vozclara-setup/ Setup do motor em Go (bandeja) — gera o .exe
 src/                  Site (TanStack Start + React 19 + Tailwind): demo, instalar, chaves
   lib/transcribe.ts   Relé server-side p/ demonstração com chave da plataforma (com limite)
   lib/demo-chat.ts    Conversas fictícias da demonstração (nenhum dado real)
-public/               Zips distribuíveis (vozclara.zip, VozClara-Motor.zip) + demos
+public/               Zip distribuível (vozclara.zip) + demos
 scripts/              Build, smoke test de navegador, empacotamento, migrações
-screenshots/          Capturas do produto (todas com dados fictícios)
 migrations/           Migrações SQL (auth opt-in, desligado por padrão)
 ```
 

@@ -251,11 +251,9 @@ button.ghost {
 #local-fields[hidden],
 #cloud-fields[hidden],
 #custom-fields[hidden],
-#motor-panel[hidden],
 #reveal[hidden],
 #local-path[hidden],
 #confirm[hidden],
-#motor-hint[hidden],
 #model-hint[hidden],
 .meter[hidden] {
   display: none;

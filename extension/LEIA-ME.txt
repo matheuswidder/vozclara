@@ -1,9 +1,12 @@
 VozClara — como instalar
 ========================
 
+O Whisper roda dentro deste Chrome/Brave, sem servidor e sem
+programa extra. O áudio não sai deste navegador.
+
 O Chrome NÃO deixa gravar o Whisper na pasta da extensão.
 O modelo mora no armazenamento privado deste Brave/Chrome.
-O botão Abrir no Explorer copia para Downloads/VozClara e
+O botão Pasta copia para Downloads/VozClara e
 abre a pasta. Toda vez que a extensão abre (e antes de
 transcrever), ela confere se os arquivos ainda estão lá.
 
@@ -18,18 +21,18 @@ transcrever), ela confere se os arquivos ainda estão lá.
    - Carregar sem compactação
    - escolha ESTA pasta (a que contém o manifest.json)
 
-4. Abra o ícone da VozClara → Baixar Whisper.
+4. Abra o ícone da VozClara → Baixar Turbo (~560 MB).
    Abre uma aba com a barra de progresso — o ícone pode
    fechar, o download continua. Deixe a aba aberta até Pronto.
-   Na primeira vez baixa o large-v3-turbo (~560 MB).
 
    No Brave: se o download parar em 0%, libere huggingface.co
    nos Escudos para esta extensão.
 
-   Se o PC for apertado: Versão leve (~120 MB).
+   Se o PC for apertado: troque no seletor para Small (~120 MB)
+   e baixe de novo.
 
-5. Pronto · large-v3-turbo = modelo neste Brave.
-   Abrir no Explorer = cópia em Downloads/VozClara.
+5. Pronto · Turbo = modelo neste navegador.
+   Pasta = cópia em Downloads/VozClara.
 
 6. Abra web.whatsapp.com e clique em Transcrever no áudio.
    Antes de processar, a extensão confere o modelo. Se sumiu,
@@ -38,8 +41,3 @@ transcrever), ela confere se os arquivos ainda estão lá.
 Erro "manifesto faltando"
 -------------------------
 Você escolheu a pasta de cima. Entre até ver o manifest.json.
-
-Pasta vozclara-local (legado)
-----------------------------
-O seletor atual só usa Turbo/Small neste Chrome. O motor Python
-ficou para trás: ignore esta pasta.

@@ -17,9 +17,6 @@
     "localProgress",
     "cachedKinds",
     "preferredKind",
-    "motorAlive",
-    "motorUp",
-    "motorInstalled",
   ];
 
   function normalizeKind(kind) {
@@ -39,15 +36,6 @@
     const parts = s.split("/").filter(Boolean);
     if (parts.length < 2) return "";
     return `${parts[0]}/${parts[1]}`;
-  }
-
-  function explainMotorError(raw) {
-    const s = String(raw || "").replace(/\s+/g, " ").trim();
-    if (!s) return "";
-    if (/bad token/i.test(s)) {
-      return "A extensão perdeu o pareamento com o motor. Clique em Tentar de novo.";
-    }
-    return s;
   }
 
   function modelMeta(kind) {
@@ -73,13 +61,9 @@
     return "";
   }
 
-  const MOTOR_SETUP_HINT =
-    "Na primeira vez, rode engine/VozClara-Motor-Setup.exe do zip. Depois use Ligar o motor — o Setup só abre o que já está no PC, sem instalar de novo.";
-
   function downloadLabel(kind, repo) {
     const want = normalizeKind(kind);
     const meta = modelMeta(want);
-    if (want === "nemotron") return "Procurando o motor neste PC…";
     if (want === "custom") return `Baixando ${parseHfRepo(repo) || "modelo"}…`;
     return `Baixando ${meta.name} (${meta.size})…`;
   }
@@ -91,39 +75,13 @@
     return "Turbo é o padrão. O áudio não sai deste Chrome.";
   }
 
-  function motorHeadline(state) {
-    const view = motorView(state);
-    const error = String(state?.error || "").trim();
-    const label = String(state?.label || "").trim();
-    if (error) return error;
-    if (state?.checking) return "Procurando o motor neste PC…";
-    if (state?.motorUp) return "Motor ligado · pronto para transcrever";
-    if (state?.motorAlive) return view.model.text || "Motor ligado · modelo ainda subindo";
-    if (label && !/ainda não baixou|um clique/i.test(label)) return label;
-    if (Boolean(state?.downloading) || state?.checking) return "Procurando o motor neste PC…";
-    if (state?.motorInstalled) return "Motor instalado, mas desligado — clique em Ligar o motor.";
-    return MOTOR_SETUP_HINT;
-  }
-
   function primaryAction(state, selected) {
     const want = normalizeKind(selected);
     const ready = Boolean(state?.ready);
     const downloading = Boolean(state?.downloading);
     const kind = normalizeKind(state?.kind);
     const cached = Array.isArray(state?.cachedKinds) && state.cachedKinds.includes(want);
-    const motorUp = Boolean(state?.motorUp);
-    const motorAlive = Boolean(state?.motorAlive);
-    const motorInstalled = Boolean(state?.motorInstalled) || motorUp || motorAlive;
     const meta = modelMeta(want);
-    if (want === "nemotron") {
-      if (motorUp) return { id: "ready", label: "Motor ligado", disabled: true };
-      if (motorAlive) return { id: "ready", label: "Motor ligado", disabled: true };
-      if (downloading || state?.checking) {
-        return { id: "wait", label: "Procurando o motor…", disabled: true };
-      }
-      if (motorInstalled) return { id: "wake", label: "Ligar o motor", disabled: false };
-      return { id: "install", label: "Verificar o motor", disabled: false };
-    }
     if (downloading) {
       return { id: "wait", label: "Baixando…", disabled: true };
     }
@@ -138,65 +96,6 @@
       label: meta.size ? `Baixar ${meta.name} (${meta.size})` : `Baixar ${meta.name}`,
       disabled: false,
     };
-  }
-
-  function motorView(state) {
-    const alive = Boolean(state?.motorAlive);
-    const up = Boolean(state?.motorUp);
-    const installed = Boolean(state?.motorInstalled) || alive || up;
-    const checking = Boolean(state?.checking) || (Boolean(state?.downloading) && !alive && !up);
-    const phase = String(state?.phase || "");
-    const percent = Number(state?.percent) || 0;
-    const detail = String(state?.detail || "").trim();
-    const error = String(state?.error || "").trim();
-    let motor = { kind: "off", text: "Não instalado" };
-    if (up || alive) motor = { kind: "ok", text: "Ligado" };
-    else if (checking) motor = { kind: "warn", text: "Verificando" };
-    else if (installed) motor = { kind: "warn", text: "Desligado" };
-    let model = {
-      kind: "",
-      text: "Aguardando o motor",
-      percent: 0,
-      indeterminate: false,
-    };
-    if (checking && !alive && !up) {
-      model = {
-        kind: "warn",
-        text: "Procurando no PC",
-        percent: percent || 8,
-        indeterminate: true,
-      };
-    }
-    if (up) {
-      model = { kind: "ok", text: "Pronto", percent: 100, indeterminate: false };
-    } else if (error && alive) {
-      model = { kind: "warn", text: error, percent: 0, indeterminate: false };
-    } else if (
-      alive &&
-      (phase === "download" || (percent > 0 && percent < 100 && phase !== "load" && phase !== "deps"))
-    ) {
-      model = {
-        kind: "warn",
-        text: detail || `Baixando o modelo… ${percent}%`,
-        percent,
-        indeterminate: percent < 2,
-      };
-    } else if (alive && phase === "deps") {
-      model = {
-        kind: "warn",
-        text: detail || "Instalando bibliotecas no PC…",
-        percent: percent || 8,
-        indeterminate: true,
-      };
-    } else if (alive) {
-      model = {
-        kind: "warn",
-        text: detail || "Carregando o modelo na memória…",
-        percent,
-        indeterminate: percent < 3,
-      };
-    }
-    return { motor, model };
   }
 
   function collapseRepeats(text) {
@@ -313,23 +212,18 @@
   function fallbackLocalState(stored) {
     const src = stored && typeof stored === "object" ? stored : {};
     const progress = src.localProgress && typeof src.localProgress === "object" ? src.localProgress : {};
-    const alive = Boolean(src.motorAlive);
-    const up = Boolean(src.motorUp);
     return {
       ok: true,
       checked: false,
-      ready: Boolean(src.localModelReady) || up,
+      ready: Boolean(src.localModelReady),
       downloading: Boolean(progress.downloading),
-      percent: Number(progress.percent) || (src.localModelReady || up ? 100 : 0),
+      percent: Number(progress.percent) || (src.localModelReady ? 100 : 0),
       label: progress.label,
       error: progress.error,
       model: src.localModelId,
       kind: src.preferredKind || src.localModelKind,
       device: src.localModelDevice,
       cachedKinds: Array.isArray(src.cachedKinds) ? src.cachedKinds : [],
-      motorAlive: alive,
-      motorUp: up,
-      motorInstalled: Boolean(src.motorInstalled) || alive || up,
     };
   }
 
@@ -345,16 +239,12 @@
     normalizeKind,
     parseHfRepo,
     modelMeta,
-    explainMotorError,
     stateLabel,
     stateKind,
-    MOTOR_SETUP_HINT,
     FALLBACK_KEYS,
     downloadLabel,
     modelHint,
-    motorHeadline,
     primaryAction,
-    motorView,
     verifyRequest,
     fallbackLocalState,
     collapseRepeats,

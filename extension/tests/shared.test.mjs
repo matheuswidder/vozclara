@@ -19,6 +19,13 @@ test("VCShared é exposto como objeto", () => {
   assert.equal(typeof VC.parseHfRepo, "function");
 });
 
+test("VCShared não expõe mais o legado Python", () => {
+  assert.equal(VC.explainMotorError, undefined);
+  assert.equal(VC.motorHeadline, undefined);
+  assert.equal(VC.motorView, undefined);
+  assert.equal(VC.MOTOR_SETUP_HINT, undefined);
+});
+
 
 test("normalizeKind trava migração Turbo/Small", () => {
   assert.equal(VC.normalizeKind("v3"), "turbo");
@@ -68,6 +75,13 @@ test("stateLabel cobre ready/downloading/error/label", () => {
   assert.equal(VC.stateLabel({}), "");
 });
 
+test("stateKind cobre error/ready/downloading", () => {
+  assert.equal(VC.stateKind({ error: "boom" }), "warn");
+  assert.equal(VC.stateKind({ ready: true }), "ok");
+  assert.equal(VC.stateKind({ downloading: true }), "warn");
+  assert.equal(VC.stateKind({}), "");
+});
+
 test("modelMeta e troca rápida", () => {
   assert.equal(VC.modelMeta("tiny").name, "Turbo");
   assert.equal(VC.modelMeta("turbo").size, "~560 MB");
@@ -94,11 +108,9 @@ test("primaryAction: um botão, ação óbvia", () => {
 });
 
 test("kinds antigos viram turbo", () => {
-  const loading = VC.primaryAction(
-    { downloading: true, motorAlive: true, motorUp: false, phase: "download", percent: 32 },
-    "nemotron",
-  );
+  const loading = VC.primaryAction({ downloading: true }, "nemotron");
   assert.equal(loading.id, "wait");
+  assert.deepEqual(VC.primaryAction({}, "nemotron"), VC.primaryAction({}, "turbo"));
   assert.deepEqual(VC.verifyRequest("Nemotron"), {
     type: "VOZCLARA_MODEL_VERIFY",
     kind: "turbo",
@@ -118,17 +130,29 @@ test("collapseRepeats corta loop do tiny", () => {
   assert.equal(VC.collapseRepeats("oi tudo bem"), "oi tudo bem");
 });
 
-test("fallbackLocalState preserva flags do motor", () => {
+test("fallbackLocalState ignora chaves desconhecidas", () => {
   const state = VC.fallbackLocalState({
     motorAlive: true,
     motorUp: true,
     motorInstalled: true,
-    localProgress: { downloading: true, percent: 8, label: "stale" },
+    localModelReady: true,
+    localProgress: { downloading: false, percent: 100, label: "stale" },
   });
-  assert.equal(state.motorAlive, true);
-  assert.equal(state.motorUp, true);
-  assert.equal(state.downloading, true);
+  assert.equal(state.ready, true);
+  assert.equal(state.motorAlive, undefined);
+  assert.equal(state.motorUp, undefined);
+  assert.equal(state.motorInstalled, undefined);
+  assert.equal(state.downloading, false);
   assert.equal(state.gemma, undefined);
+});
+
+test("fallbackLocalState cobre progresso", () => {
+  const state = VC.fallbackLocalState({
+    localProgress: { downloading: true, percent: 8, label: "Baixando…" },
+  });
+  assert.equal(state.downloading, true);
+  assert.equal(state.percent, 8);
+  assert.equal(state.ready, false);
 });
 
 test("filterTranscriptByLang tira alfabeto estranho no português", () => {
@@ -157,16 +181,8 @@ test("shouldAttachVoiceCard ignora GIF, figurinha e foto", () => {
   assert.equal(VC.shouldAttachVoiceCard({ slimWaveform: true }), true);
 });
 
-test("motorView não mente 'Não instalado' enquanto verifica", () => {
-  const checking = VC.motorView({ checking: true });
-  assert.equal(checking.motor.text, "Verificando");
-  assert.equal(checking.model.text, "Procurando no PC");
-  const leftover = VC.motorView({ downloading: true });
-  assert.equal(leftover.motor.text, "Verificando");
-  assert.equal(leftover.model.text, "Procurando no PC");
-  const off = VC.motorView({ motorInstalled: true });
-  assert.equal(off.motor.text, "Desligado");
-  assert.match(VC.motorHeadline({ motorUp: true }), /pronto para transcrever/);
-  assert.match(VC.modelHint("nemotron"), /Turbo/);
+test("modelHint fala do Whisper neste Chrome", () => {
+  assert.match(VC.modelHint("light"), /Small/);
   assert.match(VC.modelHint("turbo"), /Chrome/);
+  assert.match(VC.modelHint("nemotron"), /Turbo/);
 });

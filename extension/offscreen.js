@@ -44,8 +44,8 @@ function parseHfRepo(raw) {
 
 function asrBlockReason(repo) {
   const id = String(repo || "");
-  if (/nemotron|parakeet|fastconformer|canary|nemo[-_]?asr/i.test(id)) {
-    return "O Nemotron da NVIDIA não roda neste Chrome. Ele é FastConformer + RNNT (NeMo), não Whisper. Use tiny, turbo ou um Whisper ONNX (onnx-community/whisper-tiny).";
+  if (/parakeet|fastconformer|canary|nemo[-_]?asr/i.test(id)) {
+    return "Esse modelo não roda neste Chrome (não é Whisper ONNX). Use um Whisper ONNX (onnx-community/whisper-tiny).";
   }
   return "";
 }
@@ -147,7 +147,7 @@ async function loadHf() {
     downloading: true,
     ready: false,
     percent: 1,
-    label: "Ligando o motor…",
+    label: "Ligando o Whisper…",
   });
   const mod = await import("./vendor/transformers.js");
   mod.env.allowLocalModels = false;
@@ -206,11 +206,6 @@ function attempts(webgpu) {
 
 async function loadKind(kind, repoOverride) {
   const want = normalizeKind(kind);
-  if (want === "nemotron") {
-    throw new Error(
-      "O Nemotron da NVIDIA não cabe neste Chrome. Rode vozclara-local/start-nemotron (bat ou command) e transcreva de novo.",
-    );
-  }
   let spec = MODELS[want];
   let repos = spec ? [spec.repo] : [];
   if (want === "custom" || repoOverride) {
@@ -224,7 +219,7 @@ async function loadKind(kind, repoOverride) {
     if (blocked) throw new Error(blocked);
     if (!/whisper/i.test(parsed)) {
       throw new Error(
-        "Neste Chrome só Whisper ONNX. O Nemotron e outros modelos NeMo precisam de Python/GPU, não da extensão.",
+        "Neste Chrome só Whisper ONNX. Tente onnx-community/whisper-tiny.",
       );
     }
     spec = { repo: parsed, label: parsed.split("/")[1] || parsed, sizeLabel: "" };

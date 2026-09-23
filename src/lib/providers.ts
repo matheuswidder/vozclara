@@ -52,8 +52,6 @@ export const LANGUAGES = [
 
 export type LanguageId = (typeof LANGUAGES)[number]["id"];
 
-export const DEFAULT_LOCAL_URL = "http://127.0.0.1:8173";
-
 export const INPAGE_MODELS = [
   {
     id: "turbo",

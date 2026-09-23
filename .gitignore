@@ -7,3 +7,12 @@ extension/engine/
 .vercel/
 __pycache__/
 *.pyc
+# Internos: ficam no disco, fora do repo público
+DEV/
+.omc/
+artifacts/
+attachments/
+screenshots/
+linkedin/
+.grok/preview.log
+.grok/preview.pid

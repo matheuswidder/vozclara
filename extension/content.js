@@ -666,21 +666,6 @@
       e.stopPropagation();
       e.stopImmediatePropagation();
       btn.blur();
-      if (btn.dataset.wake === "1") {
-        try {
-          window.open("vozclara://run", "_blank", "noopener");
-        } catch {
-          /* ignore */
-        }
-        chrome.runtime.sendMessage({ type: "VOZCLARA_MOTOR_WAKE" }).catch(() => {});
-        setPanel(
-          root,
-          `<div class="box"><div class="label"><span>VozClara</span></div>
-           <p class="busy">${barsHtml()} Ligando o motor na bandeja…</p>
-           <button class="tx" type="button">Transcrever</button></div>`,
-        );
-        return;
-      }
       void transcribeRoot(root);
     });
   }
@@ -1378,13 +1363,7 @@
           root,
           `<div class="box">
              <div class="label"><span>VozClara</span></div>
-             <p class="err">${escapeHtml(
-               (globalThis.VCShared && globalThis.VCShared.explainMotorError
-                 ? globalThis.VCShared.explainMotorError(result?.error)
-                 : "") ||
-                 result?.error ||
-                 "Falha ao transcrever.",
-             )}</p>
+             <p class="err">${escapeHtml(result?.error || "Falha ao transcrever.")}</p>
              <button class="tx" type="button" style="margin-top:8px">Tentar de novo</button>
            </div>`,
         );
@@ -1412,13 +1391,12 @@
     } catch (err) {
       if (cancelledHere || cancelled.get(requestId)?.cancel) return "";
       const raw = err instanceof Error ? err.message : "Falha ao transcrever.";
-      const motor = /motor|bandeja|relógio|Nemotron não está ligado/i.test(raw);
       setPanel(
         root,
         `<div class="box">
            <div class="label"><span>VozClara</span></div>
            <p class="err">${escapeHtml(raw)}</p>
-           <button class="tx" type="button" style="margin-top:8px" ${motor ? 'data-wake="1"' : ""}>${motor ? "Ligar motor" : "Tentar de novo"}</button>
+           <button class="tx" type="button" style="margin-top:8px">Tentar de novo</button>
          </div>`,
       );
       return "";
