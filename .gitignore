@@ -16,3 +16,4 @@ screenshots/
 linkedin/
 .grok/preview.log
 .grok/preview.pid
+.grok/status

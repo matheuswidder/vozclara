@@ -4,20 +4,10 @@ const MODELS = {
     label: "large-v3-turbo",
     sizeLabel: "~560 MB",
   },
-  v3: {
+  large: {
     repo: "onnx-community/whisper-large-v3",
     label: "large-v3",
     sizeLabel: "~1,5 GB",
-  },
-  light: {
-    repo: "onnx-community/whisper-small",
-    label: "whisper-small",
-    sizeLabel: "~120 MB",
-  },
-  tiny: {
-    repo: "onnx-community/whisper-tiny",
-    label: "whisper-tiny",
-    sizeLabel: "~40 MB",
   },
 };
 
@@ -25,7 +15,7 @@ const MODELS = {
 // falha se divergir.
 function normalizeKind(kind) {
   const k = String(kind || "").toLowerCase();
-  if (k === "light" || k === "small") return "light";
+  if (k === "large" || k === "v3" || k === "large-v3") return "large";
   return "turbo";
 }
 
@@ -45,7 +35,7 @@ function parseHfRepo(raw) {
 function asrBlockReason(repo) {
   const id = String(repo || "");
   if (/parakeet|fastconformer|canary|nemo[-_]?asr/i.test(id)) {
-    return "Esse modelo não roda neste Chrome (não é Whisper ONNX). Use um Whisper ONNX (onnx-community/whisper-tiny).";
+    return "Esse modelo não roda neste Chrome (não é Whisper ONNX). Use um Whisper ONNX (onnx-community/whisper-large-v3-turbo).";
   }
   return "";
 }
@@ -212,14 +202,14 @@ async function loadKind(kind, repoOverride) {
     const parsed = parseHfRepo(repoOverride || spec?.repo || "");
     if (!parsed) {
       throw new Error(
-        "Cole um link do Hugging Face, tipo https://huggingface.co/openai/whisper-tiny",
+        "Cole um link do Hugging Face, tipo https://huggingface.co/onnx-community/whisper-large-v3-turbo",
       );
     }
     const blocked = asrBlockReason(parsed);
     if (blocked) throw new Error(blocked);
     if (!/whisper/i.test(parsed)) {
       throw new Error(
-        "Neste Chrome só Whisper ONNX. Tente onnx-community/whisper-tiny.",
+        "Neste Chrome só Whisper ONNX. Tente onnx-community/whisper-large-v3-turbo.",
       );
     }
     spec = { repo: parsed, label: parsed.split("/")[1] || parsed, sizeLabel: "" };
@@ -266,7 +256,7 @@ async function loadKind(kind, repoOverride) {
   throw new Error(
     lastErr.message?.includes("Whisper")
       ? lastErr.message
-      : "Esse repositório não tem Whisper ONNX para o Chrome. Tente onnx-community/whisper-tiny.",
+      : "Esse repositório não tem Whisper ONNX para o Chrome. Tente onnx-community/whisper-large-v3-turbo.",
   );
 }
 
@@ -300,20 +290,20 @@ async function ensureModel(kind, repo) {
       try {
         return await loadKind(want, parsed);
       } catch (err) {
-        if (want === "turbo") {
-          // Parte 7.2: fallback turbo→leve avisado durante E depois do download.
+        if (want === "large") {
+          // O Large não coube nesta máquina: cai para o Large Turbo, que é menor.
           emit({
             downloading: true,
             ready: false,
             percent: 1,
-            label: "O modelo grande não coube. Baixando a versão leve…",
+            label: "O modelo grande não coube. Baixando o Large Turbo…",
             error: "",
           });
-          const light = await loadKind("light");
+          const turbo = await loadKind("turbo");
           try {
             await chrome.storage.local.set({
               lastQualityFallback: {
-                label: "O modelo grande não coube. Está em uso a versão leve (whisper-small).",
+                label: "O modelo grande não coube. Está em uso o Large Turbo.",
                 at: Date.now(),
               },
             });
@@ -325,12 +315,12 @@ async function ensureModel(kind, repo) {
             ready: true,
             percent: 100,
             warning: true,
-            label: `Pronto (versão leve) · ${light.label}`,
-            model: light.label,
-            device: light.device,
-            kind: light.kind,
+            label: `Pronto (Large Turbo) · ${turbo.label}`,
+            model: turbo.label,
+            device: turbo.device,
+            kind: turbo.kind,
           });
-          return light;
+          return turbo;
         }
         throw err;
       }
@@ -729,17 +719,16 @@ async function transcribe({ audioBase64, audioBuffer, mimeType, language, kind, 
   // Parte 1.2: fase ③ com duração real — nunca % fantasma de inferência.
   reemit({ phase: "transcribe", label: "Transcrevendo…", detail: `áudio de ${mm}:${ss}` });
   const lang = !language || language === "auto" ? null : language;
-  const tiny = want === "tiny";
   const result = await model.pipe(audio, {
     language: lang || undefined,
     task: "transcribe",
-    chunk_length_s: tiny ? 20 : 30,
-    stride_length_s: tiny ? 4 : 5,
+    chunk_length_s: 30,
+    stride_length_s: 5,
     condition_on_previous_text: false,
     compression_ratio_threshold: 2.4,
     logprob_threshold: -1.0,
-    no_repeat_ngram_size: tiny ? 3 : 0,
-    repetition_penalty: tiny ? 1.15 : 1.0,
+    no_repeat_ngram_size: 0,
+    repetition_penalty: 1.0,
   });
   const text = (result?.text || "").trim();
   if (!text) throw new Error("O Whisper local devolveu uma transcrição vazia.");

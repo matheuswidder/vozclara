@@ -1,68 +1,16 @@
-export const PROVIDERS = [
-  {
-    id: "local",
-    label: "Whisper neste Chrome",
-    hint: "Um clique. O modelo fica no navegador",
-    keyPlaceholder: "",
-    docs: "#local",
-    needsKey: false,
-  },
-  {
-    id: "openai",
-    label: "OpenAI",
-    hint: "Whisper / gpt-4o-mini-transcribe",
-    keyPlaceholder: "sk-...",
-    docs: "https://platform.openai.com/api-keys",
-    needsKey: true,
-  },
-  {
-    id: "gemini",
-    label: "Google Gemini",
-    hint: "Gemini 2.5 Flash com áudio",
-    keyPlaceholder: "AIza...",
-    docs: "https://aistudio.google.com/apikey",
-    needsKey: true,
-  },
-  {
-    id: "groq",
-    label: "Groq",
-    hint: "Whisper large-v3 na nuvem",
-    keyPlaceholder: "gsk_...",
-    docs: "https://console.groq.com/keys",
-    needsKey: true,
-  },
-  {
-    id: "xai",
-    label: "xAI",
-    hint: "Speech-to-text da Grok",
-    keyPlaceholder: "xai-...",
-    docs: "https://console.x.ai",
-    needsKey: true,
-  },
-] as const;
-
-export type ProviderId = (typeof PROVIDERS)[number]["id"];
-
-export const LANGUAGES = [
-  { id: "pt", label: "Português" },
-  { id: "en", label: "English" },
-  { id: "es", label: "Español" },
-  { id: "auto", label: "Detectar" },
-] as const;
-
-export type LanguageId = (typeof LANGUAGES)[number]["id"];
-
 export const INPAGE_MODELS = [
   {
     id: "turbo",
-    label: "Turbo",
+    label: "Large Turbo",
     size: "~560 MB",
+    isDefault: true,
     hint: "Padrão. Rápido e preciso o bastante para conversas.",
   },
   {
-    id: "light",
-    label: "Small",
-    size: "~120 MB",
-    hint: "Mais leve. Só entra se você trocar no seletor.",
+    id: "large",
+    label: "Large",
+    size: "~1,5 GB",
+    isDefault: false,
+    hint: "O mais preciso. Só entra se você trocar no seletor.",
   },
 ] as const;

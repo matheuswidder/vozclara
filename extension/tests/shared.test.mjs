@@ -27,24 +27,27 @@ test("VCShared não expõe mais o legado Python", () => {
 });
 
 
-test("normalizeKind trava migração Turbo/Small", () => {
-  assert.equal(VC.normalizeKind("v3"), "turbo");
-  assert.equal(VC.normalizeKind("large-v3"), "turbo");
+test("normalizeKind trava migração para Large/Large Turbo", () => {
+  assert.equal(VC.normalizeKind("large"), "large");
+  assert.equal(VC.normalizeKind("v3"), "large");
+  assert.equal(VC.normalizeKind("large-v3"), "large");
+  assert.equal(VC.normalizeKind("turbo"), "turbo");
+  // Modelos que saíram caem no padrão.
   assert.equal(VC.normalizeKind("Nemotron"), "turbo");
   assert.equal(VC.normalizeKind("custom"), "turbo");
   assert.equal(VC.normalizeKind("tiny"), "turbo");
-  assert.equal(VC.normalizeKind("small"), "light");
-  assert.equal(VC.normalizeKind("Small"), "light");
-  assert.equal(VC.normalizeKind("light"), "light");
-  assert.equal(VC.normalizeKind("turbo"), "turbo");
+  assert.equal(VC.normalizeKind("small"), "turbo");
+  assert.equal(VC.normalizeKind("Small"), "turbo");
+  assert.equal(VC.normalizeKind("light"), "turbo");
 });
 
 test("normalizeKind mapeia apelidos", () => {
-  assert.equal(VC.normalizeKind("small"), "light");
-  assert.equal(VC.normalizeKind("light"), "light");
+  assert.equal(VC.normalizeKind("large"), "large");
+  assert.equal(VC.normalizeKind("v3"), "large");
   assert.equal(VC.normalizeKind("turbo"), "turbo");
   assert.equal(VC.normalizeKind("tiny"), "turbo");
-  assert.equal(VC.normalizeKind("large-v3"), "turbo");
+  assert.equal(VC.normalizeKind("light"), "turbo");
+  assert.equal(VC.normalizeKind("large-v3-turbo"), "turbo");
   assert.equal(VC.normalizeKind("nemotron"), "turbo");
   assert.equal(VC.normalizeKind("custom"), "turbo");
   assert.equal(VC.normalizeKind(""), "turbo");
@@ -83,28 +86,31 @@ test("stateKind cobre error/ready/downloading", () => {
 });
 
 test("modelMeta e troca rápida", () => {
-  assert.equal(VC.modelMeta("tiny").name, "Turbo");
+  assert.equal(VC.modelMeta("tiny").name, "Large Turbo");
+  assert.equal(VC.modelMeta("turbo").name, "Large Turbo");
   assert.equal(VC.modelMeta("turbo").size, "~560 MB");
+  assert.equal(VC.modelMeta("large").name, "Large");
+  assert.equal(VC.modelMeta("large").size, "~1,5 GB");
   const sw = VC.primaryAction(
-    { ready: true, kind: "turbo", cachedKinds: ["turbo", "light"] },
-    "light",
+    { ready: true, kind: "turbo", cachedKinds: ["turbo", "large"] },
+    "large",
   );
   assert.equal(sw.id, "switch");
-  assert.match(sw.label, /Small/);
+  assert.match(sw.label, /Large/);
 });
 
-test("downloadLabel cobre turbo e small", () => {
-  assert.equal(VC.downloadLabel("light"), "Baixando Small (~120 MB)…");
-  assert.equal(VC.downloadLabel("turbo"), "Baixando Turbo (~560 MB)…");
-  assert.equal(VC.downloadLabel("tiny"), "Baixando Turbo (~560 MB)…");
+test("downloadLabel cobre Large Turbo e Large", () => {
+  assert.equal(VC.downloadLabel("large"), "Baixando Large (~1,5 GB)…");
+  assert.equal(VC.downloadLabel("turbo"), "Baixando Large Turbo (~560 MB)…");
+  assert.equal(VC.downloadLabel("tiny"), "Baixando Large Turbo (~560 MB)…");
 });
 
 test("primaryAction: um botão, ação óbvia", () => {
   assert.equal(typeof VC.primaryAction, "function");
   assert.equal(VC.primaryAction({ downloading: true }, "turbo").id, "wait");
   assert.equal(VC.primaryAction({ ready: true, kind: "turbo" }, "turbo").id, "ready");
-  assert.equal(VC.primaryAction({ ready: true, kind: "turbo" }, "light").id, "download");
-  assert.match(VC.primaryAction({}, "light").label, /120 MB/);
+  assert.equal(VC.primaryAction({ ready: true, kind: "turbo" }, "large").id, "download");
+  assert.match(VC.primaryAction({}, "large").label, /1,5 GB/);
 });
 
 test("kinds antigos viram turbo", () => {
@@ -182,7 +188,7 @@ test("shouldAttachVoiceCard ignora GIF, figurinha e foto", () => {
 });
 
 test("modelHint fala do Whisper neste Chrome", () => {
-  assert.match(VC.modelHint("light"), /Small/);
+  assert.match(VC.modelHint("large"), /Large/);
   assert.match(VC.modelHint("turbo"), /Chrome/);
   assert.match(VC.modelHint("nemotron"), /Turbo/);
 });

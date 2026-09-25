@@ -5,8 +5,8 @@
 // Não assume DOM; só define globalThis.VCShared.
 (() => {
   const MODEL_META = {
-    turbo: { name: "Turbo", size: "~560 MB" },
-    light: { name: "Small", size: "~120 MB" },
+    turbo: { name: "Large Turbo", size: "~560 MB" },
+    large: { name: "Large", size: "~1,5 GB" },
   };
 
   const FALLBACK_KEYS = [
@@ -21,7 +21,7 @@
 
   function normalizeKind(kind) {
     const k = String(kind || "").toLowerCase();
-    if (k === "light" || k === "small") return "light";
+    if (k === "large" || k === "v3" || k === "large-v3") return "large";
     return "turbo";
   }
 
@@ -56,8 +56,8 @@
 
   function stateKind(state) {
     if (state?.error) return "warn";
-    if (Boolean(state?.ready)) return "ok";
-    if (Boolean(state?.downloading)) return "warn";
+    if (state?.ready) return "ok";
+    if (state?.downloading) return "warn";
     return "";
   }
 
@@ -69,10 +69,10 @@
   }
 
   function modelHint(kind) {
-    if (normalizeKind(kind) === "light") {
-      return "Small é mais leve. Turbo continua o padrão.";
+    if (normalizeKind(kind) === "large") {
+      return "Large é o mais preciso (~1,5 GB). Large Turbo continua o padrão.";
     }
-    return "Turbo é o padrão. O áudio não sai deste Chrome.";
+    return "Large Turbo é o padrão. O áudio não sai deste Chrome.";
   }
 
   function primaryAction(state, selected) {
@@ -181,7 +181,7 @@
     try {
       await chrome.storage.local.set({
         lastQualityFallback: {
-          label: label || "O modelo grande não coube. Foi usada a versão leve.",
+          label: label || "O modelo grande não coube. Foi usado o Large Turbo.",
           at: Date.now(),
         },
       });

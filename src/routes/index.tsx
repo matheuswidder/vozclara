@@ -1,9 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Download, HardDrive, MousePointerClick, Shield } from "lucide-react";
 import { InstallGuide } from "@/components/install-guide";
-import { LiveTranscribe } from "@/components/live-transcribe";
 import { LocalEngine } from "@/components/local-engine";
-import { SettingsPanel } from "@/components/settings-panel";
 import { SiteHeader } from "@/components/site-header";
 import { WhatsAppSimulator } from "@/components/whatsapp-simulator";
 import { Button } from "@/components/ui/button";
@@ -20,7 +18,7 @@ function Home() {
       <SiteHeader />
 
       <main>
-        <section className="mx-auto grid max-w-6xl gap-10 px-4 pb-8 pt-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lg:items-center lg:pt-16">
+        <section className="mx-auto grid max-w-6xl gap-10 px-4 pb-10 pt-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lg:items-center lg:pt-16">
           <div>
             <p className="text-xs font-medium uppercase tracking-[0.18em] text-accent">
               Chrome, Brave e Edge
@@ -30,7 +28,7 @@ function Home() {
               <span className="block italic text-fg-muted">vira texto no chat.</span>
             </h1>
             <p className="mt-5 max-w-md text-base leading-relaxed text-fg-muted">
-              Um zip com a extensão. Baixe o Turbo uma vez, transcreva.
+              Um zip com a extensão. Baixe o modelo uma vez, transcreva.
               O áudio não sai do computador.
             </p>
             <div className="mt-7 flex flex-wrap gap-3">
@@ -55,7 +53,7 @@ function Home() {
               </li>
               <li className="flex gap-2">
                 <HardDrive className="mt-0.5 size-4 shrink-0 text-accent" />
-                Turbo ou Small, no Chrome
+                Large ou Large Turbo, no Chrome
               </li>
             </ul>
           </div>
@@ -65,19 +63,14 @@ function Home() {
           </div>
         </section>
 
-        <section className="mx-auto grid max-w-6xl gap-6 px-4 py-10 lg:grid-cols-2">
+        <section className="mx-auto max-w-6xl px-4 py-10">
           <div id="instalar">
             <InstallGuide />
           </div>
-          <LiveTranscribe />
         </section>
 
-        <section id="local" className="mx-auto max-w-6xl px-4 pb-6">
+        <section id="local" className="mx-auto max-w-6xl px-4 pb-16 pt-10">
           <LocalEngine />
-        </section>
-
-        <section id="chaves" className="mx-auto max-w-6xl px-4 pb-16">
-          <SettingsPanel />
         </section>
       </main>
 

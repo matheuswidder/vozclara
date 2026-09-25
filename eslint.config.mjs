@@ -15,6 +15,9 @@ export default tseslint.config(
       ".nitro/**",
       "node_modules/**",
       "src/routeTree.gen.ts",
+      // Vendor empacotado da extensão (Transformers.js/ONNX): código de
+      // terceiros minificado — lint nele só gera ruído.
+      "extension/vendor/**",
     ],
   },
   js.configs.recommended,
@@ -44,4 +47,18 @@ export default tseslint.config(
   },
   // Disable rules that conflict with Prettier formatting.
   prettier,
+  // Código da extensão roda no browser + service worker MV3: `chrome` e
+  // `importScripts` são globais legítimas lá e não existem no pacote `globals`.
+  {
+    files: ["extension/**/*.{js,mjs}"],
+    languageOptions: {
+      globals: {
+        ...globals.browser,
+        ...globals.node,
+        ...globals.webextensions,
+        chrome: "readonly",
+        importScripts: "readonly",
+      },
+    },
+  },
 );

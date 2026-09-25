@@ -73,7 +73,7 @@
       border-radius: 8px; padding: 9px 12px; cursor: pointer; font-size: 13px;
     }
     .meter { height: 4px; background: var(--line); border-radius: 99px; overflow: hidden; margin: 0 0 10px; }
-    .meter[hidden], #custom-fields[hidden], #cloud-fields[hidden],
+    .meter[hidden], #custom-fields[hidden],
     #local-fields[hidden], #confirm[hidden],
     #model-hint[hidden], [hidden] { display: none !important; }
     .hint {
@@ -244,15 +244,10 @@
     const dot = btn?.querySelector(".vc-dot");
     if (!dot) return;
     try {
-      const stored = await chrome.storage.local.get([
-        "localModelReady",
-        "localProgress",
-        "provider",
-      ]);
+      const stored = await chrome.storage.local.get(["localModelReady", "localProgress"]);
       const downloading = Boolean(stored.localProgress?.downloading);
       const ready = Boolean(stored.localModelReady);
-      const cloud = stored.provider && stored.provider !== "local";
-      dot.style.background = downloading ? "#f6c344" : ready || cloud ? "#00a884" : "#8696a0";
+      dot.style.background = downloading ? "#f6c344" : ready ? "#00a884" : "#8696a0";
     } catch {
       /* ignore */
     }
@@ -330,28 +325,14 @@
             <button class="x" id="close" type="button" aria-label="Fechar">×</button>
           </header>
           <div class="body">
-            <label>Provedor
-              <select id="provider">
-                <option value="local">Neste computador</option>
-                <option value="openai">OpenAI</option>
-                <option value="gemini">Gemini</option>
-                <option value="groq">Groq</option>
-                <option value="xai">xAI</option>
-              </select>
-            </label>
-            <div id="cloud-fields" hidden>
-              <label>Chave
-                <input id="apiKey" type="password" spellcheck="false" autocomplete="off" placeholder="Cole a chave" />
-              </label>
-            </div>
             <div id="local-fields">
               <label>Modelo
                 <select id="model">
-                  <option value="turbo">Turbo · 560 MB</option>
-                  <option value="light">Small · 120 MB</option>
+                  <option value="turbo">Large Turbo · 560 MB</option>
+                  <option value="large">Large · 1,5 GB</option>
                 </select>
               </label>
-              <p class="hint" id="model-hint">Turbo é o padrão. O áudio não sai deste Chrome.</p>
+              <p class="hint" id="model-hint">Large Turbo é o padrão. O áudio não sai deste Chrome.</p>
               <div class="meter" id="meter" hidden><span id="bar"></span></div>
               <div id="confirm" class="confirm" hidden>
                 <p id="confirm-text"></p>
@@ -390,8 +371,8 @@
             <details class="help">
               <summary>Ajuda</summary>
               <dl>
-                <dt>Turbo e Small</dt>
-                <dd>Turbo vem ligado. Small só entra se você trocar no seletor.</dd>
+                <dt>Large e Large Turbo</dt>
+                <dd>Large Turbo vem ligado. Large só entra se você trocar no seletor.</dd>
                 <dt>Trocar de conversa</dt>
                 <dd>A transcrição não para. Ao voltar, o texto (ou o “Aguarde”) continua no áudio.</dd>
                 <dt>Transcrever ao receber</dt>
@@ -416,14 +397,8 @@
   function bindPanel() {
     $p("back")?.addEventListener("click", close);
     $p("close")?.addEventListener("click", close);
-    $p("provider")?.addEventListener("change", () => {
-      syncFields();
-      void save();
-      void refreshLocal();
-    });
     $p("language")?.addEventListener("change", () => void save());
     $p("auto-tx")?.addEventListener("change", () => void save());
-    $p("apiKey")?.addEventListener("change", () => void save());
     $p("model")?.addEventListener("change", () => void onModelChange());
     $p("hf-repo")?.addEventListener("change", () => void save());
     $p("download")?.addEventListener("click", () => void commitModel());
@@ -457,11 +432,6 @@
   }
 
   function syncFields() {
-    const local = $p("provider")?.value === "local";
-    const cloud = $p("cloud-fields");
-    const box = $p("local-fields");
-    if (cloud) cloud.hidden = Boolean(local);
-    if (box) box.hidden = !local;
     syncModelFields();
     syncModelHint();
   }
@@ -478,8 +448,6 @@
 
   async function save() {
     await chrome.storage.local.set({
-      provider: $p("provider")?.value || "local",
-      apiKey: $p("apiKey")?.value.trim() || "",
       language: $p("language")?.value || "pt",
       customModelInput: $p("hf-repo")?.value.trim() || "",
       autoTranscribe: Boolean($p("auto-tx")?.checked),
@@ -560,8 +528,6 @@
 
   async function loadForm() {
     const stored = await chrome.storage.local.get([
-      "provider",
-      "apiKey",
       "language",
       "localModelKind",
       "preferredKind",
@@ -569,15 +535,13 @@
       "customModelRepo",
       "autoTranscribe",
     ]);
-    if ($p("provider")) $p("provider").value = stored.provider || "local";
-    if ($p("apiKey")) $p("apiKey").value = stored.apiKey || "";
     if ($p("language")) $p("language").value = stored.language || "pt";
     if ($p("auto-tx")) $p("auto-tx").checked = Boolean(stored.autoTranscribe);
     if ($p("model")) {
       lastPreferred = normalizeKind(
         stored.preferredKind || stored.localModelKind || "turbo",
       );
-      $p("model").value = lastPreferred === "light" ? "light" : "turbo";
+      $p("model").value = lastPreferred;
     }
     if ($p("hf-repo")) {
       $p("hf-repo").value = stored.customModelInput || stored.customModelRepo || "";
@@ -664,7 +628,7 @@
       const s = $p("save-status");
       if (s) {
         s.textContent =
-          "Neste Chrome só Whisper ONNX. Tente onnx-community/whisper-tiny.";
+          "Neste Chrome só Whisper ONNX. Tente onnx-community/whisper-large-v3-turbo.";
         s.className = "status warn";
       }
       return;
@@ -681,11 +645,9 @@
         : globalThis.VCShared.downloadLabel(want, repo),
     });
     await chrome.storage.local.set({
-      provider: "local",
       customModelInput: repo,
       preferredKind: want,
     });
-    if ($p("provider")) $p("provider").value = "local";
     syncFields();
     try {
       await chrome.runtime.sendMessage({

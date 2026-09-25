@@ -181,7 +181,7 @@
             .then((b) => emitBlob(b, "src"))
             .catch(() => {});
         }
-        return srcDesc.set.call(this, value);
+        srcDesc.set.call(this, value);
       },
     });
   }

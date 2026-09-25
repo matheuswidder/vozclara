@@ -275,7 +275,7 @@ function friendlyError(err) {
     return "O Brave bloqueou o download. Nos Escudos, libere huggingface.co para esta extensão.";
   }
   if (/quota|QuotaExceeded/i.test(raw)) {
-    return "Sem espaço neste navegador para o modelo. Tente a versão leve.";
+    return "Sem espaço neste navegador para o modelo. Tente o Large Turbo.";
   }
   if (/single offscreen|Only a single/i.test(raw)) {
     return "O Whisper já está ligando. Espere um instante e veja a aba da VozClara.";
@@ -380,7 +380,7 @@ async function ensureOffscreen() {
 
 function callOffscreen(payload, timeoutMs) {
   if (!whisperPort) {
-    return Promise.reject(new Error("Whisper desligado. Baixe o Turbo no ícone da extensão."));
+    return Promise.reject(new Error("Whisper desligado. Baixe o Large Turbo no ícone da extensão."));
   }
   return new Promise((resolve, reject) => {
     const id = crypto.randomUUID();
@@ -450,17 +450,9 @@ const MODEL_REPOS = {
     repo: "onnx-community/whisper-large-v3-turbo",
     label: "large-v3-turbo",
   },
-  v3: {
+  large: {
     repo: "onnx-community/whisper-large-v3",
     label: "large-v3",
-  },
-  tiny: {
-    repo: "onnx-community/whisper-tiny",
-    label: "whisper-tiny",
-  },
-  light: {
-    repo: "onnx-community/whisper-small",
-    label: "whisper-small",
   },
 };
 
@@ -468,7 +460,7 @@ const MODEL_REPOS = {
 // extension/tests/shared-sync.test.mjs falha se divergir.
 function normalizeKind(kind) {
   const k = String(kind || "").toLowerCase();
-  if (k === "light" || k === "small") return "light";
+  if (k === "large" || k === "v3" || k === "large-v3") return "large";
   return "turbo";
 }
 
@@ -606,7 +598,7 @@ async function markCached(kind) {
 }
 
 async function scanKnownKinds() {
-  const kinds = ["tiny", "light", "turbo", "v3"];
+  const kinds = ["turbo", "large"];
   const cached = [];
   for (const k of kinds) {
     try {
@@ -819,7 +811,6 @@ async function beginDownload(kind, repo) {
       ? `Baixando ${parsed || "modelo"}…`
       : `Baixando ${disk.model}…`;
   await chrome.storage.local.set({
-    provider: "local",
     preferredKind: want,
     customModelInput: repo || "",
     customModelRepo: parsed,
@@ -843,7 +834,6 @@ async function beginDownload(kind, repo) {
     }
     await markCached(result.kind || want);
     await chrome.storage.local.set({
-      provider: "local",
       localModelReady: true,
       localModelId: result.model || "",
       localModelKind: result.kind || want,
@@ -946,149 +936,6 @@ function audioBlobFromMsg(msg) {
   return new Blob([], { type: mime });
 }
 
-function mimeToName(mime, fallback) {
-  if (!mime) return fallback;
-  if (mime.includes("ogg") || mime.includes("opus")) return "voice.ogg";
-  if (mime.includes("mpeg") || mime.includes("mp3")) return "voice.mp3";
-  if (mime.includes("wav")) return "voice.wav";
-  if (mime.includes("mp4") || mime.includes("m4a") || mime.includes("aac"))
-    return "voice.m4a";
-  if (mime.includes("webm")) return "voice.webm";
-  return fallback;
-}
-
-function asText(body) {
-  if (body && typeof body.text === "string") return body.text.trim();
-  return "";
-}
-
-async function transcribeOpenAI(blob, name, apiKey, language) {
-  const models = ["gpt-4o-mini-transcribe", "whisper-1"];
-  let last = "OpenAI recusou a transcrição.";
-  for (const model of models) {
-    const form = new FormData();
-    form.append("file", new File([blob], name, { type: blob.type || "audio/ogg" }));
-    form.append("model", model);
-    if (language) form.append("language", language);
-    const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}` },
-      body: form,
-    });
-    const json = await res.json().catch(() => null);
-    if (res.ok) {
-      const text = asText(json);
-      if (text) return text;
-      last = "A OpenAI devolveu uma transcrição vazia.";
-      continue;
-    }
-    last = json?.error?.message || `OpenAI ${res.status}`;
-  }
-  throw new Error(last);
-}
-
-async function transcribeGroq(blob, name, apiKey, language) {
-  const form = new FormData();
-  form.append("file", new File([blob], name, { type: blob.type || "audio/ogg" }));
-  form.append("model", "whisper-large-v3");
-  if (language) form.append("language", language);
-  const res = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}` },
-    body: form,
-  });
-  const json = await res.json().catch(() => null);
-  if (!res.ok) throw new Error(json?.error?.message || `Groq ${res.status}`);
-  const text = asText(json);
-  if (!text) throw new Error("A Groq devolveu uma transcrição vazia.");
-  return text;
-}
-
-async function transcribeXai(blob, name, apiKey, language) {
-  const form = new FormData();
-  if (language) form.append("language", language);
-  form.append("format", "true");
-  form.append("file", new File([blob], name, { type: blob.type || "audio/ogg" }));
-  const res = await fetch("https://api.x.ai/v1/stt", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}` },
-    body: form,
-  });
-  const json = await res.json().catch(() => null);
-  if (!res.ok) {
-    const err =
-      typeof json?.error === "string"
-        ? json.error
-        : json?.error?.message || `xAI ${res.status}`;
-    throw new Error(err);
-  }
-  const text = asText(json);
-  if (!text) throw new Error("A xAI devolveu uma transcrição vazia.");
-  return text;
-}
-
-async function transcribeGemini(blob, apiKey, language) {
-  const b64 = await blobToBase64(blob);
-  const prompt = language
-    ? `Transcreva este áudio fielmente. Idioma: ${language === "pt" ? "português brasileiro" : language}. Responda apenas com a transcrição, sem aspas nem comentários.`
-    : "Transcreva este áudio fielmente. Responda apenas com a transcrição, sem aspas nem comentários.";
-  const models = ["gemini-2.5-flash", "gemini-2.0-flash"];
-  let last = "Gemini recusou a transcrição.";
-  for (const model of models) {
-    // Parte 7.6: chave no header — nunca na query string (pode vazar em logs).
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-goog-api-key": apiKey,
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                { text: prompt },
-                {
-                  inline_data: {
-                    mime_type: blob.type || "audio/ogg",
-                    data: b64,
-                  },
-                },
-              ],
-            },
-          ],
-        }),
-      },
-    );
-    const json = await res.json().catch(() => null);
-    if (res.ok) {
-      const text = (json?.candidates?.[0]?.content?.parts || [])
-        .map((p) => p.text || "")
-        .join("")
-        .trim();
-      if (text) return text;
-      last = "O Gemini devolveu uma transcrição vazia.";
-      continue;
-    }
-    last = json?.error?.message || `Gemini ${res.status}`;
-  }
-  throw new Error(last);
-}
-
-function blobToBase64(blob) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error("Falha ao ler o áudio"));
-    reader.onload = () => {
-      const result = String(reader.result || "");
-      const comma = result.indexOf(",");
-      resolve(comma >= 0 ? result.slice(comma + 1) : result);
-    };
-    reader.readAsDataURL(blob);
-  });
-}
-
 async function hashBlob(blob) {
   const buf = await blob.arrayBuffer();
   const digest = await crypto.subtle.digest("SHA-256", buf);
@@ -1100,29 +947,16 @@ async function hashBlob(blob) {
 
 async function transcribe(msg, tabId) {
   const stored = await chrome.storage.local.get([
-    "provider",
-    "apiKey",
     "language",
     "localModelKind",
     "preferredKind",
   ]);
-  const provider = stored.provider || "local";
-  const apiKey = (stored.apiKey || "").trim();
   const language = stored.language === "auto" ? "" : stored.language || "pt";
   const kind = normalizeKind(stored.preferredKind || stored.localModelKind);
 
-  if (provider !== "local" && !apiKey) {
-    return {
-      ok: false,
-      error:
-        "Cole uma chave de API no painel da VozClara, ou escolha Whisper neste Chrome.",
-    };
-  }
-
   const blob = audioBlobFromMsg(msg);
-  const name = mimeToName(blob.type, msg.fileName || "voice.ogg");
 
-  const cacheKey = `tx:${await hashBlob(blob)}:${provider}:${kind}:${language || "auto"}`;
+  const cacheKey = `tx:${await hashBlob(blob)}:${kind}:${language || "auto"}`;
   const cached = await chrome.storage.local.get(cacheKey);
   const cachedText = txText(cached[cacheKey]);
   if (cachedText && !msg.fresh) {
@@ -1131,7 +965,6 @@ async function transcribe(msg, tabId) {
       return {
         ok: true,
         text: cleanedCache,
-        provider,
         cached: true,
         langCleaned: isLangCleaned(cachedText, cleanedCache),
       };
@@ -1141,26 +974,21 @@ async function transcribe(msg, tabId) {
   let text = "";
   let model = "";
   let device = "";
-  if (provider === "local") {
-    try {
-      const result = await transcribeInBrowser({ ...msg, language, kind }, tabId);
-      if (result?.cancelled) return { ok: false, cancelled: true };
-      text = result?.text || "";
-      model = result?.model || "";
-      device = result?.device || "";
-    } catch (err) {
-      return {
-        ok: false,
-        error:
-          err instanceof Error
-            ? err.message
-            : "Não deu para transcrever neste Chrome. Baixe o Turbo no ícone da extensão.",
-      };
-    }
-  } else if (provider === "openai") text = await transcribeOpenAI(blob, name, apiKey, language);
-  else if (provider === "groq") text = await transcribeGroq(blob, name, apiKey, language);
-  else if (provider === "gemini") text = await transcribeGemini(blob, apiKey, language);
-  else text = await transcribeXai(blob, name, apiKey, language);
+  try {
+    const result = await transcribeInBrowser({ ...msg, language, kind }, tabId);
+    if (result?.cancelled) return { ok: false, cancelled: true };
+    text = result?.text || "";
+    model = result?.model || "";
+    device = result?.device || "";
+  } catch (err) {
+    return {
+      ok: false,
+      error:
+        err instanceof Error
+          ? err.message
+          : "Não deu para transcrever neste Chrome. Baixe o Large Turbo no ícone da extensão.",
+    };
+  }
 
   // Parte 7.4: card cancelou — descarta o resultado (não promete abortar o fetch).
   if (msg.requestId && cancelledRequests.has(msg.requestId)) {
@@ -1190,7 +1018,7 @@ async function transcribe(msg, tabId) {
       /* ignore */
     }
   }
-  return { ok: true, text, provider, model, device, cleaned, langCleaned };
+  return { ok: true, text, model, device, cleaned, langCleaned };
 }
 
 const TX_PREFIX = "tx:";

@@ -4,18 +4,18 @@ import { INPAGE_MODELS } from "@/lib/providers";
 const STEPS = [
   {
     n: "1",
-    title: "Turbo",
-    body: "Já vem selecionado. Clique em Baixar uma vez. ~560 MB neste Chrome.",
+    title: "Baixe o Large Turbo",
+    body: "Um clique em Baixar no ícone da extensão. Só uma vez, neste Chrome.",
   },
   {
     n: "2",
-    title: "Small",
-    body: "Só se você trocar no seletor. Mais leve (~120 MB), um pouco menos preciso.",
+    title: "Clique no áudio",
+    body: "Botão direito num áudio do WhatsApp Web → Transcrever. O texto aparece no chat.",
   },
   {
     n: "3",
-    title: "Ao receber",
-    body: "Opcional. Liga Transcrever ao receber: áudios novos da conversa aberta já saem em texto.",
+    title: "Transcrever ao receber",
+    body: "Opcional. Áudios novos da conversa aberta já saem em texto, sem você clicar.",
   },
 ];
 
@@ -30,8 +30,8 @@ export function LocalEngine() {
           Whisper neste Chrome
         </h2>
         <p className="mt-1 text-sm text-fg-muted">
-          Um clique em Baixar. Turbo é o padrão. O áudio não sai deste
-          computador.
+          Dois modelos, baixados uma vez. Large Turbo já vem selecionado. O
+          áudio não sai deste computador.
         </p>
       </div>
 
@@ -42,8 +42,15 @@ export function LocalEngine() {
             className="rounded-lg border border-border bg-bg px-4 py-4 transition-colors duration-150 hover:border-border-strong"
           >
             <div className="flex items-baseline justify-between gap-3">
-              <p className="font-medium text-fg">{m.label}</p>
-              <p className="font-mono text-xs text-accent">{m.size}</p>
+              <p className="flex items-center gap-2 font-medium text-fg">
+                {m.label}
+                {m.isDefault ? (
+                  <span className="rounded-xs bg-accent/15 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-accent">
+                    Padrão
+                  </span>
+                ) : null}
+              </p>
+              <p className="shrink-0 font-mono text-xs text-accent">{m.size}</p>
             </div>
             <p className="mt-1 text-sm leading-relaxed text-fg-muted">{m.hint}</p>
           </article>
@@ -69,7 +76,8 @@ export function LocalEngine() {
             O Whisper baixa na extensão. Sem programa separado.
           </p>
           <p className="mt-0.5 text-xs text-fg-muted">
-            Nada sai deste Chrome. No celular a extensão não instala — use uma chave de nuvem ao lado.
+            Nada sai deste Chrome. No celular a extensão não instala — use o
+            WhatsApp Web no computador.
           </p>
         </div>
       </div>

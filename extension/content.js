@@ -855,7 +855,6 @@
           cardByKey.delete(key);
         }
       }
-      pruneSmartBar();
     });
     if (!scanPrimed) scanPrimed = true;
   }
@@ -930,7 +929,7 @@
       return;
     }
     if (msg?.type === "VOZCLARA_STT_CANCELLED") {
-      // Parte 7.4: SW confirmou o cancelamento (ou o card cancelou sozinho no caminho nuvem).
+      // Parte 7.4: SW confirmou o cancelamento (ou o card cancelou sozinho no caminho).
       const key = msg.key || (msg.requestId ? jobs.get(msg.requestId) : "");
       cancelled.set(msg.requestId, { cancel: true });
       const root = (key ? rootByKey.get(key)?.root : null) || lastVoice;
@@ -1165,19 +1164,6 @@
     return res.blob();
   }
 
-  function blobToBase64(blob) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onerror = () => reject(new Error("Falha ao ler o áudio"));
-      reader.onload = () => {
-        const result = String(reader.result || "");
-        const comma = result.indexOf(",");
-        resolve(comma >= 0 ? result.slice(comma + 1) : result);
-      };
-      reader.readAsDataURL(blob);
-    });
-  }
-
   async function extractBlob(root) {
     lastVoice = root;
     const trySrc = async (src) => {
@@ -1296,14 +1282,7 @@
       window.clearInterval(timersByRequest.get(requestId));
       timersByRequest.delete(requestId);
       const modelKind = status.kind || "turbo";
-      const sizeHint =
-        modelKind === "v3"
-          ? "~1,5 GB"
-          : modelKind === "light"
-            ? "~120 MB"
-            : modelKind === "tiny"
-              ? "~40 MB"
-              : "~560 MB";
+      const sizeHint = modelKind === "large" ? "~1,5 GB" : "~560 MB";
       setPanel(
         root,
         `<div class="box">

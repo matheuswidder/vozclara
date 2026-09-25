@@ -88,6 +88,34 @@ export function projectRoot() {
 }
 
 /**
+ * The command to hand `spawn`, given the one the caller typed.
+ *
+ * npm writes two shims per bin into `node_modules/.bin`: a POSIX shell script
+ * and a `.cmd` batch file. A bare `vite` only resolves on Linux and macOS; on
+ * Windows `spawn` cannot execute the shell script and fails with ENOENT, so the
+ * `.cmd` sibling has to be named explicitly. A command that already carries a
+ * Windows-executable extension, or anything on a POSIX platform, is untouched.
+ */
+export function resolveCommand(command, platform = process.platform) {
+  if (platform !== "win32") return command;
+  if (/\.(cmd|bat|exe|com)$/i.test(command)) return command;
+  return `${command}.cmd`;
+}
+
+/**
+ * Spawn options for the resolved command.
+ *
+ * Since the CVE-2024-27980 fix, Node refuses to launch a `.bat`/`.cmd` without
+ * a shell, so the Windows shim needs `shell: true`. Arg escaping still applies
+ * (`windowsVerbatimArguments` is left off), and every other command — including
+ * `node` itself, which is an `.exe` — spawns exactly as before.
+ */
+export function spawnOptionsFor(command, platform = process.platform) {
+  if (platform !== "win32") return {};
+  return /\.(cmd|bat)$/i.test(command) ? { shell: true } : {};
+}
+
+/**
  * Whether `moduleUrl` is the script node was asked to run.
  *
  * Both sides are resolved through symlinks: node realpaths `import.meta.url`
@@ -111,7 +139,8 @@ function main(argv) {
     process.exit(2);
   }
   const env = mergeAppEnv(readAppEnv(projectRoot()), process.env);
-  const child = spawn(command, args, { stdio: "inherit", env });
+  const bin = resolveCommand(command);
+  const child = spawn(bin, args, { stdio: "inherit", env, ...spawnOptionsFor(bin) });
   // The dev server is long-running and is stopped by signalling this wrapper.
   for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"]) {
     process.on(signal, () => child.kill(signal));

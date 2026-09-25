@@ -19,10 +19,6 @@ function flashEl(el) {
   el.classList.add("flash");
 }
 
-function isLocal() {
-  return $("provider").value === "local";
-}
-
 function syncModelHint() {
   const hint = $("model-hint");
   if (!hint) return;
@@ -32,11 +28,6 @@ function syncModelHint() {
 }
 
 function syncFields() {
-  const local = isLocal();
-  const cloud = $("cloud-fields");
-  const localBox = $("local-fields");
-  if (cloud) cloud.hidden = local;
-  if (localBox) localBox.hidden = !local;
   const custom = $("custom-fields");
   if (custom) custom.hidden = $("model")?.value !== "custom";
   syncModelHint();
@@ -50,18 +41,7 @@ function paint(extra) {
     status.dataset.kind = extra.kind;
     return;
   }
-  if (isLocal()) {
-    status.textContent = "O áudio não sai deste computador.";
-    status.dataset.kind = "ok";
-    return;
-  }
-  const key = $("apiKey").value.trim();
-  if (!key) {
-    status.textContent = "Sem chave ainda — a transcrição na nuvem não sai.";
-    status.dataset.kind = "warn";
-    return;
-  }
-  status.textContent = "Chave guardada neste navegador.";
+  status.textContent = "O áudio não sai deste computador.";
   status.dataset.kind = "ok";
 }
 
@@ -157,8 +137,6 @@ async function queryLocal(opts) {
 async function load() {
   try {
     const stored = await chrome.storage.local.get([
-      "provider",
-      "apiKey",
       "language",
       "localModelKind",
       "preferredKind",
@@ -166,22 +144,20 @@ async function load() {
       "customModelRepo",
       "autoTranscribe",
     ]);
-    $("provider").value = stored.provider || "local";
-    $("apiKey").value = stored.apiKey || "";
     $("language").value = stored.language || "pt";
     if ($("auto-tx")) $("auto-tx").checked = Boolean(stored.autoTranscribe);
     if ($("model")) {
       lastPreferred = normalizeKind(
         stored.preferredKind || stored.localModelKind || "turbo",
       );
-      $("model").value = lastPreferred === "light" ? "light" : "turbo";
+      $("model").value = lastPreferred;
     }
     if ($("hf-repo")) {
       $("hf-repo").value = stored.customModelInput || stored.customModelRepo || "";
     }
     syncFields();
     paint();
-    if (isLocal()) void queryLocal();
+    void queryLocal();
   } catch (err) {
     paint({ text: friendly(err), kind: "warn" });
   }
@@ -189,8 +165,6 @@ async function load() {
 
 async function save() {
   await chrome.storage.local.set({
-    provider: $("provider").value,
-    apiKey: $("apiKey").value.trim(),
     language: $("language").value,
     customModelInput: $("hf-repo")?.value.trim() || "",
     autoTranscribe: Boolean($("auto-tx")?.checked),
@@ -305,14 +279,14 @@ async function startDownload(kind, opts = {}) {
   const meta = metaOf(want);
   if (want === "custom" && /parakeet|fastconformer|canary|nemo[-_]?asr/i.test(parsed)) {
     paint({
-      text: "Neste Chrome só Whisper ONNX. Tente onnx-community/whisper-tiny.",
+      text: "Neste Chrome só Whisper ONNX. Tente onnx-community/whisper-large-v3-turbo.",
       kind: "warn",
     });
     return;
   }
   if (want === "custom" && !parsed) {
     paint({
-      text: "Cole um link do Hugging Face, tipo openai/whisper-tiny.",
+      text: "Cole um link do Hugging Face, tipo onnx-community/whisper-large-v3-turbo.",
       kind: "warn",
     });
     return;
@@ -329,11 +303,9 @@ async function startDownload(kind, opts = {}) {
       : globalThis.VCShared.downloadLabel(want, repo),
   });
   await chrome.storage.local.set({
-    provider: "local",
     customModelInput: repo,
     preferredKind: want,
   });
-  $("provider").value = "local";
   syncFields();
   try {
     const result = await chrome.runtime.sendMessage({
@@ -364,15 +336,8 @@ async function startDownload(kind, opts = {}) {
 
 document.addEventListener("DOMContentLoaded", () => {
   void load();
-  $("provider").addEventListener("change", () => {
-    syncFields();
-    void save();
-    if (isLocal()) void queryLocal();
-    else paint();
-  });
   $("language").addEventListener("change", () => void save());
   $("auto-tx")?.addEventListener("change", () => void save());
-  $("apiKey").addEventListener("change", () => void save());
   $("model")?.addEventListener("change", () => void onModelChange());
   $("hf-repo")?.addEventListener("change", () => void save());
   $("confirm-yes")?.addEventListener("click", () => {

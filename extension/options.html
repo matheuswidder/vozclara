@@ -16,33 +16,15 @@
         </div>
       </header>
 
-      <label>
-        Provedor
-        <select id="provider">
-          <option value="local">Neste computador</option>
-          <option value="openai">OpenAI</option>
-          <option value="gemini">Gemini</option>
-          <option value="groq">Groq</option>
-          <option value="xai">xAI</option>
-        </select>
-      </label>
-
-      <div id="cloud-fields" hidden>
-        <label>
-          Chave
-          <input id="apiKey" type="password" spellcheck="false" autocomplete="off" />
-        </label>
-      </div>
-
       <div id="local-fields">
         <label>
           Modelo
           <select id="model">
-            <option value="turbo">Turbo · 560 MB</option>
-            <option value="light">Small · 120 MB</option>
+            <option value="turbo">Large Turbo · 560 MB</option>
+            <option value="large">Large · 1,5 GB</option>
           </select>
         </label>
-        <p class="hint" id="model-hint">Turbo é o padrão. O áudio não sai deste Chrome.</p>
+        <p class="hint" id="model-hint">Large Turbo é o padrão. O áudio não sai deste Chrome.</p>
         <div class="meter" id="meter" hidden><span id="bar"></span></div>
         <p id="local-path" hidden></p>
         <div id="confirm" class="confirm" hidden>
@@ -85,8 +67,8 @@
       <details class="help">
         <summary>Ajuda</summary>
         <dl>
-          <dt>Turbo e Small</dt>
-          <dd>Turbo vem ligado. Small só entra se você trocar no seletor.</dd>
+          <dt>Large e Large Turbo</dt>
+          <dd>Large Turbo vem ligado. Large só entra se você trocar no seletor.</dd>
           <dt>Trocar de conversa</dt>
           <dd>A transcrição não para. Ao voltar, o texto (ou o “Aguarde”) continua no áudio.</dd>
           <dt>Transcrever ao receber</dt>

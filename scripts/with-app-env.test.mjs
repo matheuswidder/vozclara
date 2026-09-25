@@ -11,6 +11,8 @@ import {
   parseAppEnv,
   projectRoot,
   readAppEnv,
+  resolveCommand,
+  spawnOptionsFor,
 } from "./with-app-env.mjs";
 
 const execFileAsync = promisify(execFile);
@@ -25,6 +27,27 @@ function makeWorkspace(appEnvJson) {
   }
   return root;
 }
+
+test("resolveCommand nomeia o shim .cmd no Windows", () => {
+  // Sem o .cmd, `spawn("vite")` acha o shim POSIX e falha com ENOENT.
+  assert.equal(resolveCommand("vite", "win32"), "vite.cmd");
+  assert.equal(resolveCommand("vite", "linux"), "vite");
+  assert.equal(resolveCommand("vite", "darwin"), "vite");
+  // Já extensível, ou caminho absoluto: não toca.
+  assert.equal(resolveCommand("vite.cmd", "win32"), "vite.cmd");
+  assert.equal(resolveCommand("node.exe", "win32"), "node.exe");
+  assert.equal(resolveCommand(join("C:", "bin", "tool"), "win32"), `${join("C:", "bin", "tool")}.cmd`);
+});
+
+test("spawnOptionsFor só pede shell para shim .cmd/.bat no Windows", () => {
+  // Node recusa .cmd/.bat sem shell desde o fix do CVE-2024-27980.
+  assert.deepEqual(spawnOptionsFor("vite.cmd", "win32"), { shell: true });
+  assert.deepEqual(spawnOptionsFor("tool.BAT", "win32"), { shell: true });
+  // node.exe e qualquer coisa no POSIX seguem sem shell.
+  assert.deepEqual(spawnOptionsFor("node.exe", "win32"), {});
+  assert.deepEqual(spawnOptionsFor("vite", "linux"), {});
+  assert.deepEqual(spawnOptionsFor("vite.cmd", "darwin"), {});
+});
 
 test("keeps VITE_-prefixed string entries", () => {
   assert.deepEqual(parseAppEnv('{"VITE_AUTH_ENABLED":"false"}'), {

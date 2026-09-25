@@ -10,12 +10,12 @@ const STEPS = [
   {
     n: "2",
     title: "Carregue a pasta",
-    body: "Extraia. Extensões → modo do desenvolvedor → Carregar sem compactação. Escolha a pasta do manifest.json.",
+    body: "Extensões → modo do desenvolvedor → Carregar sem compactação. Escolha a pasta do manifest.json.",
   },
   {
     n: "3",
-    title: "Baixe o Turbo",
-    body: "No ícone da VozClara, deixe Turbo e clique em Baixar. Uma vez. Small só se você quiser trocar.",
+    title: "Baixe o modelo",
+    body: "No ícone da VozClara, deixe Large Turbo e clique em Baixar. Uma vez, neste Chrome.",
   },
 ];
 
@@ -28,7 +28,7 @@ export function InstallGuide() {
             Instalar no navegador
           </h2>
           <p className="mt-1 max-w-xl text-sm text-fg-muted">
-            Chrome, Brave ou Edge no computador. Um zip, Turbo no Chrome,
+            Chrome, Brave ou Edge no computador. Um zip, o Whisper no Chrome,
             pronto.
           </p>
         </div>
@@ -40,7 +40,7 @@ export function InstallGuide() {
         </Button>
       </div>
 
-      <ol className="mt-6 grid gap-3 sm:grid-cols-2">
+      <ol className="mt-6 grid gap-3 sm:grid-cols-3">
         {STEPS.map((s) => (
           <li
             key={s.n}

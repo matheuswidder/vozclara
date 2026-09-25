@@ -21,17 +21,17 @@ transcrever), ela confere se os arquivos ainda estão lá.
    - Carregar sem compactação
    - escolha ESTA pasta (a que contém o manifest.json)
 
-4. Abra o ícone da VozClara → Baixar Turbo (~560 MB).
+4. Abra o ícone da VozClara → Baixar Large Turbo (~560 MB).
    Abre uma aba com a barra de progresso — o ícone pode
    fechar, o download continua. Deixe a aba aberta até Pronto.
 
    No Brave: se o download parar em 0%, libere huggingface.co
    nos Escudos para esta extensão.
 
-   Se o PC for apertado: troque no seletor para Small (~120 MB)
+   Quer mais precisão? Troque no seletor para Large (~1,5 GB)
    e baixe de novo.
 
-5. Pronto · Turbo = modelo neste navegador.
+5. Pronto · Large Turbo = modelo neste navegador.
    Pasta = cópia em Downloads/VozClara.
 
 6. Abra web.whatsapp.com e clique em Transcrever no áudio.
